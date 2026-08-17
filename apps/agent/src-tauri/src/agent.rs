@@ -1518,7 +1518,14 @@ CATEGORY: [pick exactly ONE from: {}]
 
 The LAST line MUST be exactly `CATEGORY: <one label from the list>`. Never omit it. Never leave it blank.
 
-CATEGORY rules: use Coding ONLY for software development (editing code, debugging in an IDE, repo/PR review in a dev tool, programming-focused terminal). Spreadsheets (Excel/Sheets), email, chat, slides, PDFs, CRM, and generic browsing are NOT Coding unless the visible work is clearly programming.]"#,
+CATEGORY rules (follow strictly):
+- Coding: IDEs and AI code editors (Cursor, VS Code, JetBrains, Xcode, Neovim), editing source files, programming terminals (git/cargo/npm), local app development UIs.
+- CodeReview: pull requests, diff review, GitHub/GitLab PR pages.
+- DevOps: CI/CD, GitHub Actions, release pipelines, Docker/K8s ops.
+- Research: Stack Overflow, API docs, technical documentation search (NOT social media).
+- Browsing: ONLY casual/non-work web use (social, news, shopping, YouTube, LinkedIn feed). Safari/Chrome showing GitHub repos, Actions, Releases, or code is NOT Browsing — use Coding, CodeReview, or DevOps.
+- Spreadsheets, email, chat, slides, PDFs, CRM are NOT Coding unless the visible work is clearly programming.
+Never label Cursor, VS Code, or a GitHub engineering page as Browsing or General.]"#,
         current_task, ALLOWED_CATEGORIES
     );
 

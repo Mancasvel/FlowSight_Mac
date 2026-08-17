@@ -31,11 +31,112 @@ pub(crate) fn parse_analysis(raw: &str) -> (String, String) {
 
     let category = extract_category_from_field(&lower)
         .unwrap_or_else(|| infer_category_from_content(&lower));
+    // Local VL models often label IDEs / GitHub / terminals as Browsing or General.
+    // Prefer clear engineering signals over a weak model label.
+    let category = correct_misclassified_category(&category, &lower);
     let category = resolve_persisted_category(&category);
 
     let description = build_structured_description(raw);
 
     (description, category)
+}
+
+/// Override weak/wrong labels when the text clearly shows software-engineering work.
+fn correct_misclassified_category(category: &str, lower: &str) -> String {
+    let weak = matches!(
+        category,
+        "Browsing" | "General" | "Idle" | "Admin" | "Communication"
+    );
+    if weak && looks_like_engineering_work(lower) {
+        return infer_engineering_subcategory(lower);
+    }
+    category.to_string()
+}
+
+fn looks_like_engineering_work(lower: &str) -> bool {
+    const IDE_HINTS: &[&str] = &[
+        "cursor",
+        "visual studio code",
+        "vs code",
+        "vscode",
+        "intellij",
+        "pycharm",
+        "webstorm",
+        "rider",
+        "xcode",
+        "android studio",
+        "neovim",
+        "vim ",
+        "sublime text",
+        "zed ",
+        "warp",
+        "iterm",
+        "terminal.app",
+        "windows terminal",
+    ];
+    if IDE_HINTS.iter().any(|h| lower.contains(h)) {
+        return true;
+    }
+    if lower.contains("github")
+        || lower.contains("gitlab")
+        || lower.contains("bitbucket")
+        || lower.contains("pull request")
+        || lower.contains("code review")
+        || lower.contains("ci/cd")
+        || lower.contains("github actions")
+        || lower.contains("docker")
+        || lower.contains("kubernetes")
+        || lower.contains("pipeline")
+        || (lower.contains("workflow")
+            && (lower.contains("build") || lower.contains("release") || lower.contains("pipeline")))
+    {
+        return true;
+    }
+    if (lower.contains("terminal") || lower.contains("shell"))
+        && (lower.contains("git ")
+            || lower.contains("cargo")
+            || lower.contains("npm ")
+            || lower.contains("pnpm")
+            || lower.contains("rustc")
+            || lower.contains("docker")
+            || lower.contains("kubectl"))
+    {
+        return true;
+    }
+    lower.contains("writing code")
+        || lower.contains("editing code")
+        || lower.contains("source code")
+        || lower.contains(".rs ")
+        || lower.contains(".ts ")
+        || lower.contains(".tsx")
+        || lower.contains(".py ")
+}
+
+fn infer_engineering_subcategory(lower: &str) -> String {
+    if lower.contains("debugger") || lower.contains("breakpoint") {
+        "Debugging".into()
+    } else if lower.contains("pull request")
+        || lower.contains("code review")
+        || lower.contains("reviewing code")
+        || (lower.contains("github") && lower.contains(" pull"))
+    {
+        "CodeReview".into()
+    } else if lower.contains("test suite")
+        || lower.contains("running tests")
+        || lower.contains("test results")
+    {
+        "Testing".into()
+    } else if lower.contains("docker")
+        || lower.contains("kubernetes")
+        || lower.contains("pipeline")
+        || lower.contains("ci/cd")
+        || lower.contains("github actions")
+        || lower.contains("workflow")
+    {
+        "DevOps".into()
+    } else {
+        "Coding".into()
+    }
 }
 
 /// SQLite / emit gate: never persist a blank category.
@@ -124,19 +225,9 @@ fn infer_category_from_content(lower: &str) -> String {
     {
         // Spreadsheets are often miscategorized as "Coding" when the prompt mentions a generic "editor".
         "Admin"
-    } else if lower.contains("writing code")
-        || lower.contains("visual studio code")
-        || lower.contains("vs code")
-        || lower.contains("vscode")
-        || lower.contains("intellij")
-        || lower.contains("pycharm")
-        || lower.contains("webstorm")
-        || lower.contains("rider")
-        || lower.contains("xcode")
-        || lower.contains("android studio")
-        || lower.contains("neovim")
-    {
-        "Coding"
+    } else if looks_like_engineering_work(lower) {
+        // Cursor / VS Code / GitHub / terminals / CI — before generic "browser" heuristics.
+        return infer_engineering_subcategory(lower);
     } else if lower.contains("writing docs") || lower.contains("readme") {
         "Documentation"
     } else if lower.contains("figma") || lower.contains("sketch") || lower.contains("design tool") {
@@ -151,30 +242,30 @@ fn infer_category_from_content(lower: &str) -> String {
     } else if lower.contains("slack") || lower.contains("discord") || lower.contains("email") {
         "Communication"
     } else if lower.contains("stackoverflow")
+        || lower.contains("developer docs")
+        || lower.contains("mdn ")
         || lower.contains("searching")
         || lower.contains("google search")
     {
         "Research"
     } else if lower.contains("tutorial") || lower.contains("course") || lower.contains("learning") {
         "Learning"
-    } else if lower.contains("docker")
-        || lower.contains("kubernetes")
-        || lower.contains("pipeline")
-        || lower.contains("ci/cd")
-    {
-        "DevOps"
     } else if lower.contains("sql") || lower.contains("database") || lower.contains("supabase") {
         "Database"
     } else if lower.contains("crm") || lower.contains("hubspot") {
         "Sales"
     } else if lower.contains("settings") || lower.contains("configuration") {
         "Admin"
-    } else if lower.contains("browser")
-        || lower.contains("chrome")
-        || lower.contains("firefox")
-        || lower.contains("linkedin")
-        || lower.contains("github.com")
+    } else if lower.contains("linkedin")
+        || lower.contains("twitter")
+        || lower.contains("instagram")
+        || lower.contains("youtube")
+        || lower.contains("netflix")
+        || lower.contains("reddit")
+        || ((lower.contains("browser") || lower.contains("chrome") || lower.contains("firefox") || lower.contains("safari"))
+            && !looks_like_engineering_work(lower))
     {
+        // Consumer / social browsing only — never treat GitHub/IDE work as Browsing.
         "Browsing"
     } else if lower.contains("idle") || lower.contains("no activity") || lower.contains("lock screen") {
         "Idle"
@@ -438,6 +529,34 @@ mod tests {
         let (d, c) = parse_analysis(raw);
         assert_eq!(c, "Testing");
         assert!(!d.to_uppercase().contains("CATEGORY"));
+    }
+
+    #[test]
+    fn cursor_ide_not_browsing_even_if_model_says_so() {
+        let raw = "APP: Cursor\nCURRENT ACTION: editing rust in the IDE\nCATEGORY: Browsing";
+        let (_, c) = parse_analysis(raw);
+        assert_eq!(c, "Coding");
+    }
+
+    #[test]
+    fn github_engineering_page_not_browsing() {
+        let raw = "APP: Safari\nVISIBLE CONTENT: GitHub release page for FlowSight Agent\nCATEGORY: Browsing";
+        let (_, c) = parse_analysis(raw);
+        assert_eq!(c, "Coding");
+    }
+
+    #[test]
+    fn github_actions_is_devops() {
+        let raw = "VISIBLE: GitHub Actions workflow pipeline running\nCATEGORY: General";
+        let (_, c) = parse_analysis(raw);
+        assert_eq!(c, "DevOps");
+    }
+
+    #[test]
+    fn linkedin_still_browsing() {
+        let raw = "APP: Chrome\nVISIBLE: linkedin feed\nCATEGORY: Browsing";
+        let (_, c) = parse_analysis(raw);
+        assert_eq!(c, "Browsing");
     }
 
     #[test]

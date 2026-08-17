@@ -10,8 +10,16 @@ use crate::vision_model::LLAMA_CHAT_MODEL_ID;
 
 const FOCUS_CATEGORIES: &[&str] = &[
     "Coding", "Debugging", "CodeReview", "Testing", "Design", "DevOps", "Database",
+    "Documentation", "Research",
 ];
-const DISTRACTION_CATEGORIES: &[&str] = &["Browsing", "Idle"];
+/// Only true leisure browsing counts as distraction. Idle is handled with a
+/// longer session threshold so lock-screen blips do not inflate the metric.
+const DISTRACTION_CATEGORIES: &[&str] = &["Browsing"];
+/// Contiguous focus time (seconds) required to count one deep-focus session.
+const DEEP_FOCUS_STREAK_SECS: i32 = 1800; // 30 minutes across consecutive reports
+/// Contiguous distraction / idle time before counting an event.
+const DISTRACTION_SESSION_MIN_SECS: i32 = 120; // 2 minutes
+const IDLE_SESSION_MIN_SECS: i32 = 300; // 5 minutes
 
 /// Per-section LLM context from SQLite aggregates (separate calls, richer than a single snapshot).
 const LLM_SECTION_STATS_MAX_CHARS: usize = 2800;
@@ -145,6 +153,26 @@ pub fn build_local_insights_report(db_path: &std::path::Path, period_days: i32) 
 
     let mut prev_day: Option<&str> = None;
     let mut prev_category: Option<&str> = None;
+    // Reports are typically ~30–60s each; deep focus must be measured as a
+    // contiguous streak of focus categories, not a single row lasting 30m.
+    let mut focus_streak_secs = 0i32;
+    let mut focus_streak_day: Option<String> = None;
+    let mut distraction_streak_secs = 0i32;
+    let mut idle_streak_secs = 0i32;
+
+    let flush_focus_streak = |streak: &mut i32, deep: &mut i32| {
+        if *streak >= DEEP_FOCUS_STREAK_SECS {
+            *deep += 1;
+        }
+        *streak = 0;
+    };
+    let flush_distraction_streak = |streak: &mut i32, count: &mut i32, secs: &mut i32, min: i32| {
+        if *streak >= min {
+            *count += 1;
+            *secs += *streak;
+        }
+        *streak = 0;
+    };
 
     for (_ts, date, hour, category, description, ticket, dur, synced) in &rows {
         total_seconds += dur;
@@ -165,16 +193,63 @@ pub fn build_local_insights_report(db_path: &std::path::Path, period_days: i32) 
             .and_modify(|s| *s += dur)
             .or_insert(*dur);
 
-        if FOCUS_CATEGORIES.contains(&category.as_str()) {
+        let is_focus = FOCUS_CATEGORIES.contains(&category.as_str());
+        let is_browsing = DISTRACTION_CATEGORIES.contains(&category.as_str());
+        let is_idle = category == "Idle";
+
+        if is_focus {
             focus_seconds += dur;
             *hourly_focus.entry(*hour).or_insert(0) += dur;
-            if *dur >= 1800 {
-                deep_focus_sessions += 1;
+            if focus_streak_day.as_deref() != Some(date.as_str()) {
+                flush_focus_streak(&mut focus_streak_secs, &mut deep_focus_sessions);
+                focus_streak_day = Some(date.clone());
             }
-        }
-        if DISTRACTION_CATEGORIES.contains(&category.as_str()) {
-            distraction_count += 1;
-            distraction_seconds += dur;
+            focus_streak_secs += dur;
+            flush_distraction_streak(
+                &mut distraction_streak_secs,
+                &mut distraction_count,
+                &mut distraction_seconds,
+                DISTRACTION_SESSION_MIN_SECS,
+            );
+            flush_distraction_streak(
+                &mut idle_streak_secs,
+                &mut distraction_count,
+                &mut distraction_seconds,
+                IDLE_SESSION_MIN_SECS,
+            );
+        } else {
+            flush_focus_streak(&mut focus_streak_secs, &mut deep_focus_sessions);
+            focus_streak_day = None;
+            if is_browsing {
+                distraction_streak_secs += dur;
+                flush_distraction_streak(
+                    &mut idle_streak_secs,
+                    &mut distraction_count,
+                    &mut distraction_seconds,
+                    IDLE_SESSION_MIN_SECS,
+                );
+            } else if is_idle {
+                idle_streak_secs += dur;
+                flush_distraction_streak(
+                    &mut distraction_streak_secs,
+                    &mut distraction_count,
+                    &mut distraction_seconds,
+                    DISTRACTION_SESSION_MIN_SECS,
+                );
+            } else {
+                flush_distraction_streak(
+                    &mut distraction_streak_secs,
+                    &mut distraction_count,
+                    &mut distraction_seconds,
+                    DISTRACTION_SESSION_MIN_SECS,
+                );
+                flush_distraction_streak(
+                    &mut idle_streak_secs,
+                    &mut distraction_count,
+                    &mut distraction_seconds,
+                    IDLE_SESSION_MIN_SECS,
+                );
+            }
         }
 
         if let Some(t) = ticket {
@@ -217,6 +292,20 @@ pub fn build_local_insights_report(db_path: &std::path::Path, period_days: i32) 
             ticket: ticket.clone(),
         });
     }
+
+    flush_focus_streak(&mut focus_streak_secs, &mut deep_focus_sessions);
+    flush_distraction_streak(
+        &mut distraction_streak_secs,
+        &mut distraction_count,
+        &mut distraction_seconds,
+        DISTRACTION_SESSION_MIN_SECS,
+    );
+    flush_distraction_streak(
+        &mut idle_streak_secs,
+        &mut distraction_count,
+        &mut distraction_seconds,
+        IDLE_SESSION_MIN_SECS,
+    );
 
     let unticketed_seconds = total_seconds - ticketed_seconds;
     let active_days = daily_map.len() as i32;
