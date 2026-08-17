@@ -30,7 +30,9 @@ TMP="$(mktemp -d)"
 cleanup() { rm -rf "$TMP"; }
 trap cleanup EXIT
 
-echo "[FlowSight] Looking up latest llama.cpp release asset for $ASSET_ARCH…"
+# Use ${ASSET_ARCH} — a bare $ASSET_ARCH… (unicode ellipsis) is parsed as a
+# different parameter name under `set -u` on some CI bash builds.
+echo "[FlowSight] Looking up latest llama.cpp release asset for ${ASSET_ARCH}..."
 API="https://api.github.com/repos/ggml-org/llama.cpp/releases/latest"
 JSON="$(/usr/bin/curl -fsSL "$API")"
 ASSET_URL="$(
@@ -39,6 +41,21 @@ ASSET_URL="$(
     | /usr/bin/head -n1 \
     | /usr/bin/sed -E 's/.*"browser_download_url": "([^"]+)".*/\1/'
 )" || true
+
+verify_llama_arch() {
+  local bin="$1"
+  local want="$2" # arm64 | x86_64
+  local got
+  got="$(/usr/bin/lipo -archs "$bin" 2>/dev/null || true)"
+  if [[ -z "$got" ]]; then
+    got="$(/usr/bin/file -b "$bin")"
+  fi
+  if ! printf '%s' "$got" | /usr/bin/grep -q "$want"; then
+    echo "[FlowSight] ERROR: $bin is '$got' but expected arch $want ($ASSET_ARCH)"
+    exit 1
+  fi
+  echo "[FlowSight] Verified $bin arch: $got"
+}
 
 extract_archive() {
   local archive="$1"
@@ -80,6 +97,11 @@ if [[ -n "${ASSET_URL:-}" ]]; then
     /bin/cp -f "$SERVER_DIR"/*.dylib "$OUT_DIR/" 2>/dev/null || true
     /bin/cp -f "$SERVER_DIR/../lib"/*.dylib "$OUT_DIR/" 2>/dev/null || true
     echo "[FlowSight] Installed $OUT_DIR/llama-server ($ASSET_ARCH)"
+    if [[ "$ASSET_ARCH" == "macos-arm64" ]]; then
+      verify_llama_arch "$OUT_DIR/llama-server" "arm64"
+    else
+      verify_llama_arch "$OUT_DIR/llama-server" "x86_64"
+    fi
     if [[ "${FLOWSIGHT_SKIP_LLM_RUN:-0}" != "1" ]]; then
       "$OUT_DIR/llama-server" --version 2>/dev/null || true
     fi
@@ -88,7 +110,7 @@ if [[ -n "${ASSET_URL:-}" ]]; then
   echo "[FlowSight] Archive had no llama-server; will build from source."
 fi
 
-echo "[FlowSight] Building llama.cpp from source (Metal) for $ASSET_ARCH…"
+echo "[FlowSight] Building llama.cpp from source (Metal) for ${ASSET_ARCH}..."
 if ! command -v cmake >/dev/null 2>&1; then
   echo "cmake is required to build llama.cpp. Install with: brew install cmake"
   exit 1
@@ -110,3 +132,4 @@ cmake --build "$TMP/build" --config Release -j "$(sysctl -n hw.ncpu)" --target l
 /bin/chmod +x "$OUT_DIR/llama-server"
 /bin/cp -f "$TMP/build/bin"/*.dylib "$OUT_DIR/" 2>/dev/null || true
 echo "[FlowSight] Built $OUT_DIR/llama-server ($ASSET_ARCH)"
+verify_llama_arch "$OUT_DIR/llama-server" "$CMAKE_OSX_ARCH"
