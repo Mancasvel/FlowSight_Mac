@@ -1,0 +1,26 @@
+{
+  "name": "@flowsight/agent",
+  "version": "3.6.0",
+  "private": true,
+  "description": "FlowSight Agent — Understand your own Workflows",
+  "scripts": {
+    "vite": "vite",
+    "dev": "tauri dev",
+    "fetch-models": "pnpm exec node ../../scripts/fetch-models.mjs",
+    "build": "tauri build",
+    "test": "cargo test --manifest-path src-tauri/Cargo.toml --lib",
+    "test:coverage": "cargo llvm-cov --manifest-path src-tauri/Cargo.toml --lib --summary-only"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.93.3",
+    "@tauri-apps/api": "2.11.0",
+    "@tauri-apps/plugin-process": "^2.3.0",
+    "@tauri-apps/plugin-updater": "^2.9.0",
+    "jspdf": "^4.1.0"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "2.11.2",
+    "dotenv": "^17.2.3",
+    "vite": "^7.3.1"
+  }
+}

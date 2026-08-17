@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>NSScreenCaptureUsageDescription</key>
+	<string>FlowSight captures your screen locally so the on-device model can summarize your work activity. Images stay on this Mac and are deleted after analysis unless you enable debug capture.</string>
+	<key>NSAppleEventsUsageDescription</key>
+	<string>FlowSight may use Apple Events to identify the frontmost app for privacy-preserving activity summaries.</string>
+	<key>NSDesktopFolderUsageDescription</key>
+	<string>FlowSight only accesses folders you explicitly choose (for example Downloads when exporting a PDF).</string>
+	<key>NSDocumentsFolderUsageDescription</key>
+	<string>FlowSight only accesses folders you explicitly choose.</string>
+	<key>NSDownloadsFolderUsageDescription</key>
+	<string>FlowSight saves exported PDFs to your Downloads folder when you request an export.</string>
+</dict>
+</plist>

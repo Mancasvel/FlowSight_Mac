@@ -1,0 +1,65 @@
+FlowSight Agent — Informe de tests (app_lib)
+Generado: cobertura con cargo llvm-cov --lib --summary-only
+
+================================================================================
+1) RESULTADO DE EJECUCIÓN (cargo test --lib)
+================================================================================
+Estado: TODOS OK
+  - Tests ejecutados: 28
+  - Pasados: 28
+  - Fallidos: 0
+  - Ignorados: 0
+  - Tiempo: < 0.1 s (solo lógica pura / sin E2E)
+
+Desglose por módulo (nombre del test):
+  agent::agent_struct_tests          — config JSON, ActivityReport
+  agent::repetition_tests             — truncate_repetition
+  agent_pure::tests                   — parse_analysis / categorías / descripción
+  auth::oauth_code_parse_tests        — parse_tokens_from_oauth_code
+  context::tests                      — file_hint_from_window_title
+  jira::tests                         — create_oauth_client
+  linear::tests                       — LinearIssue serde
+  oauth_env::tests                    — prioridad TAURI_* vs VITE_*
+  sync::user_session_tests            — UserSession JSON
+  sync_env::tests                     — URL/key Supabase desde env + defaults sin VITE_*
+  sync_pure::tests                    — jwt_exp, truncado, SQL ventana SQLite
+
+================================================================================
+2) COBERTURA DE LÍNEAS (última corrida: cargo llvm-cov --lib --summary-only)
+================================================================================
+TOTAL crate app_lib: 20.11% líneas cubiertas (2636 líneas instrumentadas, 2106 sin cubrir)
+
+Por archivo (líneas, % cubierto):
+  sync_env.rs       100%    — URL/key Supabase (incl. defaults sin env)
+  sync_pure.rs      100%    — JWT, truncado, SQL ventana SQLite
+  agent_pure.rs     99.54%  — parsing de salida del modelo
+  oauth_env.rs      73.68%  — client ids (faltan secretos vía compile-time)
+  context.rs        17.81%  — solo heurística de título; get_system_context sin mock
+  linear.rs         11.70%  — en su mayoría I/O; solo LinearIssue serde testeado
+  agent.rs          7.91%   — captura, visión, servidor local (I/O)
+  auth.rs           8.42%   — OAuth completo sin tests de red
+  jira.rs           6.76%   — OAuth Jira
+  sync.rs           1.95%   — HTTP Supabase, perform_sync (requiere mocks)
+  lib.rs            0%      — solo entry Tauri (normal en unit tests de lib)
+
+Interpretación: el porcentaje global es bajo porque la mayor parte del código es
+integración (HTTP, Tauri, capturas). Los módulos *pure* (sync_pure, agent_pure)
+tienen cobertura alta; subir el % total del crate exige tests de integración con
+mock de red (p. ej. wiremock) y SQLite :memory: para sync.
+
+================================================================================
+3) ACCIONES APLICADAS TRAS EL INFORME
+================================================================================
+  - Warning dead_code en ProviderConfig.name: suprimido con #[allow(dead_code)] + comentario.
+  - sync_env: añadido test defaults_when_supabase_env_unset para cubrir rama por defecto.
+
+================================================================================
+4) CÓMO REPRODUCIR
+================================================================================
+  pnpm test
+  pnpm run test:coverage
+
+Requisitos cobertura: rustup component add llvm-tools-preview
+                        cargo install cargo-llvm-cov
+
+================================================================================

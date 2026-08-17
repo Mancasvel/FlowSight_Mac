@@ -1,0 +1,181 @@
+# ================================
+# Dependencies
+# ================================
+node_modules/
+.pnpm-store/
+credentials.txt
+seed_supabase.sql
+
+# ================================
+# Rust / Tauri
+# ================================
+**/src-tauri/target/
+**/target/
+**/*.rs.bk
+Cargo.lock
+# Application crate: lockfile must be committed so CI matches local Tauri/Rust versions
+!apps/agent/src-tauri/Cargo.lock
+# Herramienta de catálogo de apps (mismo criterio)
+!tools/popular-apps-catalog/Cargo.lock
+# ================================
+# Build outputs
+# ================================
+dist/
+dist-electron/
+dist-macos/
+**/dist/
+*.exe
+# Excepcio\u0301n: los binarios de llama.cpp (llama-server(.exe) + *.dll / *.dylib)
+# son runtime necesario para el agente. Se commitean al repo porque caben
+# en git (max 53 MB, total ~139 MB). Solo los GGUF quedan fuera (ver mas
+# abajo, se distribuyen via GitHub Releases).
+!local_llm/bin/*.exe
+!local_llm/bin/*.dll
+!local_llm/bin/llama-server
+!local_llm/bin/*.dylib
+*.msi
+*.dmg
+*.app
+*.deb
+*.rpm
+*.AppImage
+*.snap
+supabase_schema.sql
+# ================================
+# IDE / Editor
+# ================================
+.idea/
+.vscode/
+.cursor/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+
+# ================================
+# OS files
+# ================================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# ================================
+# Environment / Secrets
+# ================================
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+
+# ================================
+# Logs
+# ================================
+logs/
+*.log
+apps/agent/src-tauri/server.log
+agent_error.log
+internvl_start_test*.log
+local_llm/bin/cli_output.txt
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ================================
+# Local databases
+# ================================
+*.db
+*.sqlite
+*.sqlite3
+data/
+# Salida del generador Rust `tools/popular-apps-catalog`
+!data/popular-apps-catalog.txt
+
+# ================================
+# AI Models (large files — each developer downloads locally)
+# ================================
+models/
+*.bin
+*.gguf
+*.onnx
+*.safetensors
+
+# ================================
+# Runtime binaries (llama.cpp)
+# ================================
+# Nota: los binarios (llama-server.exe + *.dll) SI se commitean;
+# la excepcio\u0301n esta\u0301 arriba en la seccio\u0301n Build outputs.
+# Aqui\u0301 solo excluimos artifacts menores.
+local_llm/bin/cli_output.txt
+
+# Source tree de llama.cpp (si alguna vez lo clonas para experimentar,
+# que no entre al repo: pesa ~5 GB y ya tenemos los binarios vendoreados
+# en local_llm/bin/).
+/llama.cpp/
+local_llm/llama.cpp/
+
+# ================================
+# Diagnostic / debug artifacts (one-off scripts output)
+# ================================
+inspect_output*.txt
+safetensors_keys.txt
+vision_keys.txt
+help_convert.txt
+convert_error.log
+convert_mmproj_error.log
+build_v2.log
+install_full.log
+install.log
+build.log
+error.log
+__pycache__/
+
+# ================================
+# Test artifacts (not part of the app workflow)
+# ================================
+test_input.png
+test_request.json
+test_vision*.json
+test_vision_manual.json
+
+# ================================
+# Temp files
+# ================================
+.tmp/
+temp/
+*.tmp
+*.temp
+*.bak
+
+# ================================
+# Test / Coverage
+# ================================
+coverage/
+.nyc_output/
+
+# ================================
+# Turbo
+# ================================
+.turbo/
+
+# ================================
+# Next.js (if any remnants)
+# ================================
+.next/
+out/
+
+# ================================
+# Misc
+# ================================
+*.pid
+*.seed
+*.pid.lock
+.cache/

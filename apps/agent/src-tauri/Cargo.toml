@@ -1,0 +1,81 @@
+[package]
+name = "app"
+version = "3.6.0"
+description = "FlowSight Agent — Understand your own Workflows"
+authors = ["you"]
+license = ""
+repository = ""
+edition = "2021"
+rust-version = "1.77.2"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+name = "app_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.6", features = [] }
+
+[dev-dependencies]
+temp-env = "0.3"
+tempfile = "3"
+
+[dependencies]
+serde_json = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+log = "0.4"
+tauri = { version = "2.11", features = [] }
+tauri-plugin-log = "2"
+screenshots = "0.8"
+base64 = "0.22"
+chrono = "0.4"
+reqwest = { version = "0.12", features = ["json", "blocking"] }
+image = "0.25"
+rusqlite = { version = "0.32", features = ["bundled"] }
+dirs = "5"
+whoami = "1.5"
+active-win-pos-rs = "0.8"
+oauth2 = "4.4"
+url = "2.5"
+tiny_http = "0.12"
+open = "5.0"
+dotenv = "0.15"
+urlencoding = "2.1"
+uuid = { version = "1", features = ["v4"] }
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+# Self-update via GitHub Releases. Desktop-only: these plugins don't build for mobile targets.
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+tauri-plugin-updater = "2"
+tauri-plugin-process = "2"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = [
+    "Win32_Foundation",
+    "Win32_System_JobObjects",
+    "Win32_Security_Cryptography",
+] }
+# Idiomatic `windows` crate (distinct from `windows-sys` above): needed for the
+# `telemetry` module's UI Automation COM interfaces (`#[implement]`, smart
+# pointers, BSTR) which `windows-sys`'s raw bindings don't provide, and for
+# `crash_guard`'s Vectored Exception Handler.
+windows-core = "0.61"
+windows = { version = "0.61", features = [
+    "Win32_Foundation",
+    "Win32_System_Com",
+    "Win32_System_Threading",
+    "Win32_UI_Accessibility",
+    "Win32_UI_WindowsAndMessaging",
+    # crash_guard: process-wide Vectored Exception Handler that contains
+    # hardware faults (illegal instruction / access violation) coming from
+    # third-party DLLs (e.g. broken Winsock LSPs) instead of letting them
+    # kill the whole process. `AddVectoredExceptionHandler`/`EXCEPTION_POINTERS`
+    # live under `Win32_System_Kernel`, not `Win32_System_Diagnostics_Debug`.
+    "Win32_System_Kernel",
+    "Win32_System_Diagnostics_Debug",
+    "Win32_System_LibraryLoader",
+    "Win32_System_ProcessStatus",
+] }

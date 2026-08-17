@@ -1,0 +1,23 @@
+# Falsos positivos del scan de gitleaks. Revisados uno a uno antes de hacer el
+# repositorio publico. Formato: <commit>:<file>:<rule>:<line>
+
+# Supabase publishable key historica (antigua anon_public). Es publica por
+# diseno, viaja al cliente JS. Su seguridad depende de RLS policies en
+# Supabase, no del secreto de la key. Ademas apps/pm/ ya no existe en main.
+438f74dd1a8d0087fccc49cd022195c1a028842e:apps/pm/src-tauri/src/pm.rs:generic-api-key:884
+
+# pm_test_key_12345: placeholder de test hardcoded en ejemplos. No es una
+# credencial real.
+438f74dd1a8d0087fccc49cd022195c1a028842e:apps/pm/src-tauri/src/pm.rs:generic-api-key:991
+
+# Placeholders de documentacion en READMEs y SETUP.md:
+# - fsa_your_key / fsa_your_api_key: ejemplos de API key en curl commands
+# - sk-or-v1-tu-key-aqui: placeholder en espanol para OpenRouter
+# - abcdef123456: placeholder de Pusher key
+# - ghp_secret123...: placeholder truncado de GitHub token
+e8eeac55b2b67974e24c492e32cbf6e3c9b0c85e:apps/dashboard/README.md:curl-auth-header:348
+7e880bbb861c0c047b5dad2641452e5d59dbc245:AI_QUICKSTART.md:generic-api-key:18
+e8eeac55b2b67974e24c492e32cbf6e3c9b0c85e:README.md:curl-auth-header:317
+e8eeac55b2b67974e24c492e32cbf6e3c9b0c85e:SETUP.md:generic-api-key:133
+e8eeac55b2b67974e24c492e32cbf6e3c9b0c85e:SETUP.md:generic-api-key:138
+e8eeac55b2b67974e24c492e32cbf6e3c9b0c85e:SETUP.md:generic-api-key:148

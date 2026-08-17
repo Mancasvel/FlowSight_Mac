@@ -1,0 +1,83 @@
+# Sync SPONSORS.md when a new Ko-fi donation arrives
+#
+# Trigger: repository_dispatch (called by Ko-fi webhook proxy)
+# Or: manual workflow_dispatch
+#
+# Setup:
+#   1. Create a webhook proxy (e.g., Cloudflare Worker or Vercel function)
+#      that receives Ko-fi webhooks and fires GitHub repository_dispatch
+#   2. Set the WEBHOOK_SECRET in your repo secrets
+#   3. See docs/webhook-setup.md for details
+
+name: Sync Sponsors
+
+on:
+  repository_dispatch:
+    types: [kofi-donation]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # If triggered by Ko-fi, append the new sponsor to sponsors.json
+      - name: Add new sponsor (if from webhook)
+        if: github.event_name == 'repository_dispatch'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const data = JSON.parse(fs.readFileSync('sponsors.json', 'utf-8'));
+
+            const payload = github.event.client_payload;
+            const amount = parseFloat(payload.amount) || 0;
+            const isSub = payload.is_subscription === 'true' || payload.type === 'Subscription';
+
+            let tier = 'supporter';
+            if (isSub) tier = 'monthly';
+            else if (amount >= 15) tier = 'founding';
+            else if (amount >= 5) tier = 'champion';
+
+            const sponsor = {
+              id: `kofi-${payload.kofi_transaction_id || Date.now()}`,
+              name: payload.from_name || 'Anonymous',
+              message: payload.message || '',
+              amount,
+              tier,
+              avatar: null,
+              url: null,
+              timestamp: new Date().toISOString(),
+            };
+
+            // Avoid duplicates
+            if (!data.sponsors.find(s => s.id === sponsor.id)) {
+              data.sponsors.push(sponsor);
+              fs.writeFileSync('sponsors.json', JSON.stringify(data, null, 2));
+              core.info(`Added sponsor: ${sponsor.name} (€${sponsor.amount})`);
+            } else {
+              core.info(`Sponsor already exists: ${sponsor.id}`);
+            }
+
+      - name: Generate SPONSORS.md
+        run: node scripts/sync-sponsors.mjs
+
+      - name: Commit changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add SPONSORS.md sponsors.json
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "chore: update sponsors [skip ci]"
+            git push
+          fi

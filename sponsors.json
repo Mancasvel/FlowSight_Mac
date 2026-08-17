@@ -1,0 +1,22 @@
+{
+  "sponsors": [
+    {
+      "id": "seed-001",
+      "name": "FlowSight Team",
+      "message": "Building privacy-first productivity intelligence 🧠",
+      "amount": 0,
+      "tier": "founder",
+      "avatar": null,
+      "url": null,
+      "timestamp": "2026-05-01T00:00:00Z"
+    }
+  ],
+  "config": {
+    "tiers": {
+      "supporter": { "min": 1, "label": "☕ Supporter", "color": "#a78bfa" },
+      "champion": { "min": 5, "label": "☕☕ Champion", "color": "#f59e0b" },
+      "founding": { "min": 15, "label": "💎 Founding Supporter", "color": "#06b6d4" },
+      "monthly": { "min": 0, "label": "🔄 Monthly Backer", "color": "#ec4899" }
+    }
+  }
+}

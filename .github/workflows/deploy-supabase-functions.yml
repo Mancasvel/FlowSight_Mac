@@ -1,0 +1,74 @@
+name: Deploy Supabase Edge Functions
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "supabase/functions/**"
+      - ".github/workflows/deploy-supabase-functions.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-supabase-functions
+  cancel-in-progress: true
+
+# GitHub repo secrets (Settings → Secrets and variables → Actions):
+#   SUPABASE_ACCESS_TOKEN     — Personal access token with Supabase deploy scope
+#   SUPABASE_PROJECT_REF      — e.g. dzpyrdxelcgfpmcdojvb
+#
+# AI Coach (coach-chat) — Azure OpenAI (NOT baked into the Tauri app):
+#   AZURE_OPENAI_API_KEY
+#   AZURE_OPENAI_ENDPOINT     — optional, defaults in function code
+#   AZURE_OPENAI_DEPLOYMENT   — optional, defaults to Mistral-Large-3
+#
+# Individual PM reports (generate-insights):
+#   OPENROUTER_API_KEY
+#   OPENROUTER_MODEL          — optional
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Link Supabase project
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+        run: supabase link --project-ref "$SUPABASE_PROJECT_REF"
+
+      - name: Set Edge Function secrets
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          AZURE_OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
+          AZURE_OPENAI_ENDPOINT: ${{ secrets.AZURE_OPENAI_ENDPOINT }}
+          AZURE_OPENAI_DEPLOYMENT: ${{ secrets.AZURE_OPENAI_DEPLOYMENT }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          OPENROUTER_MODEL: ${{ secrets.OPENROUTER_MODEL }}
+        run: |
+          set -euo pipefail
+          SECRETS=()
+          [ -n "${AZURE_OPENAI_API_KEY:-}" ] && SECRETS+=("AZURE_OPENAI_API_KEY=${AZURE_OPENAI_API_KEY}")
+          [ -n "${AZURE_OPENAI_ENDPOINT:-}" ] && SECRETS+=("AZURE_OPENAI_ENDPOINT=${AZURE_OPENAI_ENDPOINT}")
+          [ -n "${AZURE_OPENAI_DEPLOYMENT:-}" ] && SECRETS+=("AZURE_OPENAI_DEPLOYMENT=${AZURE_OPENAI_DEPLOYMENT}")
+          [ -n "${OPENROUTER_API_KEY:-}" ] && SECRETS+=("OPENROUTER_API_KEY=${OPENROUTER_API_KEY}")
+          [ -n "${OPENROUTER_MODEL:-}" ] && SECRETS+=("OPENROUTER_MODEL=${OPENROUTER_MODEL}")
+          if [ "${#SECRETS[@]}" -eq 0 ]; then
+            echo "::warning::No function secrets configured in GitHub Actions — set AZURE_OPENAI_API_KEY at minimum."
+          else
+            supabase secrets set "${SECRETS[@]}"
+          fi
+
+      - name: Deploy coach-chat
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: supabase functions deploy coach-chat
+
+      - name: Deploy generate-insights
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: supabase functions deploy generate-insights

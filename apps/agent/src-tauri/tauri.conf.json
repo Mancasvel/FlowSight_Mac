@@ -1,0 +1,84 @@
+{
+  "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
+  "productName": "FlowSight Agent",
+  "version": "3.6.0",
+  "identifier": "ai.flowsight.agent",
+  "build": {
+    "frontendDist": "../dist",
+    "devUrl": "http://127.0.0.1:1420",
+    "beforeDevCommand": "corepack pnpm --filter @flowsight/agent vite",
+    "beforeBuildCommand": "corepack pnpm --filter @flowsight/agent exec node ../../scripts/fetch-models.mjs && corepack pnpm --filter @flowsight/agent vite build"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "FlowSight — Understand your own Workflows",
+        "width": 370,
+        "height": 700,
+        "resizable": true,
+        "fullscreen": false,
+        "minWidth": 340,
+        "minHeight": 400,
+        "decorations": false,
+        "theme": "Light",
+        "backgroundColor": "#FAFAFA"
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["app", "dmg"],
+    "createUpdaterArtifacts": false,
+    "windows": {
+      "webviewInstallMode": {
+        "type": "offlineInstaller",
+        "silent": true
+      }
+    },
+    "macOS": {
+      "minimumSystemVersion": "12.0",
+      "entitlements": "Entitlements.plist",
+      "infoPlist": "Info.plist",
+      "dmg": {
+        "appPosition": {
+          "x": 180,
+          "y": 170
+        },
+        "applicationFolderPosition": {
+          "x": 480,
+          "y": 170
+        },
+        "windowSize": {
+          "width": 660,
+          "height": 400
+        }
+      }
+    },
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "resources": {
+      "../../../local_llm/bin/*": "local_llm/bin/",
+      "../../../local_llm/Qwen3-VL-2B-Instruct-Q3_K_M.gguf": "local_llm/Qwen3-VL-2B-Instruct-Q3_K_M.gguf",
+      "../../../local_llm/mmproj-Qwen3VL-2B-Instruct-Q8_0.gguf": "local_llm/mmproj-Qwen3VL-2B-Instruct-Q8_0.gguf"
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEQzQjY4MDk5MDFDN0UxNkYKUldSdjRjY0JtWUMyMDAzY0VFeXUxVHRXMkZPeVJJVVcrOVZpdnR5Ym9wWldaOEk1M0pEajkrR3AK",
+      "endpoints": [
+        "https://github.com/Mancasvel/FlowSight_Mac/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
+  }
+}

@@ -1,0 +1,284 @@
+# Apps y servicios muy extendidos entre el público general (suplemento curado).
+# Una entrada por línea; se fusiona y deduplica con el extracto Business of Apps.
+
+Reddit
+Discord
+Slack
+Skype
+LINE
+KakaoTalk
+Zalo
+Viber
+Signal
+WeCom
+Microsoft Yammer
+Workplace from Meta
+Microsoft Edge
+Mozilla Firefox
+Brave
+Opera
+DuckDuckGo Browser
+Samsung Internet
+Arc Search
+Disney+
+Apple TV+
+Peacock
+Paramount+
+Hulu
+Crunchyroll
+Funimation
+iQIYI
+Youku
+Twitch
+Tubi
+Pluto TV
+Roku
+Sling TV
+BritBox
+Stan
+Binge
+Apple Music
+Amazon Music
+Deezer
+Tidal
+Pandora
+Anghami
+Wynk Music
+Gaana
+Hungama
+Musixmatch
+Genius
+Coursera
+Udemy
+Khan Academy
+Skillshare
+Codecademy
+SoloLearn
+Grasshopper
+edX
+MasterClass
+Rosetta Stone
+Busuu
+Memrise
+Babbel
+Angry Birds
+Temple Run
+Fruit Ninja
+Fortnite
+Among Us
+Stumble Guys
+Brawl Stars
+Clash of Clans
+Clash Royale
+Hay Day
+Boom Beach
+Pokémon GO
+Pokémon TCG Pocket
+Pokémon UNITE
+Diablo Immortal
+Hearthstone
+Call of Duty: Mobile
+Genshin Impact
+Honkai: Star Rail
+Zenless Zone Zero
+Marvel Snap
+EA Sports FC
+Monopoly GO
+Coin Master
+Words With Friends
+Wordscapes
+NYT Games
+Roblox Studio app
+Minecraft Launcher
+Steam
+Steam Mobile
+Epic Games Store
+Xbox
+PlayStation App
+Nintendo Switch Online
+Ubisoft Connect
+Battle.net
+GeForce NOW
+Amazon Luna
+WinRAR
+7-Zip
+PeaZip
+VLC media player
+PotPlayer
+OBS Studio
+GIMP
+Inkscape
+Blender
+Audacity
+Notepad++
+Sublime Text
+Visual Studio Code
+Cursor
+IntelliJ IDEA
+Android Studio
+Xcode
+Unity Hub
+Godot Engine
+Figma
+Sketch
+Adobe Creative Cloud
+Adobe Acrobat Reader
+Foxit PDF Reader
+Sumatra PDF
+Microsoft Outlook
+Microsoft OneNote
+Microsoft To Do
+Google Calendar
+Google Keep
+Google Chat
+Google Voice
+Google Pay
+Samsung Pay
+Apple Wallet
+Garmin Connect
+Fitbit
+Strava
+MyFitnessPal
+Peloton
+Apple Fitness+
+Samsung Health
+Google Fit
+Calm
+Headspace
+Insight Timer
+Tinder
+OkCupid
+Plenty of Fish
+Match.com
+Hinge
+Happn
+Feeld
+Coinbase
+Crypto.com
+Robinhood
+Webull
+TradingView
+Wise
+Venmo
+Cash App
+Chime
+N26
+Monzo
+Starling Bank
+Nubank
+Payoneer
+Western Union
+Etsy
+eBay
+Wish
+Walmart
+Target
+Best Buy
+Costco
+Carrefour
+Tesco
+Instacart
+Shipt
+Grubhub
+Just Eat
+Deliveroo
+Postmates
+Glovo
+Rappi
+iFood
+PedidosYa
+GoPuff
+Lyft
+DiDi
+Ola
+Careem
+Beat
+Free Now
+Hopper
+Kayak
+Expedia
+Hotels.com
+Trivago
+Agoda
+Skyscanner
+Hostelworld
+Ryanair
+easyJet
+United Airlines
+Delta Fly
+American Airlines
+Southwest Airlines
+Spirit Airlines
+Vrbo
+My Verizon
+T-Mobile
+AT&T
+Xfinity
+QuickBooks
+FreshBooks
+Xero
+CNBC
+Bloomberg
+Yahoo Finance
+Credit Karma
+Norton 360
+McAfee
+Bitdefender
+Malwarebytes
+NordVPN
+ExpressVPN
+Surfshark
+Proton VPN
+Tailscale
+Proton Mail
+Tutanota
+Dropbox
+Box
+pCloud
+MEGA
+Synology Drive
+Joplin
+Obsidian
+Standard Notes
+Craft Docs
+Logseq
+Linear
+Height
+Asana
+ClickUp
+Monday.com
+Notion Calendar
+Cron
+Webex
+Dialpad
+RingCentral
+Nextdoor
+Ring
+SimpliSafe
+Reolink
+Eufy Security
+Wyze
+Tapo
+Philips Hue
+LG ThinQ
+SmartThings
+Google Home
+Ecobee
+Sonos
+Anchor
+InShot
+VN Video Editor
+YouCut
+KineMaster
+PowerDirector
+Lightroom
+Snapseed
+PicsArt
+VSCO
+Facetune
+FaceApp
+BBC Sounds
+NPR One
+Flipboard
+SmartNews
+Ground News

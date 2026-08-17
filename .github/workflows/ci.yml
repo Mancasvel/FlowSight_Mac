@@ -1,0 +1,45 @@
+name: CI — macOS
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-macos-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 8.15.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: apps/agent/src-tauri -> target
+
+      - name: Prepare macOS llama-server (Metal)
+        run: bash scripts/prepare-macos-llm.sh
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Cargo check
+        run: cargo check --manifest-path apps/agent/src-tauri/Cargo.toml
+
+      - name: Unit tests
+        run: cargo test --manifest-path apps/agent/src-tauri/Cargo.toml --lib

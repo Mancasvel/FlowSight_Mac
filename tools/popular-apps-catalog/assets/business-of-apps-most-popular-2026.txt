@@ -1,0 +1,1000 @@
+Most Popular Apps (2026) - Business of Apps
+
+# Most Popular Apps (2026)
+
+The Apple App Store and Google Play Store are made up of millions of apps, but the vast majority get less than 1,000 downloads. For the select few that reach the top, millions of people download them every year, and dedicated teams are needed to turn those downloads into regular users.
+
+At the beginning of both app stores, the most popular apps tended to be either games or ports of popular web services, such as Facebook, Google and YouTube.
+
+The first mobile-first apps to make a big dent were Instagram, WhatsApp and Shazam, all three taking advantage of the phone’s sensors to enhance the experience.
+
+Mobile games, such as Angry Birds, Temple Run and Fruit Ninja were very popular in the early years of the smartphone, again using the sensors to add gameplay elements. These apps tended to be paid-for, rather than freemium, although all changed to an ad or in-app purchase service.
+
+The mid-2010s saw the growth of Snapchat a new form of messaging, specifically tailored for the younger generation with disappearing messages, 24 hour stories and other time-based content. TikTok, which started as Musical.ly in the West, brought short-form video sharing to the masses.
+
+Experiences that were once made for TV only were ported to mobile, including Netflix, Amazon Prime Video and Fortnite. Older console games regularly were ported to mobile, as a way for game developers to make money from older IP.
+
+The apps and games market had stayed more or less the same from the pandemic to 2024, with the same few apps hitting the top 10 spot. A major deviation happened in 2025 with the growth of generative AI services, with ChatGPT and Google Gemini both making the top 10.
+
+We have collected data and statistics on the most popular apps. Read on below to find out more. Want an overview of the entire app economy? [Check out our App Data report](https://www.businessofapps.com/data/report-app-data/?utm_source=appdata&utm_medium=click&utm_campaign=hyperlink).
+
+## Most Popular Apps Key Statistics
+
+- ChatGPT was the most downloaded app globally in 2025 with 770 million downloads
+- Block Blast was the most downloaded game in 2025 with 303 million downloads
+- ChatGPT was the most downloaded app on both iOS and Google Play in 2025
+- ChatGPT was the most downloaded app in US, UK, Germany, France, Italy, Spain and Canada
+- TikTok was the most popular app in Brazil, Mexico and Indonesia
+- In China, the most popular app was WeChat with over one billion users
+- Five of the 15 most downloaded apps of 2025 were published by Meta
+
+## Most Popular Apps
+
+ChatGPT was the most popular app in 2025, surpassing TikTok and Instagram with 770 million downloads worldwide.
+
+| App | Downloads (mm) |
+| --- | --- |
+| ChatGPT | 770 |
+| TikTok | 644 |
+| Instagram | 521 |
+| Facebook | 431 |
+| WhatsApp | 405 |
+| Temu | 363 |
+| Google Gemini | 354 |
+| CapCut | 334 |
+| Block Blast | 303 |
+| Telegram | 297 |
+| Snapchat | 275 |
+| Threads | 274 |
+| Roblox | 262 |
+| WhatsApp Business | 247 |
+| Free Fire | 247 |
+
+Sources: [App Data Report](https://www.businessofapps.com/data/report-app-data/?utm_source=appdata&utm_medium=click&utm_campaign=hyperlink), [Appfigures](https://www.businessofapps.com/marketplace/appfigures/), [AppMagic](https://appmagic.rocks/product-deck)
+
+## Most Popular Apps by Platform
+
+### Most Popular iOS Apps 2025
+
+ChatGPT was the most downloaded app on iOS with 217 million downloads. Google Gemini, a rival to ChatGPT, came second.
+
+| App | Downloads (mm) |
+| --- | --- |
+| ChatGPT | 217 |
+| Google Gemini | 164 |
+| Threads | 130 |
+| CapCut | 109 |
+| Google Maps | 104 |
+| Temu | 103 |
+| Google | 97 |
+| TikTok | 96 |
+| Block Blast | 89 |
+| Cici | 86 |
+| Google Chrome | 72 |
+| DeepSeek | 70 |
+| Telegram | 70 |
+| Gmail | 66 |
+| WhatsApp | 66 |
+
+Sources: [App Data Report](https://www.businessofapps.com/data/report-app-data/?utm_source=appdata&utm_medium=click&utm_campaign=hyperlink), [Appfigures](https://www.businessofapps.com/marketplace/appfigures/), [AppMagic](https://appmagic.rocks/product-deck)
+
+### Most Popular Google Play Apps 2025
+
+ChatGPT was also the most popular app on Google Play in 2025. Surprisingly Google Gemini was much further down the rankings on this list, with TikTok and Instagram behind ChatGPT.
+
+| App | Downloads (mm) |
+| --- | --- |
+| ChatGPT | 553 |
+| TikTok | 549 |
+| Instagram | 456 |
+| Facebook | 378 |
+| WhatsApp | 340 |
+| Temu | 261 |
+| Snapchat | 233 |
+| Telegram | 227 |
+| CapCut | 225 |
+| Free Fire | 218 |
+| WhatsApp Business | 215 |
+| Block Blast | 214 |
+| Roblox | 199 |
+| Google Gemini | 190 |
+| Subway Surfers | 159 |
+
+Sources: [Appfigures](https://www.businessofapps.com/marketplace/appfigures/), [AppMagic](https://appmagic.rocks/product-deck)
+
+## Most Popular App by Category
+
+In this section, we take a look at the most popular apps by app category.
+
+### Most Popular Games 2025
+
+Block Blast was the most popular game in 2025 with over 300 million downloads, knocking Roblox off the top spot.
+
+| App | Downloads (mm) |
+| --- | --- |
+| Block Blast | 303 |
+| Roblox | 262 |
+| Free Fire | 247 |
+| Pizza Ready | 154 |
+| Ludo King | 138 |
+| Vita Mahjong | 119 |
+| Hole.io | 111 |
+| My Talking Tom 2 | 106 |
+| 8 Ball Pool | 102 |
+| Snake Clash | 100 |
+| EA Sports FC Mobile | 100 |
+| Candy Crush Saga | 98 |
+| PUBG Mobile | 93 |
+| FPS Strike Ops | 93 |
+| Mobile Legends: Bang Bang | 90 |
+
+Sources: [Appfigures](https://www.businessofapps.com/marketplace/appfigures/), [AppMagic](https://appmagic.rocks/product-deck)
+
+### Most Popular Social Apps 2025
+
+TikTok was the most popular social app for another year, clocking in 644 million downloads worldwide.
+
+| App | Downloads (mm) |
+| --- | --- |
+| TikTok | 644 |
+| Instagram | 521 |
+| Facebook | 431 |
+| WhatsApp | 405 |
+| Telegram | 297 |
+| Snapchat | 275 |
+| Threads | 274 |
+| Pinterest | 195 |
+| Messenger | 193 |
+| X | 123 |
+
+Sources: [Appfigures](https://www.businessofapps.com/marketplace/appfigures/), [AppMagic](https://appmagic.rocks/product-deck)
+
+### Most Popular Entertainment Apps 2025
+
+Spotify was the top entertainment app of the year, beating out newcomers DramaBox and ReelShort offering short-form TV content.
+
+| App | Downloads (mm) |
+| --- | --- |
+| Spotify | 215 |
+| DramaBox | 178 |
+| ReelShort | 148 |
+| Netflix | 147 |
+| Kuku TV | 121 |
+| JioHotstar | 118 |
+| YouTube Kids | 115 |
+| Amazon Prime Video | 105 |
+| YouTube | 99 |
+| DramaWave | 90 |
+
+Sources: [Appfigures](https://www.businessofapps.com/marketplace/appfigures/), [AppMagic](https://appmagic.rocks/product-deck)
+
+### Most Popular Music & Audio Apps 2025
+
+Spotify holds the top spot in the music & audio category by a large margin, as the most popular music streaming platform worldwide.
+
+| App | Downloads (mm) |
+| --- | --- |
+| Spotify | 215 |
+| StarMaker | 76 |
+| DDMusic | 73 |
+| YouTube Music | 72 |
+| Lark Player | 53 |
+| Shazam | 51 |
+| Soda Music | 48 |
+| SoundCloud | 40 |
+| JioSaavn | 34 |
+| BandLab | 32 |
+
+Sources: [Appfigures](https://www.businessofapps.com/marketplace/appfigures/), [AppMagic](https://appmagic.rocks/product-deck)
+
+### Most Popular Shopping Apps 2025
+
+Temu had another year at the top of the shopping charts with 363 million downloads.
+
+| App | Downloads (mm) |
+| --- | --- |
+| Temu | 363 |
+| Shein | 154 |
+| Amazon | 141 |
+| Meesho | 124 |
+| Flipkart | 90 |
+| Alibaba | 87 |
+| AliExpress | 81 |
+| Shopee | 79 |
+| Mercado Libre | 59 |
+| Myntra | 46 |
+
+Sources: [Appfigures](https://www.businessofapps.com/marketplace/appfigures/), [AppMagic](https://appmagic.rocks/product-deck)
+
+### Most Popular Food & Drink Apps 2025
+
+McDonalds remained the most downloaded food & drink app of 2025, although the real story is the amount of Indian rapid delivery apps in the top 10, showing a huge demand for this service.
+
+| App | Downloads (mm) |
+| --- | --- |
+| McDonald's | 89 |
+| Blinkit | 82 |
+| Zepto | 56 |
+| Zomato | 46 |
+| Uber Eats | 43 |
+| bigbasket | 43 |
+| Instamart | 43 |
+| Swiggy | 38 |
+| Domino's Pizza | 38 |
+| DoorDash | 27 |
+
+Sources: [Appfigures](https://www.businessofapps.com/marketplace/appfigures/), [AppMagic](https://appmagic.rocks/product-deck)
+
+### Most Popular Travel Apps 2025
+
+Uber was the most popular travel app in 2025 with 137 million people downloading the app. Airbnb was the most popular hotel and rental app.
+
+| App | Downloads (mm) |
+| --- | --- |
+| Uber | 137 |
+| Airbnb | 66 |
+| Where is my Train | 63 |
+| inDrive | 62 |
+| Booking | 59 |
+| Grab | 54 |
+| Rapido | 53 |
+| Bolt | 44 |
+| Trip.com | 41 |
+| Moovit | 27 |
+
+Sources: [Appfigures](https://www.businessofapps.com/marketplace/appfigures/), [AppMagic](https://appmagic.rocks/product-deck)
+
+### Most Popular Education Apps 2025
+
+Duolingo was the top education app for another year, way ahead of other apps such as Seekho and Gauth AI.
+
+| App | Downloads (mm) |
+| --- | --- |
+| Duolingo | 178 |
+| Seekho | 92 |
+| Gauth AI | 51 |
+| Learna | 32 |
+| Google Classroom | 30 |
+| Quizlet | 26 |
+| Guru | 23 |
+| Minecraft Education | 23 |
+| Impulse | 22 |
+| Photomath | 19 |
+
+Sources: [Appfigures](https://www.businessofapps.com/marketplace/appfigures/), [AppMagic](https://appmagic.rocks/product-deck)
+
+### Most Popular Dating Apps 2025
+
+Tinder remains the most popular dating app worldwide with 60 million downloads, and extended the gap between it in other competitors in 2025.
+
+| App | Downloads (mm) |
+| --- | --- |
+| Tinder | 60 |
+| Bumble | 28 |
+| FRND | 21 |
+| Badoo | 20 |
+| Hinge | 19 |
+| Boo | 18 |
+| Omi | 16 |
+| PopUp | 12 |
+| Grindr | 12 |
+| VoiceClub | 12 |
+
+Sources: [Appfigures](https://www.businessofapps.com/marketplace/appfigures/), [AppMagic](https://appmagic.rocks/product-deck)
+
+### Most Popular Health & Fitness Apps 2025
+
+Female health app Flo topped the charts for another year with 52 million downloads, with community activity tracking app Strava close behind.
+
+| App | Downloads (mm) |
+| --- | --- |
+| Flo | 52 |
+| Strava | 50 |
+| Mi Fitness | 38 |
+| Home Workout No Equipment | 26 |
+| Sweatcoin | 24 |
+| fitpro | 24 |
+| Da Fit | 23 |
+| Hiwatch Pro | 22 |
+| HryFine | 21 |
+| MyFitnessPal | 20 |
+
+Sources: [Appfigures](https://www.businessofapps.com/marketplace/appfigures/), [AppMagic](https://appmagic.rocks/product-deck)
+
+### Most Popular Finance Apps 2025
+
+PhonePe was the most popular finance app for the fourth year running with 95 million downloads in 2025.
+
+| App | Downloads (mm) |
+| --- | --- |
+| PhonePe | 95 |
+| Google Wallet | 79 |
+| Airtel Thanks | 72 |
+| PayPal | 64 |
+| Navi | 58 |
+| UnionPay | 44 |
+| DANA Indonesia | 43 |
+| Paytm | 42 |
+| Binance | 41 |
+| Revolut | 38 |
+
+Sources: [Appfigures](https://www.businessofapps.com/marketplace/appfigures/), [AppMagic](https://appmagic.rocks/product-deck)
+
+### Most Popular Business Apps 2025
+
+WhatsApp Business was once again the most installed business app with over 200 million downloads in 2025.
+
+| App | Downloads (mm) |
+| --- | --- |
+| WhatsApp Business | 247 |
+| Zoom | 144 |
+| Microsoft Teams | 119 |
+| TikTok Studio | 73 |
+| Google Meet | 67 |
+| LinkedIn | 66 |
+| YouTube Studio | 59 |
+| Indeed Job Search | 56 |
+| Uber Driver | 36 |
+| Meta Business Suite | 27 |
+
+Sources: [Appfigures](https://www.businessofapps.com/marketplace/appfigures/), [AppMagic](https://appmagic.rocks/product-deck)
+
+### Most Popular AI Apps 2025
+
+ChatGPT was the most popular AI app with more than double the downloads of the next gen AI app, Google Gemini.
+
+| App | Downloads (mm) |
+| --- | --- |
+| ChatGPT | 770 |
+| Google Gemini | 354 |
+| Cici | 150 |
+| DeepSeek | 118 |
+| Grok | 72 |
+| Perplexity | 67 |
+| PixVerse | 55 |
+| Microsoft Copilot | 51 |
+| Nova AI | 41 |
+| Meta AI Vibes | 39 |
+| Seekee | 38 |
+| Suno | 32 |
+
+Sources: [Appfigures](https://www.businessofapps.com/marketplace/appfigures/), [AppMagic](https://appmagic.rocks/product-deck)
+
+### Most Popular Productivity Apps 2025
+
+Google Sheets was the most popular productivity app in 2025 with 73 million downloads, just ahead of Microsoft Word.
+
+| App | Downloads (mm) |
+| --- | --- |
+| Google Sheets | 73 |
+| Microsoft Word | 69 |
+| WPS Office | 66 |
+| Google Docs | 63 |
+| Microsoft Excel | 52 |
+| Microsoft PowerPoint | 33 |
+| Google Slides | 21 |
+| Notion | 17 |
+| Goodnotes | 13 |
+| Google NotebookLM | 13 |
+
+Sources: [Appfigures](https://www.businessofapps.com/marketplace/appfigures/), [AppMagic](https://appmagic.rocks/product-deck)
+
+### Most Popular Tools Apps 2025
+
+Spam detector and phone number lookup Truecaller was the most popular tools app in 2025 with 144 million downloads, the majority came from India.
+
+| App | Downloads (mm) |
+| --- | --- |
+| Truecaller | 144 |
+| SHAREit | 128 |
+| Google Chrome | 107 |
+| Google | 107 |
+| TeraBox | 93 |
+| Google Translate | 86 |
+| QR & Barcode Scanner | 85 |
+| Google Authenticator | 81 |
+| Super Unlimited Proxy | 77 |
+| Proxy Browser | 75 |
+
+Sources: [Appfigures](https://www.businessofapps.com/marketplace/appfigures/), [AppMagic](https://appmagic.rocks/product-deck)
+
+### Most Popular Sports Apps 2025
+
+Dream11, an Indian fantasy sports app, was the most downloaded sports app in 2025 with 40 million downloads.
+
+| App | Downloads (mm) |
+| --- | --- |
+| Dream11 | 40 |
+| DAZN | 27 |
+| My11Circle | 22 |
+| Flashscore | 22 |
+| Sofascore | 22 |
+| Tamasha | 20 |
+| CREX | 17 |
+| ESPN | 16 |
+| Cricbuzz | 15 |
+| bet365 | 14 |
+
+Sources: [Appfigures](https://www.businessofapps.com/marketplace/appfigures/), [AppMagic](https://appmagic.rocks/product-deck)
+
+### Most Popular Navigation Apps 2025
+
+Google Maps was the most popular navigation app in 2025 with 114 million downloads. Google’s other navigation app, Waze, was in second place.
+
+| App | Downloads (mm) |
+| --- | --- |
+| Google Maps | 114 |
+| Waze | 69 |
+| Life360 | 59 |
+| GPS Map Camera | 45 |
+| Google Earth | 43 |
+| Google's Find Hub | 38 |
+| AutoNavi Global | 26 |
+| 2GIS | 16 |
+| Yandex Maps | 14 |
+| Radarbot | 14 |
+
+Sources: [Appfigures](https://www.businessofapps.com/marketplace/appfigures/), [AppMagic](https://appmagic.rocks/product-deck)
+
+## Most Popular App Publishers
+
+Google was the app publisher with the most total downloads, surpassing Meta Platforms for the first time.
+
+| Publishers | Downloads (mm) |
+| --- | --- |
+| Google | 2,654 |
+| Meta | 2,536 |
+| ByteDance | 2,184 |
+| AZUR Games | 1,390 |
+| Miniclip.com | 1,059 |
+| OpenAI | 1,006 |
+| BabyBus | 990 |
+| VOODOO | 882 |
+| SayGames | 837 |
+| Tencent | 803 |
+
+## Most Popular Apps by Country
+
+In this section, we take a look at the most popular apps in each country.
+
+### Most Popular Apps in United States 2025
+
+ChatGPT was the most popular app in the United States in 2025, with rival Gemini in second place.
+
+| App | Downloads (mm) |
+| --- | --- |
+| ChatGPT | 74 |
+| Gemini | 44 |
+| TikTok | 39 |
+| Threads | 34 |
+| WhatsApp | 29 |
+| Block Blast | 28 |
+| Temu | 26 |
+| Instagram | 24 |
+| CapCut | 23 |
+| Google | 22 |
+
+Sources: [Appfigures](https://www.businessofapps.com/marketplace/appfigures/), [AppMagic](https://appmagic.rocks/product-deck)
+
+### Most Popular Apps in United Kingdom 2025
+
+ChatGPT had more than double the downloads of the next most popular app in the UK, which was rival Gemini. Last year’s top app Temu was in third place with six million downloads.
+
+| App | Downloads (mm) |
+| --- | --- |
+| ChatGPT | 14 |
+| Gemini | 6.1 |
+| Temu | 6 |
+| GOV.UK One Login | 5.2 |
+| Block Blast | 4.6 |
+| TikTok | 4.6 |
+| Ticketmaster | 4.4 |
+| GOV.UK ID Check | 4.1 |
+| Vinted | 4.1 |
+| CapCut | 3.9 |
+
+Sources: [Appfigures](https://www.businessofapps.com/marketplace/appfigures/), [AppMagic](https://appmagic.rocks/product-deck)
+
+### Most Popular Apps in China 2025
+
+Superapp WeChat is the only app in China with over one billion users. Alibaba’s main ecommerce channel Taobao had over 900 million users.
+
+| App | Users (mm) |
+| --- | --- |
+| WeChat | 1075 |
+| Taobao | 924 |
+| AliPay | 886 |
+| Douyin | 848 |
+| Pinduoduo | 663 |
+| Baidu Maps | 612 |
+| Auto Navi Maps | 611 |
+| Kuaishou | 592 |
+| JD | 555 |
+| QQ | 552 |
+
+Note: Only covers Android MAUs. Source: [AppInChina](https://appinchina.co/market/apps/)
+
+### Most Popular Apps in India 2025
+
+Even though ChatGPT had over 100 million downloads in India, it couldn’t knock Instagram off the top spot.
+
+| App | Downloads (mm) |
+| --- | --- |
+| Instagram | 165 |
+| ChatGPT | 152 |
+| JioHotstar | 111 |
+| Kuku TV | 106 |
+| Meesho | 102 |
+| Facebook | 91 |
+| PhonePe | 82 |
+| Seekho | 79 |
+| WhatsApp | 77.8 |
+| Flipkart | 77.7 |
+
+Sources: [Appfigures](https://www.businessofapps.com/marketplace/appfigures/), [AppMagic](https://appmagic.rocks/product-deck)
+
+### Most Popular Apps in Brazil 2025
+
+ChatGPT wasn’t as popular in Brazil, with TikTok and Temu both ahead of it in total downloads.
+
+| App | Downloads (mm) |
+| --- | --- |
+| TikTok | 53 |
+| Temu | 45 |
+| ChatGPT | 42 |
+| Instagram | 35 |
+| gov.br | 30 |
+| Google Gemini | 24 |
+| Roblox | 24 |
+| Mercado Libre | 23.4 |
+| Shopee | 23 |
+| CapCut | 22.6 |
+
+Sources: [Appfigures](https://www.businessofapps.com/marketplace/appfigures/), [AppMagic](https://appmagic.rocks/product-deck)
+
+### Most Popular Apps in Germany 2025
+
+ChatGPT was by far the most popular app in Germany, with double the downloads of second place Temu.
+
+| App | Downloads (mm) |
+| --- | --- |
+| ChatGPT | 21 |
+| Temu | 11 |
+| TikTok | 7.8 |
+| Google Gemini | 6.6 |
+| CapCut | 6.5 |
+| Blitzer.de | 6.5 |
+| Threads | 6 |
+| Post & DHL | 5.5 |
+| Lidl Plus | 5.3 |
+| Block Blast | 5.3 |
+
+Sources: [Appfigures](https://www.businessofapps.com/marketplace/appfigures/), [AppMagic](https://appmagic.rocks/product-deck)
+
+### Most Popular Apps in France 2025
+
+The two main chatbots also featured in first and second place in France, ChatGPT taking the top spot.
+
+| App | Downloads (mm) |
+| --- | --- |
+| ChatGPT | 25 |
+| Google Gemini | 13 |
+| Temu | 11 |
+| Block Blast | 8.5 |
+| France Identite | 6.5 |
+| Wero Wallet | 6.4 |
+| Threads | 5.9 |
+| TikTok | 5.8 |
+| CapCut | 5.8 |
+| Shop | 5.3 |
+
+Sources: [Appfigures](https://www.businessofapps.com/marketplace/appfigures/), [AppMagic](https://appmagic.rocks/product-deck)
+
+### Most Popular Apps in Italy 2025
+
+Italy follows the same trend of other European countries with ChatGPT first. What’s interesting is the country’s postal service hitting number two in the rankings.
+
+| App | Downloads (mm) |
+| --- | --- |
+| ChatGPT | 9.3 |
+| Ufficio Postale | 8.6 |
+| Temu | 5.5 |
+| Google Gemini | 5.1 |
+| Klarna | 4.9 |
+| Block Blast | 4.5 |
+| CieID | 3.8 |
+| Revolut | 3.4 |
+| Threads | 3.3 |
+| Vinted | 3.3 |
+
+Sources: [Appfigures](https://www.businessofapps.com/marketplace/appfigures/), [AppMagic](https://appmagic.rocks/product-deck)
+
+### Most Popular Apps in Spain 2025
+
+ChatGPT, Google Gemini and Temu come in first, second and third in Spain, as is the case in most European countries. The country’s digital ID Cl@ve continues to stay in the top 10.
+
+| App | Downloads (mm) |
+| --- | --- |
+| ChatGPT | 12 |
+| Google Gemini | 8.3 |
+| Temu | 7.5 |
+| TikTok | 5.5 |
+| Cl@ve | 5.4 |
+| Threads | 5 |
+| Block Blast | 4.5 |
+| Imposter Up | 4.4 |
+| Revolut | 3.9 |
+| CapCut | 3.6 |
+
+Sources: [Appfigures](https://www.businessofapps.com/marketplace/appfigures/), [AppMagic](https://appmagic.rocks/product-deck)
+
+### Most Popular Apps in the Netherlands 2025
+
+ChatGPT was the most popular app in the Netherlands with over five million downloads.
+
+| App | Downloads (mm) |
+| --- | --- |
+| ChatGPT | 5.3 |
+| Google Gemini | 2.1 |
+| Signal | 1.9 |
+| Polarsteps Travel | 1.7 |
+| Threads | 1.7 |
+| Temu | 1.6 |
+| Klarna | 1.6 |
+| Microsoft Authenticator | 1.5 |
+| Duolingo | 1.5 |
+| Ticketmaster | 1.3 |
+
+Sources: [Appfigures](https://www.businessofapps.com/marketplace/appfigures/), [AppMagic](https://appmagic.rocks/product-deck)
+
+### Most Popular Apps in Canada 2025
+
+Threads is higher up on the Canadian most popular rankings than other countries, in third with 3.8 million downloads. ChatGPT is top of the list.
+
+| App | Downloads (mm) |
+| --- | --- |
+| ChatGPT | 8.1 |
+| Temu | 4.3 |
+| Threads | 3.8 |
+| Block Blast | 3.3 |
+| TikTok | 3.2 |
+| CapCut | 3 |
+| Google Gemini | 2.9 |
+| WhatsApp | 2.8 |
+| Shop | 2.5 |
+| Amazon Prime Video | 2.4 |
+
+Sources: [Appfigures](https://www.businessofapps.com/marketplace/appfigures/), [AppMagic](https://appmagic.rocks/product-deck)
+
+### Most Popular Apps in Mexico 2025
+
+TikTok retained its place as the most popular app in Mexico, staving off competition from ChatGPT.
+
+| App | Downloads (mm) |
+| --- | --- |
+| TikTok | 39 |
+| ChatGPT | 25 |
+| Temu | 21 |
+| Mercado Libre | 20 |
+| Roblox | 19 |
+| Facebook | 17.5 |
+| Instagram | 17.3 |
+| Google Gemini | 15.6 |
+| WhatsApp | 15.6 |
+| CapCut | 14.9 |
+
+Sources: [Appfigures](https://www.businessofapps.com/marketplace/appfigures/), [AppMagic](https://appmagic.rocks/product-deck)
+
+### Most Popular Apps in Australia 2025
+
+ChatGPT was the top app in Australia with 4.8 million downloads. The country’s digital government service app was second with 3.2 million downloads.
+
+| App | Downloads (mm) |
+| --- | --- |
+| ChatGPT | 4.8 |
+| myGov | 3.2 |
+| Temu | 2.8 |
+| AliExpress | 2.4 |
+| TikTok | 2.3 |
+| HBO Max | 2.3 |
+| WhatsApp | 2.2 |
+| Block Blast | 2.2 |
+| CapCut | 2 |
+| Threads | 2 |
+
+Sources: [Appfigures](https://www.businessofapps.com/marketplace/appfigures/), [AppMagic](https://appmagic.rocks/product-deck)
+
+### Most Popular Apps in Japan 2025
+
+ChatGPT was the top app in Japan in 2025, surpassing TikTok. Surprisingly, only three apps in the top 10 are only used by Japanese users, a low number for the country.
+
+| App | Downloads (mm) |
+| --- | --- |
+| ChatGPT | 17 |
+| TikTok | 13 |
+| Google Gemini | 12 |
+| Jihampi | 8.5 |
+| Block Blast | 7.2 |
+| Threads | 6.9 |
+| Pokemon TCG Pocket | 6.8 |
+| Rakuten Pay | 6.4 |
+| Temu | 6.1 |
+| Mynaportal | 5.9 |
+
+Sources: [Appfigures](https://www.businessofapps.com/marketplace/appfigures/), [AppMagic](https://appmagic.rocks/product-deck)
+
+### Most Popular Apps in South Korea 2025
+
+ChatGPT was downloaded 24 million times in South Korea in 2025, making it the top app by a large margin. Quite a few in the top 10 link to government identity and services.
+
+| App | Downloads (mm) |
+| --- | --- |
+| ChatGPT | 24 |
+| Naver Plus Store | 11 |
+| TikTok | 9.9 |
+| Digital Onnuri | 7.1 |
+| Temu | 6.4 |
+| Go-Stop M | 5 |
+| Google Gemini | 4.6 |
+| Health Insurance Card | 4.5 |
+| Mobile ID App | 4.5 |
+| monimo | 4.3 |
+
+Sources: [Appfigures](https://www.businessofapps.com/marketplace/appfigures/), [AppMagic](https://appmagic.rocks/product-deck)
+
+### Most Popular Apps in Indonesia 2025
+
+TikTok retained its spot at the top of the Indonesian app market with 62 million downloads, far ahead of ChatGPT at 42 million.
+
+| App | Downloads (mm) |
+| --- | --- |
+| TikTok | 62 |
+| Block Blast | 58 |
+| Roblox | 49 |
+| ChatGPT | 42 |
+| CapCut | 38 |
+| Melolo | 38 |
+| Facebook | 36.3 |
+| DANA Indonesia | 36 |
+| Free Fire | 34 |
+| Cici | 33 |
+
+Sources: [Appfigures](https://www.businessofapps.com/marketplace/appfigures/), [AppMagic](https://appmagic.rocks/product-deck)
+
+### Most Popular Apps in Turkey 2025
+
+ChatGPT and Google Gemini were in first and second place in the Turkish app market for downloads, ahead of previous top rankers Temu and TikTok.
+
+| App | Downloads (mm) |
+| --- | --- |
+| ChatGPT | 20 |
+| Google Gemini | 18 |
+| Temu | 14 |
+| TikTok | 11 |
+| e-Government Portal | 10 |
+| Instagram | 9.5 |
+| CapCut | 7.3 |
+| Trendyol | 6.5 |
+| Turkcell | 6.2 |
+| WhatsApp | 6.1 |
+
+Sources: [Appfigures](https://www.businessofapps.com/marketplace/appfigures/), [AppMagic](https://appmagic.rocks/product-deck)
+
+### Most Popular Apps in Saudi Arabia 2025
+
+ChatGPT was the most popular app in Saudi Arabia with 17 million downloads, Google Gemini was second with 10 million.
+
+| App | Downloads (mm) |
+| --- | --- |
+| ChatGPT | 17 |
+| Google Gemini | 10 |
+| STC Bank | 8.7 |
+| Temu | 8.5 |
+| Keeta | 8.5 |
+| NAFATH | 8.3 |
+| TikTok | 7.5 |
+| barq | 6.9 |
+| imo | 5.5 |
+| Absher | 5.4 |
+
+Sources: [Appfigures](https://www.businessofapps.com/marketplace/appfigures/), [AppMagic](https://appmagic.rocks/product-deck)
+
+## Most Popular Apps of Previous Years
+
+We have collected statistics of the most downloaded apps and games of previous years as well.
+
+### Most Popular Apps (2024)
+
+| App | Downloads (mm) |
+| --- | --- |
+| TikTok | 773 |
+| Instagram | 759 |
+| Facebook | 571 |
+| WhatsApp | 527 |
+| Temu | 438 |
+| Telegram | 409 |
+| CapCut | 361 |
+| Threads | 322 |
+| Snapchat | 302 |
+| ChatGPT | 278 |
+| WhatsApp Buiness | 271 |
+| Messenger | 265 |
+| Spotify | 239 |
+| Shein | 211 |
+
+Sources: [Appfigures](https://www.businessofapps.com/marketplace/appfigures/), [AppMagic](https://appmagic.rocks/product-deck)
+
+### Most Popular Games (2024)
+
+| App | Downloads (mm) |
+| --- | --- |
+| Roblox | 205 |
+| Subway Surfers | 203 |
+| Block Blast | 198 |
+| Pizza Ready | 169 |
+| Ludo King | 157 |
+| Free Fire | 146 |
+| Free Fire Max | 135 |
+| Offline Games - JindoBlu | 118 |
+| 8 Ball Pool | 114 |
+| My Talking Tom 2 | 114 |
+| Royal Match | 112 |
+| Candy Crush Saga | 109 |
+| Build a Queen | 101 |
+| PUBG Mobile | 96 |
+
+Sources: [Appfigures](https://www.businessofapps.com/marketplace/appfigures/), [AppMagic](https://appmagic.rocks/product-deck)
+
+### Most Popular Apps (2023)
+
+| App | Downloads (mm) |
+| --- | --- |
+| Instagram | 696 |
+| TikTok | 654 |
+| Facebook | 553 |
+| WhatsApp | 475 |
+| CapCut | 389 |
+| Telegram | 355 |
+| Snapchat | 343 |
+| Temu | 274 |
+| WhatsApp Business | 267 |
+| Spotify | 248 |
+
+Sources: [Appfigures](https://www.businessofapps.com/marketplace/appfigures/), [AppMagic](https://appmagic.rocks/product-deck)
+
+### Most Popular Games (2023)
+
+| App | Downloads (mm) |
+| --- | --- |
+| Subway Surfers | 218 |
+| Roblox | 198 |
+| Candy Crush Saga | 149 |
+| Ludo King | 143 |
+| Royal Match | 140 |
+| 8 Ball Pool | 129 |
+| Block Blast 3D | 127.8 |
+| Free Fire | 127.6 |
+| My Talking Tom 2 | 111 |
+| EA Sports FC | 108 |
+
+Sources: [Appfigures](https://www.businessofapps.com/marketplace/appfigures/), [AppMagic](https://appmagic.rocks/product-deck)
+
+### Most Popular Apps (2022)
+
+| App | Downloads (mm) |
+| --- | --- |
+| TikTok | 672 |
+| Instagram | 548 |
+| Facebook | 449 |
+| WhatsApp | 424 |
+| CapCut | 357 |
+| Snapchat | 330 |
+| Telegram | 310 |
+| Subway Surfers | 304 |
+| Stumble Guys | 254 |
+| Messenger | 250 |
+
+### Most Popular Games (2022)
+
+| App | Downloads (mm) |
+| --- | --- |
+| Subway Surfers | 304 |
+| Stumble Guys | 254 |
+| Roblox | 208 |
+| Candy Crush Saga | 138 |
+| Race Master 3D | 128 |
+| 8 Ball Pool | 120 |
+| FIFA Mobile | 111 |
+| Merge & Fight | 110 |
+| Garena Free Fire | 109 |
+| Bridge Race | 107 |
+
+### Most Popular Apps (2021)
+
+| App | Downloads (mm) |
+| --- | --- |
+| TikTok | 656 |
+| Instagram | 545 |
+| Facebook | 416 |
+| WhatsApp | 395 |
+| Telegram | 329 |
+| Snapchat | 327 |
+| Zoom | 300 |
+| Messenger | 291 |
+| CapCut | 255 |
+| Spotify | 203 |
+
+### Most Popular Games (2021)
+
+| App | Downloads (mm) |
+| --- | --- |
+| Subway Surfers | 191 |
+| Roblox | 182 |
+| Bridge Race | 169 |
+| Garena Free Fire | 154 |
+| Among Us | 152 |
+| Hair Challenge | 138 |
+| Join Clash | 136 |
+| 8Ball Pool | 130 |
+| Ludo King | 125 |
+| Candy Crush Saga | 119 |
+
+### Most Popular Apps (2020)
+
+| App | Downloads (mm) |
+| --- | --- |
+| TikTok | 850 |
+| WhatsApp | 600 |
+| Facebook | 540 |
+| Instagram | 503 |
+| Zoom | 477 |
+| Messenger | 423 |
+| Snapchat | 281 |
+| Telegram | 256 |
+| Google Meet | 254 |
+| Netflix | 223 |
+
+### Most Popular Games (2020)
+
+| App | Downloads (mm) |
+| --- | --- |
+| Among Us | 264 |
+| Subway Surfers | 227 |
+| Garena Free Fire | 218 |
+| PUBG Mobile | 175 |
+| Roblox | 171 |
+| Hair Challenge | 158 |
+| Join Clash | 155 |
+| 8Ball Pool | 151 |
+| Ludo King | 149 |
+| Candy Crush Saga | 138 |
+
+### Most Popular Apps (2019)
+
+| App | Downloads (mm) |
+| --- | --- |
+| WhatsApp | 769 |
+| TikTok | 727 |
+| Messenger | 723 |
+| Facebook | 682 |
+| Instagram | 438 |
+| Likee | 327 |
+| SHAREit | 321 |
+| Snapchat | 275 |
+| Spotify | 226 |
+| Netflix | 225 |
+
+### Most Popular Games (2019)
+
+| App | Downloads (mm) |
+| --- | --- |
+| Garena Free Fire | 327 |
+| PUBG Mobile | 268 |
+| Subway Surfers | 227 |
+| Fun Race 3D | 210 |
+| Color Bump 3D | 205 |
+| My Talking Tom 2 | 162 |
+| Run Race 3D | 158 |
+| Sand Balls | 154 |
+| Homescapes | 153 |
+| Stack Ball | 152 |

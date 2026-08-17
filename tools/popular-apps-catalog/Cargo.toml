@@ -1,0 +1,14 @@
+[package]
+name = "popular-apps-catalog"
+version = "0.1.0"
+edition = "2021"
+description = "Genera data/popular-apps-catalog.txt a partir del extracto Business of Apps + suplemento curado (sin Python)."
+license = "MIT OR Apache-2.0"
+publish = false
+
+[[bin]]
+name = "popular-apps-catalog"
+path = "src/main.rs"
+
+[dependencies]
+regex = "1.11.1"

@@ -1,0 +1,163 @@
+name: Release — FlowSight Agent (macOS)
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing release tag to build and attach (e.g. v3.6.0)"
+        required: true
+        type: string
+
+concurrency:
+  group: release-macos-${{ github.event.release.tag_name || inputs.tag || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+# Secrets (Settings → Secrets and variables → Actions), same names as Windows where applicable:
+#   TAURI_JIRA_CLIENT_ID, TAURI_JIRA_CLIENT_SECRET
+#   TAURI_LINEAR_CLIENT_ID, TAURI_LINEAR_CLIENT_SECRET (optional)
+#   NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY
+#   TAURI_SIGNING_PRIVATE_KEY, TAURI_SIGNING_PRIVATE_KEY_PASSWORD (updater)
+# Optional Apple Developer ID + notarization:
+#   APPLE_CERTIFICATE, APPLE_CERTIFICATE_PASSWORD, APPLE_SIGNING_IDENTITY
+#   APPLE_ID, APPLE_PASSWORD, APPLE_TEAM_ID
+
+jobs:
+  build-macos:
+    runs-on: macos-14
+    env:
+      TAURI_JIRA_CLIENT_ID: ${{ secrets.TAURI_JIRA_CLIENT_ID }}
+      TAURI_JIRA_CLIENT_SECRET: ${{ secrets.TAURI_JIRA_CLIENT_SECRET }}
+      TAURI_LINEAR_CLIENT_ID: ${{ secrets.TAURI_LINEAR_CLIENT_ID }}
+      TAURI_LINEAR_CLIENT_SECRET: ${{ secrets.TAURI_LINEAR_CLIENT_SECRET }}
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+      APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+      APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+      APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+      APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 8.15.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: apps/agent/src-tauri -> target
+
+      - name: Prepare macOS llama-server (Metal)
+        run: bash scripts/prepare-macos-llm.sh
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Enable updater artifacts when signing key is present
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -n "${TAURI_SIGNING_PRIVATE_KEY:-}" ]]; then
+            python3 - <<'PY'
+          import json
+          from pathlib import Path
+          p = Path("apps/agent/src-tauri/tauri.conf.json")
+          cfg = json.loads(p.read_text())
+          cfg.setdefault("bundle", {})["createUpdaterArtifacts"] = True
+          p.write_text(json.dumps(cfg, indent=2) + "\n")
+          print("createUpdaterArtifacts=true")
+          PY
+          else
+            echo "No TAURI_SIGNING_PRIVATE_KEY — building unsigned updater skip"
+          fi
+
+      - name: Build macOS app + DMG
+        run: pnpm build
+
+      - name: Generate latest.json (darwin-aarch64 updater)
+        shell: bash
+        env:
+          RELEASE_BODY: ${{ github.event.release.body || '' }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          DMG_DIR="apps/agent/src-tauri/target/release/bundle/dmg"
+          DMG="$(ls "$DMG_DIR"/*.dmg | head -n1)"
+          SIG="$(ls "$DMG_DIR"/*.dmg.sig 2>/dev/null | head -n1 || true)"
+          BASENAME="$(basename "$DMG")"
+          export ASSET_NAME="$(echo "$BASENAME" | tr ' ' '.')"
+          export APP_VERSION="$(echo "$BASENAME" | sed -E 's/.*_([0-9]+\.[0-9]+\.[0-9]+)_.*/\1/')"
+          export DOWNLOAD_URL="https://github.com/${REPO}/releases/download/${RELEASE_TAG}/${ASSET_NAME}"
+          export PUB_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          if [[ -n "${SIG}" && -f "${SIG}" ]]; then
+            export SIGNATURE="$(cat "$SIG")"
+          else
+            export SIGNATURE=""
+          fi
+          node -e '
+            const fs = require("fs");
+            const platforms = {};
+            if (process.env.SIGNATURE) {
+              platforms["darwin-aarch64"] = {
+                signature: process.env.SIGNATURE,
+                url: process.env.DOWNLOAD_URL
+              };
+            }
+            const manifest = {
+              version: process.env.APP_VERSION,
+              notes: process.env.RELEASE_BODY || "",
+              pub_date: process.env.PUB_DATE,
+              platforms
+            };
+            fs.writeFileSync("latest.json", JSON.stringify(manifest, null, 2));
+            console.log(manifest);
+          '
+
+      - name: Upload macOS bundles
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-bundle
+          path: |
+            apps/agent/src-tauri/target/release/bundle/dmg/*.dmg
+            apps/agent/src-tauri/target/release/bundle/dmg/*.sig
+            apps/agent/src-tauri/target/release/bundle/macos/*.app
+            latest.json
+          if-no-files-found: error
+
+  attach-to-release:
+    needs: [build-macos]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Attach installers to release
+        uses: softprops/action-gh-release@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.event.release.tag_name || inputs.tag }}
+          fail_on_unmatched_files: false
+          files: |
+            artifacts/**/*.dmg
+            artifacts/**/*.sig
+            artifacts/**/latest.json
