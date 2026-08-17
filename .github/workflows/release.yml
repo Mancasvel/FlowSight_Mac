@@ -100,7 +100,19 @@ jobs:
           fi
 
       - name: Build macOS app + DMG (${{ matrix.rust_target }})
-        run: corepack pnpm --filter @flowsight/agent exec tauri build --target ${{ matrix.rust_target }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Empty/invalid Apple secrets make Tauri try `security import` and fail the bundle.
+          # Only keep signing env when a real certificate payload is present.
+          if [[ -z "${APPLE_CERTIFICATE:-}" || "${#APPLE_CERTIFICATE}" -lt 64 ]]; then
+            echo "No valid APPLE_CERTIFICATE — building unsigned DMG"
+            unset APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY \
+              APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID APPLE_API_KEY APPLE_API_ISSUER || true
+          else
+            echo "APPLE_CERTIFICATE present — attempting signed build"
+          fi
+          corepack pnpm --filter @flowsight/agent exec tauri build --target ${{ matrix.rust_target }}
 
       - name: Stage bundle + per-arch updater fragment
         shell: bash
