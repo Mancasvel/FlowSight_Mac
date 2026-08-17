@@ -38,6 +38,11 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # Tauri validates bundle.resources at build-script time; GGUFs are not
+      # committed (fetched from Releases via scripts/fetch-models.mjs).
+      - name: Fetch local LLM weights
+        run: corepack pnpm --filter @flowsight/agent exec node ../../scripts/fetch-models.mjs
+
       - name: Cargo check
         run: cargo check --manifest-path apps/agent/src-tauri/Cargo.toml
 
