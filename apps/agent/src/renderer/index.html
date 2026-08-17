@@ -64,7 +64,7 @@
       flex-direction: column;
     }
 
-    /* ===== Title bar: native macOS traffic lights (Overlay) + brand ===== */
+    /* ===== Title bar: native macOS traffic lights (Overlay) + drag region ===== */
     .app-titlebar {
       display: flex;
       align-items: stretch;
@@ -81,44 +81,6 @@
       flex-shrink: 0;
       -webkit-app-region: no-drag;
       app-region: no-drag;
-    }
-
-    .titlebar-brand {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 0 10px 0 4px;
-      flex-shrink: 0;
-      cursor: default;
-    }
-
-    .titlebar-logo {
-      width: 18px;
-      height: 18px;
-      object-fit: contain;
-      flex-shrink: 0;
-    }
-
-    .titlebar-text {
-      display: flex;
-      flex-direction: column;
-      min-width: 0;
-      line-height: 1.15;
-    }
-
-    .titlebar-name {
-      font-size: 12px;
-      font-weight: 600;
-      color: hsl(var(--foreground));
-    }
-
-    .titlebar-tagline {
-      font-size: 9px;
-      font-weight: 500;
-      color: hsl(var(--muted-foreground));
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
     }
 
     .titlebar-spacer {
@@ -3179,13 +3141,6 @@
 <body>
   <header class="app-titlebar">
     <div class="titlebar-traffic-lights-space" aria-hidden="true"></div>
-    <div class="titlebar-brand" data-tauri-drag-region>
-      <img src="/flowsight_sinfondo.png" alt="" class="titlebar-logo" width="18" height="18" />
-      <div class="titlebar-text">
-        <span class="titlebar-name">FlowSight</span>
-        <span class="titlebar-tagline">Understand your own Workflows</span>
-      </div>
-    </div>
     <div class="titlebar-spacer" data-tauri-drag-region></div>
   </header>
 
@@ -3718,7 +3673,7 @@
 
     async function initTitlebar() {
       // macOS: native traffic lights via titleBarStyle Overlay. Keep drag +
-      // double-click zoom on the brand/spacer region.
+      // double-click zoom on the empty titlebar spacer.
       let win;
       try {
         win = getCurrentWindow();
