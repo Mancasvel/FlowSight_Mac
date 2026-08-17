@@ -188,11 +188,14 @@ jobs:
           if [[ -n "${TAURI_SIGNING_PRIVATE_KEY:-}" ]]; then
             echo "Rebuilding updater archive from sealed .app..."
             # Arch-specific names so aarch64 + x86_64 can both attach to one release.
-            UPDATER_TAR="$MACOS_DIR/FlowSight Agent_${VERSION}_${ARCH_TAG}.app.tar.gz"
+            # Absolute path: `pnpm --filter … exec` runs with cwd=apps/agent, so a
+            # repo-relative path would 404 inside tauri signer.
+            UPDATER_TAR="$(cd "$MACOS_DIR" && pwd)/FlowSight Agent_${VERSION}_${ARCH_TAG}.app.tar.gz"
             rm -f "$MACOS_DIR"/*.app.tar.gz "$MACOS_DIR"/*.app.tar.gz.sig 2>/dev/null || true
             # Match Tauri bundler layout: archive the .app directory from its parent.
             # COPYFILE_DISABLE avoids macOS AppleDouble junk that breaks updater extract.
             COPYFILE_DISABLE=1 tar --no-xattrs -C "$MACOS_DIR" -czf "$UPDATER_TAR" "FlowSight Agent.app"
+            test -f "$UPDATER_TAR"
             # Prefer empty password over interactive prompt when secret is unset (parity with Windows CI).
             export TAURI_SIGNING_PRIVATE_KEY_PASSWORD="${TAURI_SIGNING_PRIVATE_KEY_PASSWORD:-}"
             corepack pnpm --filter @flowsight/agent exec tauri signer sign -- "$UPDATER_TAR"
