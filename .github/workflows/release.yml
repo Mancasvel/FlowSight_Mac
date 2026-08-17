@@ -53,6 +53,8 @@ jobs:
       RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
       FLOWSIGHT_LLM_ARCH: ${{ matrix.llm_arch }}
       FLOWSIGHT_SKIP_LLM_RUN: "1"
+      # Authenticated API avoids 403 rate limits when resolving llama.cpp assets
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v4
 
@@ -76,7 +78,16 @@ jobs:
           key: ${{ matrix.rust_target }}
 
       - name: Prepare macOS llama-server (Metal, ${{ matrix.llm_arch }})
-        run: bash scripts/prepare-macos-llm.sh
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/prepare-macos-llm.sh
+          test -x local_llm/bin/llama-server
+          if [[ "${{ matrix.llm_arch }}" == "macos-arm64" ]]; then
+            lipo -archs local_llm/bin/llama-server | grep -q arm64
+          else
+            lipo -archs local_llm/bin/llama-server | grep -q x86_64
+          fi
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -178,9 +189,22 @@ jobs:
           cp -f "$DMG_DIR"/*.sig staged/ 2>/dev/null || true
           DMG="$(ls staged/*.dmg | head -n1)"
           test -n "$DMG"
+          # Normalize spaces → dots so release asset names match prior downloads.
+          SAFE_DMG="staged/$(basename "$DMG" | tr ' ' '.')"
+          if [[ "$DMG" != "$SAFE_DMG" ]]; then
+            mv -f "$DMG" "$SAFE_DMG"
+            DMG="$SAFE_DMG"
+          fi
           SIG="$(ls staged/*.dmg.sig 2>/dev/null | head -n1 || true)"
+          if [[ -n "${SIG}" && -f "${SIG}" ]]; then
+            SAFE_SIG="staged/$(basename "$SIG" | tr ' ' '.')"
+            if [[ "$SIG" != "$SAFE_SIG" ]]; then
+              mv -f "$SIG" "$SAFE_SIG"
+              SIG="$SAFE_SIG"
+            fi
+          fi
           BASENAME="$(basename "$DMG")"
-          export ASSET_NAME="$(echo "$BASENAME" | tr ' ' '.')"
+          export ASSET_NAME="$BASENAME"
           export APP_VERSION="$(echo "$BASENAME" | sed -E 's/.*_([0-9]+\.[0-9]+\.[0-9]+)_.*/\1/')"
           export DOWNLOAD_URL="https://github.com/${REPO}/releases/download/${RELEASE_TAG}/${ASSET_NAME}"
           export PUB_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -263,7 +287,35 @@ jobs:
         with:
           tag_name: ${{ github.event.release.tag_name || inputs.tag }}
           fail_on_unmatched_files: false
+          overwrite_files: true
           files: |
             artifacts/**/*.dmg
             artifacts/**/*.sig
             latest.json
+
+      - name: Retry attach on transient GitHub 503
+        if: failure()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob globstar
+          files=(artifacts/**/*.dmg artifacts/**/*.sig)
+          if [[ -f latest.json ]]; then
+            files+=(latest.json)
+          fi
+          if [[ ${#files[@]} -eq 0 ]]; then
+            echo "No release assets to upload"
+            exit 1
+          fi
+          for i in 1 2 3 4 5; do
+            echo "Upload attempt $i..."
+            if gh release upload "$RELEASE_TAG" "${files[@]}" --clobber; then
+              echo "Upload OK"
+              exit 0
+            fi
+            sleep $((i * 15))
+          done
+          exit 1

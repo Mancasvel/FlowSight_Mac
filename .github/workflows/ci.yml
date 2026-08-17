@@ -13,6 +13,11 @@ concurrency:
 jobs:
   check:
     runs-on: macos-14
+    env:
+      # Authenticated GitHub API avoids 403 rate limits in prepare-macos-llm.sh
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      FLOWSIGHT_LLM_ARCH: macos-arm64
+      FLOWSIGHT_SKIP_LLM_RUN: "1"
     steps:
       - uses: actions/checkout@v4
 
@@ -33,7 +38,12 @@ jobs:
           workspaces: apps/agent/src-tauri -> target
 
       - name: Prepare macOS llama-server (Metal)
-        run: bash scripts/prepare-macos-llm.sh
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/prepare-macos-llm.sh
+          test -x local_llm/bin/llama-server
+          lipo -archs local_llm/bin/llama-server | grep -q arm64
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
