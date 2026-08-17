@@ -177,7 +177,25 @@ jobs:
           ditto "$APP" "$STAGE/FlowSight Agent.app"
           ln -s /Applications "$STAGE/Applications"
           DMG_PATH="$DMG_DIR/FlowSight Agent_${VERSION}_${ARCH_TAG}.dmg"
-          hdiutil create -volname "FlowSight Agent" -srcfolder "$STAGE" -ov -format UDZO "$DMG_PATH"
+          # hdiutil occasionally fails with "Resource busy" on Actions runners.
+          DMG_OK=0
+          for attempt in 1 2 3 4 5; do
+            rm -f "$DMG_PATH"
+            # Detach any leftover images that can hold the create lock.
+            hdiutil info 2>/dev/null | awk '/\/dev\/disk[0-9]+/ {print $1}' | while read -r disk; do
+              hdiutil detach -force "$disk" 2>/dev/null || true
+            done
+            if hdiutil create -volname "FlowSight Agent" -srcfolder "$STAGE" -ov -format UDZO "$DMG_PATH"; then
+              DMG_OK=1
+              break
+            fi
+            echo "hdiutil create failed (attempt ${attempt}/5); retrying..."
+            sleep $((attempt * 4))
+          done
+          if [[ "$DMG_OK" -ne 1 ]]; then
+            echo "ERROR: hdiutil create failed after retries"
+            exit 1
+          fi
           rm -rf "$STAGE"
           ls -lah "$DMG_DIR"
           hdiutil verify "$DMG_PATH"
