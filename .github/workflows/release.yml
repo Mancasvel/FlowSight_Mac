@@ -19,6 +19,13 @@ permissions:
 
 # Builds BOTH Apple Silicon (aarch64) and Intel (x86_64) DMGs from this repo.
 # Secrets (optional): TAURI_*, NEXT_PUBLIC_*, APPLE_* for signing/notarization.
+#
+# In-app updater (parity with Windows) requires the same minisign keypair:
+#   TAURI_SIGNING_PRIVATE_KEY            — private key (same as FlowSight Windows)
+#   TAURI_SIGNING_PRIVATE_KEY_PASSWORD   — only if the key was generated with -p
+# When those are set, CI enables createUpdaterArtifacts, then AFTER Gatekeeper
+# re-seal of the .app rebuilds signed .app.tar.gz (+ .sig) and merges them into
+# latest.json under darwin-aarch64 / darwin-x86_64. DMGs remain for manual install.
 
 jobs:
   build-macos:
@@ -163,6 +170,7 @@ jobs:
           # Recreate DMG from the sealed .app (Tauri may have packaged a pre-resign copy).
           VERSION="$(python3 -c "import json; print(json.load(open('apps/agent/src-tauri/tauri.conf.json'))['version'])")"
           DMG_DIR="apps/agent/src-tauri/target/${RUST_TARGET}/release/bundle/dmg"
+          MACOS_DIR="apps/agent/src-tauri/target/${RUST_TARGET}/release/bundle/macos"
           mkdir -p "$DMG_DIR"
           rm -f "$DMG_DIR"/*.dmg "$DMG_DIR"/*.sig 2>/dev/null || true
           STAGE="$(mktemp -d)"
@@ -174,6 +182,27 @@ jobs:
           ls -lah "$DMG_DIR"
           hdiutil verify "$DMG_PATH"
 
+          # Updater needs signed .app.tar.gz of the *sealed* .app. Tauri's build-time
+          # archive (and its .sig) are stale after the Gatekeeper re-sign above, and
+          # our DMG recreation never produced updater artifacts. Rebuild + resign here.
+          if [[ -n "${TAURI_SIGNING_PRIVATE_KEY:-}" ]]; then
+            echo "Rebuilding updater archive from sealed .app..."
+            # Arch-specific names so aarch64 + x86_64 can both attach to one release.
+            UPDATER_TAR="$MACOS_DIR/FlowSight Agent_${VERSION}_${ARCH_TAG}.app.tar.gz"
+            rm -f "$MACOS_DIR"/*.app.tar.gz "$MACOS_DIR"/*.app.tar.gz.sig 2>/dev/null || true
+            # Match Tauri bundler layout: archive the .app directory from its parent.
+            # COPYFILE_DISABLE avoids macOS AppleDouble junk that breaks updater extract.
+            COPYFILE_DISABLE=1 tar --no-xattrs -C "$MACOS_DIR" -czf "$UPDATER_TAR" "FlowSight Agent.app"
+            # Prefer empty password over interactive prompt when secret is unset (parity with Windows CI).
+            export TAURI_SIGNING_PRIVATE_KEY_PASSWORD="${TAURI_SIGNING_PRIVATE_KEY_PASSWORD:-}"
+            corepack pnpm --filter @flowsight/agent exec tauri signer sign -- "$UPDATER_TAR"
+            test -f "${UPDATER_TAR}.sig"
+            ls -lah "$MACOS_DIR"/*.app.tar.gz*
+          else
+            echo "No TAURI_SIGNING_PRIVATE_KEY — skipping updater .app.tar.gz"
+            rm -f "$MACOS_DIR"/*.app.tar.gz "$MACOS_DIR"/*.app.tar.gz.sig 2>/dev/null || true
+          fi
+
       - name: Stage bundle + per-arch updater fragment
         shell: bash
         env:
@@ -184,52 +213,61 @@ jobs:
         run: |
           set -euo pipefail
           DMG_DIR="apps/agent/src-tauri/target/${RUST_TARGET}/release/bundle/dmg"
+          MACOS_DIR="apps/agent/src-tauri/target/${RUST_TARGET}/release/bundle/macos"
           mkdir -p staged
           cp -f "$DMG_DIR"/*.dmg staged/ 2>/dev/null || true
-          cp -f "$DMG_DIR"/*.sig staged/ 2>/dev/null || true
+          # Manual-install DMGs only — updater uses .app.tar.gz (not DMG signatures).
           DMG="$(ls staged/*.dmg | head -n1)"
           test -n "$DMG"
-          # Normalize spaces → dots so release asset names match prior downloads.
+          # Normalize spaces → dots so release asset names match GitHub downloads.
           SAFE_DMG="staged/$(basename "$DMG" | tr ' ' '.')"
           if [[ "$DMG" != "$SAFE_DMG" ]]; then
             mv -f "$DMG" "$SAFE_DMG"
             DMG="$SAFE_DMG"
           fi
-          SIG="$(ls staged/*.dmg.sig 2>/dev/null | head -n1 || true)"
-          if [[ -n "${SIG}" && -f "${SIG}" ]]; then
-            SAFE_SIG="staged/$(basename "$SIG" | tr ' ' '.')"
-            if [[ "$SIG" != "$SAFE_SIG" ]]; then
-              mv -f "$SIG" "$SAFE_SIG"
-              SIG="$SAFE_SIG"
-            fi
-          fi
-          BASENAME="$(basename "$DMG")"
-          export ASSET_NAME="$BASENAME"
-          export APP_VERSION="$(echo "$BASENAME" | sed -E 's/.*_([0-9]+\.[0-9]+\.[0-9]+)_.*/\1/')"
-          export DOWNLOAD_URL="https://github.com/${REPO}/releases/download/${RELEASE_TAG}/${ASSET_NAME}"
+          export APP_VERSION="$(basename "$DMG" | sed -E 's/.*_([0-9]+\.[0-9]+\.[0-9]+)_.*/\1/')"
           export PUB_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-          export SIGNATURE=""
-          if [[ -n "${SIG}" && -f "${SIG}" ]]; then
-            export SIGNATURE="$(cat "$SIG")"
-          fi
-          node -e '
-            const fs = require("fs");
-            const platforms = {};
-            if (process.env.SIGNATURE) {
-              platforms[process.env.UPDATER_PLATFORM] = {
-                signature: process.env.SIGNATURE,
-                url: process.env.DOWNLOAD_URL
+
+          UPDATER_TAR="$(ls "$MACOS_DIR"/*.app.tar.gz 2>/dev/null | head -n1 || true)"
+          UPDATER_SIG=""
+          if [[ -n "${UPDATER_TAR}" && -f "${UPDATER_TAR}" ]]; then
+            SAFE_TAR="staged/$(basename "$UPDATER_TAR" | tr ' ' '.')"
+            cp -f "$UPDATER_TAR" "$SAFE_TAR"
+            if [[ -f "${UPDATER_TAR}.sig" ]]; then
+              SAFE_SIG="staged/$(basename "$UPDATER_TAR" | tr ' ' '.').sig"
+              cp -f "${UPDATER_TAR}.sig" "$SAFE_SIG"
+              UPDATER_SIG="$SAFE_SIG"
+            fi
+            export ASSET_NAME="$(basename "$SAFE_TAR")"
+            export DOWNLOAD_URL="https://github.com/${REPO}/releases/download/${RELEASE_TAG}/${ASSET_NAME}"
+            export SIGNATURE=""
+            if [[ -n "${UPDATER_SIG}" && -f "${UPDATER_SIG}" ]]; then
+              export SIGNATURE="$(cat "$UPDATER_SIG")"
+            fi
+            if [[ -z "${SIGNATURE}" ]]; then
+              echo "ERROR: updater archive present but .sig missing — cannot publish latest.json"
+              exit 1
+            fi
+            # Only emit a fragment when we have a real signed platform entry.
+            node -e '
+              const fs = require("fs");
+              const fragment = {
+                version: process.env.APP_VERSION,
+                notes: process.env.RELEASE_BODY || "",
+                pub_date: process.env.PUB_DATE,
+                platforms: {
+                  [process.env.UPDATER_PLATFORM]: {
+                    signature: process.env.SIGNATURE,
+                    url: process.env.DOWNLOAD_URL
+                  }
+                }
               };
-            }
-            const fragment = {
-              version: process.env.APP_VERSION,
-              notes: process.env.RELEASE_BODY || "",
-              pub_date: process.env.PUB_DATE,
-              platforms
-            };
-            fs.writeFileSync("staged/latest-fragment.json", JSON.stringify(fragment, null, 2));
-            console.log(fragment);
-          '
+              fs.writeFileSync("staged/latest-fragment.json", JSON.stringify(fragment, null, 2));
+              console.log(fragment);
+            '
+          else
+            echo "No updater archive — staging DMG only (unsigned / no TAURI_SIGNING_PRIVATE_KEY)"
+          fi
           ls -lah staged/
 
       - name: Upload macOS bundles (${{ matrix.artifact }})
@@ -276,6 +314,10 @@ jobs:
               merged.pub_date = j.pub_date || merged.pub_date;
               Object.assign(merged.platforms, j.platforms || {});
             }
+            if (!Object.keys(merged.platforms).length) {
+              console.log("Updater fragments had empty platforms — skipping latest.json");
+              process.exit(0);
+            }
             fs.writeFileSync("latest.json", JSON.stringify(merged, null, 2));
             console.log(merged);
           '
@@ -290,6 +332,7 @@ jobs:
           overwrite_files: true
           files: |
             artifacts/**/*.dmg
+            artifacts/**/*.app.tar.gz
             artifacts/**/*.sig
             latest.json
 
@@ -302,7 +345,7 @@ jobs:
         run: |
           set -euo pipefail
           shopt -s nullglob globstar
-          files=(artifacts/**/*.dmg artifacts/**/*.sig)
+          files=(artifacts/**/*.dmg artifacts/**/*.app.tar.gz artifacts/**/*.sig)
           if [[ -f latest.json ]]; then
             files+=(latest.json)
           fi
