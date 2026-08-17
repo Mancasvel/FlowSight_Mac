@@ -64,7 +64,7 @@
       flex-direction: column;
     }
 
-    /* ===== Custom title bar (frameless window) ===== */
+    /* ===== Title bar: native macOS traffic lights (Overlay) + brand ===== */
     .app-titlebar {
       display: flex;
       align-items: stretch;
@@ -75,11 +75,19 @@
       user-select: none;
     }
 
+    /* Reserve space for system close / minimize / zoom on the left */
+    .titlebar-traffic-lights-space {
+      width: 72px;
+      flex-shrink: 0;
+      -webkit-app-region: no-drag;
+      app-region: no-drag;
+    }
+
     .titlebar-brand {
       display: flex;
       align-items: center;
       gap: 8px;
-      padding: 0 10px;
+      padding: 0 10px 0 4px;
       flex-shrink: 0;
       cursor: default;
     }
@@ -119,75 +127,9 @@
       cursor: default;
     }
 
+    /* Windows-style custom buttons removed on Mac builds */
     .titlebar-controls {
-      display: flex;
-      align-items: stretch;
-      flex-shrink: 0;
-      height: 100%;
-      -webkit-app-region: no-drag;
-      app-region: no-drag;
-      z-index: 2;
-    }
-
-    .titlebar-btn {
-      width: 46px;
-      min-width: 46px;
-      height: 100%;
-      border: none;
-      background: transparent;
-      color: hsl(var(--foreground));
-      opacity: 0.72;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      border-radius: 0;
-      margin: 0;
-      padding: 0;
-      -webkit-app-region: no-drag;
-      app-region: no-drag;
-      transition: background 0.15s ease, color 0.15s ease, opacity 0.15s ease, transform 0.12s ease;
-    }
-
-    .titlebar-btn svg {
-      width: 18px;
-      height: 18px;
-      pointer-events: none;
-      flex-shrink: 0;
-    }
-
-    .titlebar-btn:hover {
-      opacity: 1;
-      background: hsl(var(--muted));
-      color: hsl(var(--foreground));
-    }
-
-    .titlebar-btn:active {
-      transform: scale(0.94);
-    }
-
-    .titlebar-btn.maximize:hover {
-      opacity: 1;
-      background: hsl(var(--accent));
-      color: hsl(var(--primary));
-    }
-
-    .titlebar-btn.close:hover {
-      opacity: 1;
-      background: hsl(var(--destructive));
-      color: hsl(var(--destructive-foreground));
-    }
-
-    .titlebar-btn .icon-restore {
       display: none;
-    }
-
-    .titlebar-btn.is-maximized .icon-maximize {
-      display: none;
-    }
-
-    .titlebar-btn.is-maximized .icon-restore {
-      display: block;
     }
 
     .app-viewport {
@@ -3236,6 +3178,7 @@
 
 <body>
   <header class="app-titlebar">
+    <div class="titlebar-traffic-lights-space" aria-hidden="true"></div>
     <div class="titlebar-brand" data-tauri-drag-region>
       <img src="/flowsight_sinfondo.png" alt="" class="titlebar-logo" width="18" height="18" />
       <div class="titlebar-text">
@@ -3244,27 +3187,6 @@
       </div>
     </div>
     <div class="titlebar-spacer" data-tauri-drag-region></div>
-    <div class="titlebar-controls">
-      <button type="button" class="titlebar-btn" id="winMinimizeBtn" title="Minimize" aria-label="Minimize">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
-          <line x1="5" y1="12" x2="19" y2="12"/>
-        </svg>
-      </button>
-      <button type="button" class="titlebar-btn maximize" id="winMaximizeBtn" title="Maximize" aria-label="Maximize">
-        <svg class="icon-maximize" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round">
-          <rect x="5" y="5" width="14" height="14" rx="1"/>
-        </svg>
-        <svg class="icon-restore" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round">
-          <rect x="8" y="8" width="11" height="11" rx="1"/>
-          <path d="M6 16V6h10"/>
-        </svg>
-      </button>
-      <button type="button" class="titlebar-btn close" id="winCloseBtn" title="Close" aria-label="Close">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
-          <line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>
-        </svg>
-      </button>
-    </div>
   </header>
 
   <div class="app-viewport">
@@ -3795,71 +3717,29 @@
     document.documentElement.removeAttribute('native-scrollbar');
 
     async function initTitlebar() {
-      const maximizeBtn = document.getElementById('winMaximizeBtn');
+      // macOS: native traffic lights via titleBarStyle Overlay. Keep drag +
+      // double-click zoom on the brand/spacer region.
       let win;
       try {
         win = getCurrentWindow();
       } catch (err) {
-        console.warn('[FlowSight] Titlebar controls visible but Tauri window API unavailable:', err);
+        console.warn('[FlowSight] Titlebar drag unavailable (not in Tauri):', err);
         return;
       }
-
-      async function syncMaximizeButton() {
-        if (!maximizeBtn) return;
-        try {
-          const maximized = await win.isMaximized();
-          maximizeBtn.classList.toggle('is-maximized', maximized);
-          maximizeBtn.title = maximized ? 'Restore' : 'Maximize';
-          maximizeBtn.setAttribute('aria-label', maximized ? 'Restore' : 'Maximize');
-        } catch (_) { /* ignore */ }
-      }
-
-      const stopDrag = (e) => {
-        e.stopPropagation();
-      };
-
-      ['winMinimizeBtn', 'winMaximizeBtn', 'winCloseBtn'].forEach((id) => {
-        const btn = document.getElementById(id);
-        btn?.addEventListener('mousedown', stopDrag);
-        btn?.addEventListener('pointerdown', stopDrag);
-      });
-
-      document.getElementById('winMinimizeBtn')?.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        win.minimize();
-      });
-      maximizeBtn?.addEventListener('click', async (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        await win.toggleMaximize();
-        syncMaximizeButton();
-      });
-      document.getElementById('winCloseBtn')?.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        win.close();
-      });
 
       document.querySelectorAll('[data-tauri-drag-region]').forEach((el) => {
         el.addEventListener('mousedown', (e) => {
           if (e.button !== 0) return;
-          if (e.target.closest('.titlebar-controls')) return;
           e.preventDefault();
           win.startDragging();
         });
         el.addEventListener('dblclick', async (e) => {
-          if (e.target.closest('.titlebar-controls')) return;
           e.preventDefault();
-          await win.toggleMaximize();
-          syncMaximizeButton();
+          try {
+            await win.toggleMaximize();
+          } catch (_) { /* ignore */ }
         });
       });
-
-      try {
-        await win.onResized(() => syncMaximizeButton());
-      } catch (_) { /* ignore */ }
-      syncMaximizeButton();
     }
     initTitlebar();
 

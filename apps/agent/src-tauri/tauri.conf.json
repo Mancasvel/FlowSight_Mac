@@ -19,7 +19,13 @@
         "fullscreen": false,
         "minWidth": 340,
         "minHeight": 400,
-        "decorations": false,
+        "decorations": true,
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": true,
+        "trafficLightPosition": {
+          "x": 14,
+          "y": 16
+        },
         "theme": "Light",
         "backgroundColor": "#FAFAFA"
       }
