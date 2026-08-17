@@ -17,17 +17,23 @@ concurrency:
 permissions:
   contents: write
 
-# Secrets (Settings → Secrets and variables → Actions), same names as Windows where applicable:
-#   TAURI_JIRA_CLIENT_ID, TAURI_JIRA_CLIENT_SECRET
-#   TAURI_LINEAR_CLIENT_ID, TAURI_LINEAR_CLIENT_SECRET (optional)
-#   NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY
-#   TAURI_SIGNING_PRIVATE_KEY, TAURI_SIGNING_PRIVATE_KEY_PASSWORD (updater)
-# Optional Apple Developer ID + notarization:
-#   APPLE_CERTIFICATE, APPLE_CERTIFICATE_PASSWORD, APPLE_SIGNING_IDENTITY
-#   APPLE_ID, APPLE_PASSWORD, APPLE_TEAM_ID
+# Builds BOTH Apple Silicon (aarch64) and Intel (x86_64) DMGs from this repo.
+# Secrets (optional): TAURI_*, NEXT_PUBLIC_*, APPLE_* for signing/notarization.
 
 jobs:
   build-macos:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - rust_target: aarch64-apple-darwin
+            llm_arch: macos-arm64
+            artifact: macos-aarch64
+            updater_platform: darwin-aarch64
+          - rust_target: x86_64-apple-darwin
+            llm_arch: macos-x64
+            artifact: macos-x86_64
+            updater_platform: darwin-x86_64
     runs-on: macos-14
     env:
       TAURI_JIRA_CLIENT_ID: ${{ secrets.TAURI_JIRA_CLIENT_ID }}
@@ -45,6 +51,8 @@ jobs:
       APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
       APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
       RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
+      FLOWSIGHT_LLM_ARCH: ${{ matrix.llm_arch }}
+      FLOWSIGHT_SKIP_LLM_RUN: "1"
     steps:
       - uses: actions/checkout@v4
 
@@ -57,14 +65,17 @@ jobs:
           node-version: 20
           cache: pnpm
 
-      - name: Rust stable
+      - name: Rust stable (+ target)
         uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust_target }}
 
       - uses: swatinem/rust-cache@v2
         with:
           workspaces: apps/agent/src-tauri -> target
+          key: ${{ matrix.rust_target }}
 
-      - name: Prepare macOS llama-server (Metal)
+      - name: Prepare macOS llama-server (Metal, ${{ matrix.llm_arch }})
         run: bash scripts/prepare-macos-llm.sh
 
       - name: Install dependencies
@@ -85,60 +96,62 @@ jobs:
           print("createUpdaterArtifacts=true")
           PY
           else
-            echo "No TAURI_SIGNING_PRIVATE_KEY — building unsigned updater skip"
+            echo "No TAURI_SIGNING_PRIVATE_KEY — building without updater signatures"
           fi
 
-      - name: Build macOS app + DMG
-        run: pnpm build
+      - name: Build macOS app + DMG (${{ matrix.rust_target }})
+        run: corepack pnpm --filter @flowsight/agent exec tauri build --target ${{ matrix.rust_target }}
 
-      - name: Generate latest.json (darwin-aarch64 updater)
+      - name: Stage bundle + per-arch updater fragment
         shell: bash
         env:
           RELEASE_BODY: ${{ github.event.release.body || '' }}
           REPO: ${{ github.repository }}
+          UPDATER_PLATFORM: ${{ matrix.updater_platform }}
+          RUST_TARGET: ${{ matrix.rust_target }}
         run: |
           set -euo pipefail
-          DMG_DIR="apps/agent/src-tauri/target/release/bundle/dmg"
-          DMG="$(ls "$DMG_DIR"/*.dmg | head -n1)"
-          SIG="$(ls "$DMG_DIR"/*.dmg.sig 2>/dev/null | head -n1 || true)"
+          DMG_DIR="apps/agent/src-tauri/target/${RUST_TARGET}/release/bundle/dmg"
+          mkdir -p staged
+          cp -f "$DMG_DIR"/*.dmg staged/ 2>/dev/null || true
+          cp -f "$DMG_DIR"/*.sig staged/ 2>/dev/null || true
+          DMG="$(ls staged/*.dmg | head -n1)"
+          test -n "$DMG"
+          SIG="$(ls staged/*.dmg.sig 2>/dev/null | head -n1 || true)"
           BASENAME="$(basename "$DMG")"
           export ASSET_NAME="$(echo "$BASENAME" | tr ' ' '.')"
           export APP_VERSION="$(echo "$BASENAME" | sed -E 's/.*_([0-9]+\.[0-9]+\.[0-9]+)_.*/\1/')"
           export DOWNLOAD_URL="https://github.com/${REPO}/releases/download/${RELEASE_TAG}/${ASSET_NAME}"
           export PUB_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          export SIGNATURE=""
           if [[ -n "${SIG}" && -f "${SIG}" ]]; then
             export SIGNATURE="$(cat "$SIG")"
-          else
-            export SIGNATURE=""
           fi
           node -e '
             const fs = require("fs");
             const platforms = {};
             if (process.env.SIGNATURE) {
-              platforms["darwin-aarch64"] = {
+              platforms[process.env.UPDATER_PLATFORM] = {
                 signature: process.env.SIGNATURE,
                 url: process.env.DOWNLOAD_URL
               };
             }
-            const manifest = {
+            const fragment = {
               version: process.env.APP_VERSION,
               notes: process.env.RELEASE_BODY || "",
               pub_date: process.env.PUB_DATE,
               platforms
             };
-            fs.writeFileSync("latest.json", JSON.stringify(manifest, null, 2));
-            console.log(manifest);
+            fs.writeFileSync("staged/latest-fragment.json", JSON.stringify(fragment, null, 2));
+            console.log(fragment);
           '
+          ls -lah staged/
 
-      - name: Upload macOS bundles
+      - name: Upload macOS bundles (${{ matrix.artifact }})
         uses: actions/upload-artifact@v4
         with:
-          name: macos-bundle
-          path: |
-            apps/agent/src-tauri/target/release/bundle/dmg/*.dmg
-            apps/agent/src-tauri/target/release/bundle/dmg/*.sig
-            apps/agent/src-tauri/target/release/bundle/macos/*.app
-            latest.json
+          name: ${{ matrix.artifact }}
+          path: staged/*
           if-no-files-found: error
 
   attach-to-release:
@@ -150,6 +163,38 @@ jobs:
         with:
           path: artifacts
 
+      - name: Merge latest.json (aarch64 + x86_64)
+        shell: bash
+        run: |
+          set -euo pipefail
+          node -e '
+            const fs = require("fs");
+            const path = require("path");
+            function walk(dir, out=[]) {
+              for (const ent of fs.readdirSync(dir, { withFileTypes: true })) {
+                const p = path.join(dir, ent.name);
+                if (ent.isDirectory()) walk(p, out);
+                else if (ent.name === "latest-fragment.json") out.push(p);
+              }
+              return out;
+            }
+            const files = walk("artifacts");
+            if (!files.length) {
+              console.log("No updater fragments (unsigned build) — skipping latest.json");
+              process.exit(0);
+            }
+            const merged = { version: "", notes: "", pub_date: "", platforms: {} };
+            for (const f of files) {
+              const j = JSON.parse(fs.readFileSync(f, "utf8"));
+              merged.version = j.version || merged.version;
+              merged.notes = j.notes || merged.notes;
+              merged.pub_date = j.pub_date || merged.pub_date;
+              Object.assign(merged.platforms, j.platforms || {});
+            }
+            fs.writeFileSync("latest.json", JSON.stringify(merged, null, 2));
+            console.log(merged);
+          '
+
       - name: Attach installers to release
         uses: softprops/action-gh-release@v2
         env:
@@ -160,4 +205,4 @@ jobs:
           files: |
             artifacts/**/*.dmg
             artifacts/**/*.sig
-            artifacts/**/latest.json
+            latest.json

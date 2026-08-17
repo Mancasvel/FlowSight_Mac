@@ -37,19 +37,26 @@ pnpm dev
 ## Build installer
 
 ```bash
+# Native (this Mac's chip)
 pnpm build
+
+# Explicit Apple Silicon
+pnpm run build:mac:arm
+
+# Explicit Intel (cross-compile from Apple Silicon OK)
+pnpm run build:mac:intel
 ```
 
-Output: `apps/agent/src-tauri/target/release/bundle/dmg/` and `.../macos/`.
+Output under `apps/agent/src-tauri/target/<triple>/release/bundle/`.
 
 ## Releases / CI
 
-Publishing a GitHub Release tag (e.g. `v3.6.0`) runs `.github/workflows/release.yml`, which:
+Publishing a GitHub Release tag (e.g. `v3.6.0`) runs `.github/workflows/release.yml`, which builds **two** installers from this same repo:
 
-1. Builds `llama-server` (Metal)
-2. Fetches GGUF weights
-3. Compiles the Tauri app and packages a `.dmg`
-4. Attaches the installer to the release
+| Asset | Chip |
+|---|---|
+| `*_aarch64.dmg` | Apple Silicon (M1+) |
+| `*_x64.dmg` | Intel |
 
 Push/PR to `main` runs `.github/workflows/ci.yml` (`cargo check` + tests).
 
