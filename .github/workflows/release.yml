@@ -135,7 +135,9 @@ jobs:
           else
             echo "APPLE_CERTIFICATE present — attempting signed build"
           fi
-          corepack pnpm --filter @flowsight/agent exec tauri build --target "$RUST_TARGET" "${SIGN_ARGS[@]}"
+          # With `set -u`, empty "${SIGN_ARGS[@]}" is an unbound variable on bash.
+          corepack pnpm --filter @flowsight/agent exec tauri build --target "$RUST_TARGET" \
+            ${SIGN_ARGS[@]+"${SIGN_ARGS[@]}"}
 
           APP="apps/agent/src-tauri/target/${RUST_TARGET}/release/bundle/macos/FlowSight Agent.app"
           ENTITLEMENTS="apps/agent/src-tauri/Entitlements.plist"
