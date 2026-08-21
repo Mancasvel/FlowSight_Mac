@@ -190,6 +190,20 @@ jobs:
             rm -f "$CERT_TMP"
             echo "APPLE_CERTIFICATE PKCS12 import OK — attempting Developer ID signed build"
             SIGNED_WITH_DEVELOPER_ID=1
+
+            # GitHub Actions injects empty strings for missing secrets. Tauri treats
+            # present-but-empty APPLE_ID/APPLE_PASSWORD as "notarize" and then 401s.
+            if [[ -z "${APPLE_ID:-}" || -z "${APPLE_PASSWORD:-}" ]]; then
+              echo "APPLE_ID/APPLE_PASSWORD missing — skipping notarization (signed build only)"
+              unset APPLE_ID APPLE_PASSWORD APPLE_API_KEY APPLE_API_ISSUER || true
+            else
+              APPLE_ID="$(printf '%s' "$APPLE_ID" | tr -d '\r\n' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+              APPLE_PASSWORD="$(printf '%s' "$APPLE_PASSWORD" | tr -d '\r')"
+              APPLE_PASSWORD="${APPLE_PASSWORD#"${APPLE_PASSWORD%%[![:space:]]*}"}"
+              APPLE_PASSWORD="${APPLE_PASSWORD%"${APPLE_PASSWORD##*[![:space:]]}"}"
+              export APPLE_ID APPLE_PASSWORD
+              echo "Notarization credentials present — Tauri will notarize after codesign"
+            fi
           fi
           # With `set -u`, empty "${SIGN_ARGS[@]}" is an unbound variable on bash.
           corepack pnpm --filter @flowsight/agent exec tauri build --target "$RUST_TARGET" \
