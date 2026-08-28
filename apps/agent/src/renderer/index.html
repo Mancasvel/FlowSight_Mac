@@ -4294,18 +4294,25 @@
       updateTimerRing(goalSec > 0 ? total / goalSec : 0);
     }
 
-    function commitSessionTime() {
+    function stopSessionTimerTicks() {
       if (sessionTimerInterval) {
         clearInterval(sessionTimerInterval);
         sessionTimerInterval = null;
       }
+    }
+
+    function commitSessionTime() {
+      stopSessionTimerTicks();
       todayTotalSeconds += sessionSeconds;
       sessionSeconds = 0;
       updateTimerDisplay();
     }
 
     function resumeSessionTimer() {
-      if (sessionTimerInterval) clearInterval(sessionTimerInterval);
+      stopSessionTimerTicks();
+      // Tick only while the window is visible so lid-close/sleep cannot
+      // inflate the stopwatch. Catch-up after background uses SQLite.
+      if (!isMonitoring || document.visibilityState !== 'visible') return;
       sessionTimerInterval = setInterval(() => {
         sessionSeconds++;
         updateTimerDisplay();
@@ -4315,6 +4322,37 @@
     function startSessionTimer() {
       sessionSeconds = 0;
       resumeSessionTimer();
+    }
+
+    /**
+     * Fold SQLite's flushed total into the stopwatch without double-counting.
+     * catchUp: snap to DB (may jump minutes) after the window was hidden.
+     * Otherwise keep the live HH:MM:SS continuous — DB 60s buckets can be
+     * ahead of the renderer, and snapping would look like a minute counter.
+     */
+    function syncTodayFromDb(dbTotal, { catchUp = false } = {}) {
+      if (!isMonitoring && !isPaused) {
+        todayTotalSeconds = dbTotal;
+        sessionSeconds = 0;
+        return;
+      }
+      if (isPaused) {
+        todayTotalSeconds = Math.max(todayTotalSeconds, dbTotal);
+        return;
+      }
+      const live = todayTotalSeconds + sessionSeconds;
+      if (catchUp) {
+        todayTotalSeconds = dbTotal;
+        sessionSeconds = Math.max(0, live - dbTotal);
+        return;
+      }
+      if (dbTotal > todayTotalSeconds) {
+        const flushed = dbTotal - todayTotalSeconds;
+        if (flushed <= sessionSeconds) {
+          sessionSeconds -= flushed;
+          todayTotalSeconds = dbTotal;
+        }
+      }
     }
 
     async function pushTaskContextToBackend() {
@@ -4407,7 +4445,7 @@
       }
     }
 
-    async function refreshTodayView() {
+    async function refreshTodayView(options = {}) {
       updateTodayGreeting();
       updateGoalUI();
       try {
@@ -4415,13 +4453,9 @@
         const streak = computeStreak(week);
         const streakEl = document.getElementById('streakText');
         if (streakEl) streakEl.textContent = `${streak} day${streak === 1 ? '' : 's'} Streak`;
-        if (!isMonitoring && !isPaused) {
-          const history = await invoke('get_today_history');
-          todayTotalSeconds = history.total_seconds || 0;
-        } else if (isPaused) {
-          const history = await invoke('get_today_history');
-          todayTotalSeconds = Math.max(todayTotalSeconds, history.total_seconds || 0);
-        }
+        const history = await invoke('get_today_history');
+        const dbTotal = history.total_seconds || 0;
+        syncTodayFromDb(dbTotal, { catchUp: options.catchUp === true });
       } catch (_) { /* agent may not be init yet */ }
       updateTimerDisplay();
       updatePlayButtonState();
@@ -5557,6 +5591,20 @@
       refreshTodayView();
       if (todayRefreshInterval) clearInterval(todayRefreshInterval);
       todayRefreshInterval = setInterval(refreshTodayView, 60000);
+      if (!window.__flowsightTodayVisibilityBound) {
+        window.__flowsightTodayVisibilityBound = true;
+        document.addEventListener('visibilitychange', () => {
+          if (document.visibilityState === 'hidden') {
+            stopSessionTimerTicks();
+            return;
+          }
+          refreshTodayView({ catchUp: true })
+            .catch(() => {})
+            .finally(() => {
+              if (isMonitoring) resumeSessionTimer();
+            });
+        });
+      }
 
       // If logged in with Jira on a paid plan, fetch tasks
       if (currentEntitlements?.can_integrations && authSession && authSession.provider === 'jira') {
@@ -6082,7 +6130,10 @@
     // this so the Today view updates without a renderer screenshot loop. Only
     // fires while monitoring is on.
     listen('activity-report', () => {
-      refreshTodayView().catch(() => {});
+      // Hidden: snap to SQLite (Rust already counted real work). Visible:
+      // fold flushed seconds into todayTotalSeconds so the stopwatch keeps
+      // ticking instead of jumping to the next 60s bucket.
+      refreshTodayView({ catchUp: document.visibilityState !== 'visible' }).catch(() => {});
       if (typeof loadHistory === 'function') {
         loadHistory().catch(() => {});
       }
