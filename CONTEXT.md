@@ -27,7 +27,8 @@ Documento de arquitectura del **agente de escritorio** (Tauri) y límites funcio
 | `oauth_env.rs` | Config OAuth por proveedor. |
 | `context.rs` | Contexto de ventana activa (`active_win_pos_rs`) y utilidades Git opcionales (`get_git_context`). |
 | `paths.rs` | Rutas de datos de la app (DB, logs, temporales). |
-| `vision_model.rs` | IDs de modelo y nombres de archivos GGUF/MMPROJ embebidos. |
+| `vision_model.rs` | IDs de modelo y nombres de archivos GGUF/MMPROJ. |
+| `model_assets.rs` | Descarga única de los pesos GGUF al directorio de datos del usuario, verificación sha256 y eventos de progreso. |
 | `llama_port.rs` | Puerto y URL del `llama-server` gestionado. |
 | `llama_windows_job.rs` | Agrupación de proceso en Windows para limpieza al cerrar. |
 | `screenshot_disk.rs` | Escritura opcional de captura cifrada (DPAPI) para depuración. |

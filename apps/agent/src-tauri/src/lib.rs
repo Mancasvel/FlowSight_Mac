@@ -1,4 +1,5 @@
 mod vision_model;
+mod model_assets;
 mod llama_port;
 mod llama_windows_job;
 mod screenshot_disk;
@@ -86,6 +87,8 @@ pub fn run() {
             anonymous_analytics::submit_product_feedback,
             agent::start_server,
             agent::stop_server,
+            model_assets::local_model_status,
+            model_assets::download_local_model,
             llama_managed_process_status,
             llama_server_log_tail,
             restart_llama_server_cpu_only,

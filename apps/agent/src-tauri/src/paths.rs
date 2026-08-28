@@ -152,6 +152,9 @@ fn llama_server_present(dir: &std::path::Path) -> bool {
 /// En un instalador Tauri, los `bundle.resources` van a `<install>/resources/`.
 /// En dev, `resource_dir` apunta al target de cargo; caemos al layout del repo
 /// (`<repo-root>/local_llm`) si los bundleados no están.
+///
+/// Solo contiene el runtime de llama.cpp (`bin/`). Los pesos GGUF viven en el
+/// directorio de datos del usuario; ver `model_assets`.
 pub fn resource_local_llm_dir(app: &AppHandle) -> Result<PathBuf, String> {
     let resource_dir = app
         .path()

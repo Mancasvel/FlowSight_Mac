@@ -1,13 +1,13 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "FlowSight Agent",
-  "version": "3.6.5",
+  "version": "3.6.6",
   "identifier": "ai.flowsight.agent",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://127.0.0.1:1420",
     "beforeDevCommand": "corepack pnpm --filter @flowsight/agent vite",
-    "beforeBuildCommand": "corepack pnpm --filter @flowsight/agent exec node ../../scripts/fetch-models.mjs && corepack pnpm --filter @flowsight/agent vite build"
+    "beforeBuildCommand": "corepack pnpm --filter @flowsight/agent vite build"
   },
   "app": {
     "windows": [
@@ -71,9 +71,7 @@
       "icons/icon.ico"
     ],
     "resources": {
-      "../../../local_llm/bin/*": "local_llm/bin/",
-      "../../../local_llm/Qwen3-VL-2B-Instruct-Q3_K_M.gguf": "local_llm/Qwen3-VL-2B-Instruct-Q3_K_M.gguf",
-      "../../../local_llm/mmproj-Qwen3VL-2B-Instruct-Q8_0.gguf": "local_llm/mmproj-Qwen3VL-2B-Instruct-Q8_0.gguf"
+      "../../../local_llm/bin/*": "local_llm/bin/"
     }
   },
   "plugins": {

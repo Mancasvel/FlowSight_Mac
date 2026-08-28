@@ -121,7 +121,7 @@ checksum = "7f202df86484c868dbad7eaa557ef785d5c66295e41b460ef922eca0723b842c"
 
 [[package]]
 name = "app"
-version = "3.6.5"
+version = "3.6.6"
 dependencies = [
  "active-win-pos-rs",
  "base64 0.22.1",
@@ -138,6 +138,7 @@ dependencies = [
  "screenshots",
  "serde",
  "serde_json",
+ "sha2",
  "tauri",
  "tauri-build",
  "tauri-plugin-log",

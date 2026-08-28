@@ -1,16 +1,80 @@
 #!/usr/bin/env bash
-# Fetch or build llama-server for macOS into local_llm/bin/.
-# Override host detection with:
-#   FLOWSIGHT_LLM_ARCH=macos-arm64|macos-x64
-# Skip executing the binary (cross-compile CI) with:
-#   FLOWSIGHT_SKIP_LLM_RUN=1
-# Optional auth for GitHub API rate limits:
-#   GITHUB_TOKEN / GH_TOKEN
+# Produce llama-server + its runtime dylibs for macOS into local_llm/bin/.
+#
+# ## Why this builds from source instead of downloading upstream's asset
+#
+# v3.6.5 shipped a bundled llama-server that aborted (SIGABRT) at launch on
+# macOS 15 and earlier:
+#
+#   dyld: Library not loaded: /usr/lib/librdma.dylib
+#     Referenced from: .../local_llm/bin/libggml-rpc.0.dylib
+#
+# This script used to download the *latest* `bin-macos-{arm64,x64}` asset from
+# ggml-org/llama.cpp with no version pin. Upstream builds the arm64 asset on a
+# macOS 26 runner, where ggml's RPC backend auto-detects `/usr/lib/librdma.dylib`
+# (Apple RDMA-over-Thunderbolt) and links it as a hard LC_LOAD_DYLIB. That
+# library does not exist below macOS 26 and is not in the dyld shared cache, and
+# llama-server hard-links libggml-rpc, so the load failure is unavoidable.
+#
+# Building from a pinned tag with `-DGGML_RPC=OFF` removes the failure mode at
+# the root: the RPC backend is never compiled, so no librdma reference can exist.
+# FlowSight runs inference in-process against localhost and never uses ggml's
+# distributed/RPC backend, so nothing is lost.
+#
+# The build is also pinned and self-contained on purpose:
+#   * GGML_METAL_EMBED_LIBRARY=ON     shaders live inside libggml-metal, so there
+#                                     is no default.metallib to forget to copy
+#   * CMAKE_INSTALL_RPATH=@loader_path binaries find their dylibs next to
+#                                     themselves inside the .app, not in the
+#                                     build tree
+#   * CMAKE_OSX_DEPLOYMENT_TARGET     taken from tauri.conf.json, so the runtime
+#                                     cannot silently require a newer macOS than
+#                                     the app claims to support
+#   * GGML_BLAS=OFF                   ggml's Accelerate backend calls
+#                                     cblas_sgemm, which Apple only exposes from
+#                                     macOS 13.3. Below that it links as a weak
+#                                     external that resolves to NULL, i.e. a
+#                                     null-call crash the moment the backend runs.
+#                                     Metal does the offload and the CPU backend
+#                                     keeps its NEON kernels, so this only gives
+#                                     up large-batch CPU prompt throughput.
+#   * -Werror=unguarded-availability-new
+#                                     any future upstream call into an API newer
+#                                     than the deployment target fails the build
+#                                     instead of shipping another weak NULL
+#   * LLAMA_CURL / LLAMA_*_UI = OFF   FlowSight loads local GGUF paths and talks
+#                                     to the HTTP API directly, so neither the
+#                                     Hugging Face downloader nor the server's
+#                                     web UI is used. Dropping them also removes
+#                                     a Hugging Face fetch from the release build.
+#
+# Every path ends in verify_output(), which refuses to leave behind a tree that
+# is the wrong architecture, has an unresolvable dependency, or cannot execute.
+#
+# Env:
+#   FLOWSIGHT_LLM_ARCH=macos-arm64|macos-x64  override host arch detection
+#   FLOWSIGHT_LLAMA_REF=bXXXXX                llama.cpp tag to build (pinned below)
+#   FLOWSIGHT_LLAMA_PREBUILT=1                download upstream's asset for that
+#                                             same tag instead of building; still
+#                                             fully audited, so an asset carrying
+#                                             the librdma link will fail the build
+#   FLOWSIGHT_LLAMA_REUSE=1                   reuse an existing local_llm/bin if
+#                                             it passes verification (local dev)
+#   FLOWSIGHT_SKIP_LLM_RUN=1                  skip the execution smoke test; only
+#                                             honoured when the target arch
+#                                             genuinely cannot run on this host
+#   GITHUB_TOKEN / GH_TOKEN                   GitHub API auth for asset lookup
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 OUT_DIR="$ROOT/local_llm/bin"
+TAURI_CONF="$ROOT/apps/agent/src-tauri/tauri.conf.json"
+AUDIT_SCRIPT="$ROOT/scripts/audit_macos_macho_deps.py"
 mkdir -p "$OUT_DIR"
+
+# Pinned llama.cpp release. Bump deliberately, and only after re-running this
+# script locally: an unpinned "latest" is what shipped the v3.6.5 crash.
+LLAMA_REF="${FLOWSIGHT_LLAMA_REF:-b10666}"
 
 if [[ -n "${FLOWSIGHT_LLM_ARCH:-}" ]]; then
   ASSET_ARCH="$FLOWSIGHT_LLM_ARCH"
@@ -28,6 +92,19 @@ case "$ASSET_ARCH" in
   macos-x64) WANT_ARCH="x86_64" ;;
   *) echo "FLOWSIGHT_LLM_ARCH must be macos-arm64 or macos-x64 (got: ${ASSET_ARCH})"; exit 1 ;;
 esac
+
+# Keep the llama runtime's minimum macOS in step with what the app advertises.
+DEPLOYMENT_TARGET="$(
+  python3 - "$TAURI_CONF" <<'PY'
+import json, sys
+try:
+    with open(sys.argv[1], encoding="utf-8") as f:
+        cfg = json.load(f)
+    print(cfg["bundle"]["macOS"]["minimumSystemVersion"])
+except Exception:
+    print("12.0")
+PY
+)"
 
 TMP="$(mktemp -d)"
 cleanup() { rm -rf "$TMP"; }
@@ -52,6 +129,10 @@ github_curl() {
   fi
 }
 
+is_mach_o() {
+  /usr/bin/file -b "$1" 2>/dev/null | /usr/bin/grep -q 'Mach-O'
+}
+
 verify_llama_arch() {
   local bin="$1"
   local want="$2" # arm64 | x86_64
@@ -64,16 +145,95 @@ verify_llama_arch() {
     echo "[FlowSight] ERROR: $bin is '$got' but expected arch $want ($ASSET_ARCH)"
     return 1
   fi
-  echo "[FlowSight] Verified $bin arch: $got"
   return 0
+}
+
+# A single wrong-arch dylib is enough to break the bundle at load time, so check
+# the whole tree rather than just llama-server.
+verify_all_arch() {
+  local failed=0
+  local bin
+  while IFS= read -r -d '' bin; do
+    if ! is_mach_o "$bin"; then
+      continue
+    fi
+    if ! verify_llama_arch "$bin" "$WANT_ARCH"; then
+      failed=1
+    fi
+  done < <(/usr/bin/find "$OUT_DIR" -type f -print0)
+  if [[ "$failed" -ne 0 ]]; then
+    echo "[FlowSight] ERROR: local_llm/bin contains Mach-O files that are not ${WANT_ARCH}"
+    return 1
+  fi
+  echo "[FlowSight] Arch OK: every bundled Mach-O is ${WANT_ARCH}"
+  return 0
+}
+
+# True when a $WANT_ARCH binary can actually be executed on this host.
+can_execute_target() {
+  local host
+  host="$(uname -m)"
+  if [[ "$WANT_ARCH" == "$host" ]]; then
+    return 0
+  fi
+  # Rosetta 2 lets an arm64 host run x86_64 binaries; nothing lets an x86_64
+  # host run arm64 ones.
+  if [[ "$host" == "arm64" && "$WANT_ARCH" == "x86_64" ]] \
+    && /usr/bin/arch -x86_64 /usr/bin/true >/dev/null 2>&1; then
+    return 0
+  fi
+  return 1
+}
+
+# The old version of this check was `llama-server --version 2>/dev/null || true`,
+# which threw away both stderr and the exit code — the reason CI shipped a binary
+# that could not start. It now fails the build, and FLOWSIGHT_SKIP_LLM_RUN is
+# refused when the binary demonstrably can run here.
+smoke_test() {
+  if ! can_execute_target; then
+    echo "[FlowSight] Skipping execution smoke test: ${WANT_ARCH} cannot run on $(uname -m)"
+    echo "[FlowSight] (the dependency audit above is static and still covers this build)"
+    return 0
+  fi
+  if [[ "${FLOWSIGHT_SKIP_LLM_RUN:-0}" == "1" ]]; then
+    echo "[FlowSight] Ignoring FLOWSIGHT_SKIP_LLM_RUN=1: ${WANT_ARCH} runs natively here," \
+      "so llama-server must prove it starts"
+  fi
+  echo "[FlowSight] Running llama-server --version"
+  local status=0
+  "$OUT_DIR/llama-server" --version > "$TMP/version.log" 2>&1 || status=$?
+  if [[ "$status" -ne 0 ]]; then
+    echo "[FlowSight] ERROR: llama-server --version failed (exit ${status}). Output:"
+    /bin/cat "$TMP/version.log"
+    return 1
+  fi
+  /bin/cat "$TMP/version.log"
+  return 0
+}
+
+dependency_audit() {
+  echo "[FlowSight] Auditing bundled Mach-O dependencies"
+  python3 "$AUDIT_SCRIPT" "$OUT_DIR"
+}
+
+verify_output() {
+  test -x "$OUT_DIR/llama-server"
+  verify_all_arch
+  dependency_audit
+  smoke_test
+  echo "[FlowSight] local_llm/bin verified for ${ASSET_ARCH} (llama.cpp ${LLAMA_REF})"
+}
+
+clear_out_dir() {
+  /usr/bin/find "$OUT_DIR" -maxdepth 1 \( -name 'llama-server' -o -name '*.dylib' \) -delete 2>/dev/null || true
 }
 
 # llama.cpp releases ship every CLI tool's helper dylib plus three byte-identical
 # aliases of each library (libggml-base.dylib / .0.dylib / .0.20.1.dylib). Tauri
 # copies resources with fs::copy, which dereferences symlinks, so the only way to
 # keep the bundle small is to ship just the libraries llama-server actually loads.
-# Everything is reachable statically (verified with otool: the Metal/BLAS/RPC
-# backends are LC_LOAD_DYLIB entries, not dlopen'd), so the link closure is exact.
+# Everything is reachable statically (verified with otool: the ggml backends are
+# LC_LOAD_DYLIB entries, not dlopen'd), so the link closure is exact.
 prune_unreferenced_dylibs() {
   if ! command -v /usr/bin/otool >/dev/null 2>&1; then
     echo "[FlowSight] otool unavailable — keeping every downloaded dylib"
@@ -180,135 +340,136 @@ extract_archive() {
   esac
 }
 
-keep_existing_if_valid() {
-  if [[ ! -x "$OUT_DIR/llama-server" ]]; then
+install_prebuilt() {
+  echo "[FlowSight] Resolving ${ASSET_ARCH} asset for pinned llama.cpp ${LLAMA_REF}..."
+  local api="https://api.github.com/repos/ggml-org/llama.cpp/releases/tags/${LLAMA_REF}"
+  if ! github_curl "$api" "$TMP/release.json"; then
+    echo "[FlowSight] ERROR: could not read release ${LLAMA_REF} from the GitHub API"
     return 1
   fi
-  if verify_llama_arch "$OUT_DIR/llama-server" "$WANT_ARCH"; then
-    echo "[FlowSight] Keeping existing local_llm/bin/llama-server ($ASSET_ARCH)"
-    if [[ "${FLOWSIGHT_SKIP_LLM_RUN:-0}" != "1" ]]; then
-      "$OUT_DIR/llama-server" --version 2>/dev/null || true
-    fi
-    return 0
-  fi
-  echo "[FlowSight] Existing llama-server wrong arch for ${ASSET_ARCH}; ignoring committed binary"
-  return 1
-}
-
-echo "[FlowSight] Looking up latest llama.cpp release asset for ${ASSET_ARCH}..."
-# Prefer rolling bXXXX releases that ship bin-macos-{arm64,x64}. GitHub's
-# /releases/latest can point at a versioned tag (e.g. v0.3.0) with no macOS
-# assets, which used to force a broken host-native source rebuild for x64 CI.
-ASSET_URL=""
-ASSET_TAG=""
-for page in 1 2 3; do
-  API="https://api.github.com/repos/ggml-org/llama.cpp/releases?per_page=30&page=${page}"
-  if ! github_curl "$API" "$TMP/releases-${page}.json"; then
-    echo "[FlowSight] GitHub API lookup failed (page ${page}; rate limit/403?). Will try existing binary or source build."
-    break
-  fi
-  # Exact asset name segment: llama-*-bin-macos-arm64.tar.gz / macos-x64
-  MATCH="$(
-    python3 - "$TMP/releases-${page}.json" "$ASSET_ARCH" <<'PY'
+  local url
+  url="$(
+    python3 - "$TMP/release.json" "$ASSET_ARCH" <<'PY'
 import json, sys
 path, arch = sys.argv[1], sys.argv[2]
 needle = f"bin-{arch}"
 with open(path, encoding="utf-8") as f:
-    releases = json.load(f)
-if not isinstance(releases, list):
-    sys.exit(0)
-for rel in releases:
-    for asset in rel.get("assets") or []:
-        name = asset.get("name") or ""
-        url = asset.get("browser_download_url") or ""
-        if needle in name and url:
-            print(f"{rel.get('tag_name','')}\t{url}")
-            sys.exit(0)
+    release = json.load(f)
+for asset in release.get("assets") or []:
+    if needle in (asset.get("name") or "") and asset.get("browser_download_url"):
+        print(asset["browser_download_url"])
+        break
 PY
-  )" || true
-  if [[ -n "${MATCH:-}" ]]; then
-    ASSET_TAG="${MATCH%%$'\t'*}"
-    ASSET_URL="${MATCH#*$'\t'}"
-    echo "[FlowSight] Found ${ASSET_ARCH} asset on release ${ASSET_TAG}"
-    break
-  fi
-done
-if [[ -z "${ASSET_URL:-}" ]]; then
-  echo "[FlowSight] No ${ASSET_ARCH} prebuilt asset in recent releases. Will try existing binary or source build."
-fi
-
-install_from_url() {
-  local url="$1"
-  echo "[FlowSight] Downloading $url"
-  EXT="bin"
-  case "$url" in
-    *.tar.gz) EXT="tar.gz" ;;
-    *.tgz) EXT="tgz" ;;
-    *.zip) EXT="zip" ;;
-  esac
-  ARCHIVE="$TMP/llama.$EXT"
-  /usr/bin/curl -fL "$url" -o "$ARCHIVE"
-
-  # Only wipe previous bins once we have a download in hand.
-  /usr/bin/find "$OUT_DIR" -maxdepth 1 \( -name 'llama-server' -o -name '*.dylib' \) -delete 2>/dev/null || true
-
-  extract_archive "$ARCHIVE" "$TMP/extract"
-  SERVER="$(/usr/bin/find "$TMP/extract" -type f -name 'llama-server' | /usr/bin/head -n1 || true)"
-  if [[ -z "$SERVER" ]]; then
-    echo "[FlowSight] Archive had no llama-server"
+  )"
+  if [[ -z "$url" ]]; then
+    echo "[FlowSight] ERROR: release ${LLAMA_REF} has no bin-${ASSET_ARCH} asset"
     return 1
   fi
-  /bin/cp -f "$SERVER" "$OUT_DIR/llama-server"
+
+  echo "[FlowSight] Downloading $url"
+  local ext="bin"
+  case "$url" in
+    *.tar.gz) ext="tar.gz" ;;
+    *.tgz) ext="tgz" ;;
+    *.zip) ext="zip" ;;
+  esac
+  local archive="$TMP/llama.$ext"
+  /usr/bin/curl -fL "$url" -o "$archive"
+
+  extract_archive "$archive" "$TMP/extract"
+  local server
+  server="$(/usr/bin/find "$TMP/extract" -type f -name 'llama-server' | /usr/bin/head -n1 || true)"
+  if [[ -z "$server" ]]; then
+    echo "[FlowSight] ERROR: archive had no llama-server"
+    return 1
+  fi
+
+  # Only wipe previous bins once we have a usable download in hand.
+  clear_out_dir
+  local server_dir
+  server_dir="$(/usr/bin/dirname "$server")"
+  /bin/cp -f "$server" "$OUT_DIR/llama-server"
   /bin/chmod +x "$OUT_DIR/llama-server"
-  SERVER_DIR="$(/usr/bin/dirname "$SERVER")"
   # -a keeps upstream symlinks as symlinks. Plain `cp` dereferences them, which
   # produced three byte-identical copies of every dylib (libggml-base.dylib,
   # .0.dylib and .0.20.1.dylib) — 3x payload, codesign calls and notary scanning.
-  /bin/cp -a "$SERVER_DIR"/*.dylib "$OUT_DIR/" 2>/dev/null || true
-  /bin/cp -a "$SERVER_DIR/../lib"/*.dylib "$OUT_DIR/" 2>/dev/null || true
+  /bin/cp -a "$server_dir"/*.dylib "$OUT_DIR/" 2>/dev/null || true
+  /bin/cp -a "$server_dir/../lib"/*.dylib "$OUT_DIR/" 2>/dev/null || true
   prune_unreferenced_dylibs
-  verify_llama_arch "$OUT_DIR/llama-server" "$WANT_ARCH"
-  echo "[FlowSight] Installed $OUT_DIR/llama-server ($ASSET_ARCH)"
-  if [[ "${FLOWSIGHT_SKIP_LLM_RUN:-0}" != "1" ]]; then
-    "$OUT_DIR/llama-server" --version 2>/dev/null || true
-  fi
-  return 0
+  echo "[FlowSight] Installed prebuilt $OUT_DIR/llama-server (${ASSET_ARCH}, ${LLAMA_REF})"
 }
 
-if [[ -n "${ASSET_URL:-}" ]]; then
-  if install_from_url "$ASSET_URL"; then
+build_from_source() {
+  echo "[FlowSight] Building llama.cpp ${LLAMA_REF} from source for ${ASSET_ARCH}" \
+    "(Metal, RPC off, deployment target ${DEPLOYMENT_TARGET})..."
+  if ! command -v cmake >/dev/null 2>&1; then
+    echo "cmake is required to build llama.cpp. Install with: brew install cmake"
+    exit 1
+  fi
+
+  # Pinned tag only: falling back to the default branch would reintroduce the
+  # unpinned-provenance bug this script exists to prevent.
+  /usr/bin/git clone --depth 1 --branch "$LLAMA_REF" \
+    https://github.com/ggml-org/llama.cpp.git "$TMP/llama.cpp"
+
+  # Reported by `llama-server --version`, so support tickets name the exact
+  # upstream build we shipped. A shallow clone has no history to count.
+  # A scalar rather than an array: macOS still ships bash 3.2, where expanding an
+  # empty array under `set -u` is an unbound-variable error.
+  local build_number="${LLAMA_REF#b}"
+  local build_number_flag=""
+  if [[ "$build_number" =~ ^[0-9]+$ ]]; then
+    build_number_flag="-DLLAMA_BUILD_NUMBER=$build_number"
+  fi
+
+  # GGML_NATIVE=OFF avoids host -march=apple-m1 when cross-building x86_64 on
+  # arm64 runners.
+  local availability_flag="-Werror=unguarded-availability-new"
+  cmake -S "$TMP/llama.cpp" -B "$TMP/build" \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DGGML_METAL=ON \
+    -DGGML_METAL_EMBED_LIBRARY=ON \
+    -DGGML_RPC=OFF \
+    -DGGML_BLAS=OFF \
+    -DGGML_NATIVE=OFF \
+    -DCMAKE_C_FLAGS="$availability_flag" \
+    -DCMAKE_CXX_FLAGS="$availability_flag" \
+    -DCMAKE_OBJC_FLAGS="$availability_flag" \
+    -DCMAKE_OBJCXX_FLAGS="$availability_flag" \
+    -DLLAMA_BUILD_SERVER=ON \
+    -DLLAMA_BUILD_TESTS=OFF \
+    -DLLAMA_BUILD_EXAMPLES=OFF \
+    -DLLAMA_CURL=OFF \
+    -DLLAMA_BUILD_UI=OFF \
+    -DLLAMA_USE_PREBUILT_UI=OFF \
+    -DCMAKE_BUILD_WITH_INSTALL_RPATH=ON \
+    -DCMAKE_INSTALL_RPATH='@loader_path' \
+    -DCMAKE_OSX_ARCHITECTURES="$WANT_ARCH" \
+    -DCMAKE_OSX_DEPLOYMENT_TARGET="$DEPLOYMENT_TARGET" \
+    ${build_number_flag:+"$build_number_flag"}
+  cmake --build "$TMP/build" --config Release \
+    -j "$(/usr/sbin/sysctl -n hw.ncpu)" --target llama-server
+
+  clear_out_dir
+  /bin/cp -f "$TMP/build/bin/llama-server" "$OUT_DIR/llama-server"
+  /bin/chmod +x "$OUT_DIR/llama-server"
+  /bin/cp -a "$TMP/build/bin"/*.dylib "$OUT_DIR/"
+  prune_unreferenced_dylibs
+  echo "[FlowSight] Built $OUT_DIR/llama-server (${ASSET_ARCH}, ${LLAMA_REF})"
+}
+
+if [[ "${FLOWSIGHT_LLAMA_REUSE:-0}" == "1" ]] && [[ -x "$OUT_DIR/llama-server" ]]; then
+  echo "[FlowSight] FLOWSIGHT_LLAMA_REUSE=1 — verifying existing local_llm/bin"
+  if verify_output; then
     exit 0
   fi
-  echo "[FlowSight] Download/install failed; falling back."
+  echo "[FlowSight] Existing local_llm/bin did not verify; rebuilding"
 fi
 
-if keep_existing_if_valid; then
-  exit 0
+if [[ "${FLOWSIGHT_LLAMA_PREBUILT:-0}" == "1" ]]; then
+  install_prebuilt
+else
+  build_from_source
 fi
 
-echo "[FlowSight] Building llama.cpp from source (Metal) for ${ASSET_ARCH}..."
-if ! command -v cmake >/dev/null 2>&1; then
-  echo "cmake is required to build llama.cpp. Install with: brew install cmake"
-  exit 1
-fi
-
-CMAKE_OSX_ARCH="$WANT_ARCH"
-/usr/bin/find "$OUT_DIR" -maxdepth 1 \( -name 'llama-server' -o -name '*.dylib' \) -delete 2>/dev/null || true
-# Prefer a known-good release tag when HEAD main may not cross-compile cleanly.
-CLONE_REF="${FLOWSIGHT_LLAMA_REF:-b10666}"
-/usr/bin/git clone --depth 1 --branch "$CLONE_REF" https://github.com/ggml-org/llama.cpp.git "$TMP/llama.cpp" \
-  || /usr/bin/git clone --depth 1 https://github.com/ggml-org/llama.cpp.git "$TMP/llama.cpp"
-# GGML_NATIVE=OFF avoids host -march=apple-m1 when cross-building x86_64 on arm64 runners.
-cmake -S "$TMP/llama.cpp" -B "$TMP/build" \
-  -DGGML_METAL=ON \
-  -DGGML_NATIVE=OFF \
-  -DLLAMA_BUILD_SERVER=ON \
-  -DCMAKE_BUILD_TYPE=Release \
-  -DCMAKE_OSX_ARCHITECTURES="$CMAKE_OSX_ARCH"
-cmake --build "$TMP/build" --config Release -j "$(sysctl -n hw.ncpu)" --target llama-server
-/bin/cp -f "$TMP/build/bin/llama-server" "$OUT_DIR/llama-server"
-/bin/chmod +x "$OUT_DIR/llama-server"
-/bin/cp -a "$TMP/build/bin"/*.dylib "$OUT_DIR/" 2>/dev/null || true
-prune_unreferenced_dylibs
-echo "[FlowSight] Built $OUT_DIR/llama-server ($ASSET_ARCH)"
-verify_llama_arch "$OUT_DIR/llama-server" "$WANT_ARCH"
+verify_output

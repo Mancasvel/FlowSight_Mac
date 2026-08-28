@@ -13,7 +13,7 @@ FlowSight is a desktop application that helps distributed engineering teams unde
 
 ## Features
 
-- **100% local inference** — bundled `llama.cpp` (Metal) + Qwen3-VL GGUF.
+- **100% local inference** — bundled `llama.cpp` (Metal) + Qwen3-VL GGUF downloaded on first run.
 - **Desktop-native** — Tauri 2 (Rust) shell, Vite frontend, SQLite. Ships as `.app` / `.dmg`.
 - **Activity-oriented** — Accessibility + frontmost-app signals (not keystroke surveillance).
 - **Team analytics, with consent** — opt-in aggregation into Supabase only when joining a team.
@@ -32,6 +32,17 @@ cd FlowSight_Mac
 pnpm install
 bash scripts/prepare-macos-llm.sh
 pnpm dev
+```
+
+## Model weights
+
+The `.app` ships only the `llama.cpp` runtime (code that must be signed and notarized). The ~1.3 GB of Qwen3-VL GGUF weights are **not** bundled: the app downloads them once into `~/Library/Application Support/ai.flowsight.agent/models/` and verifies their sha256 before use.
+
+For local development you can pre-populate `local_llm/` instead, which the app prefers over downloading:
+
+```bash
+node scripts/fetch-models.mjs          # download if missing
+node scripts/fetch-models.mjs --check  # verify only, no network
 ```
 
 ## Build installer

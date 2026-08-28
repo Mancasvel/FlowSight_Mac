@@ -793,6 +793,43 @@
     .setup-subtext {
       font-size: 11px;
       color: hsl(var(--muted-foreground));
+      max-width: 300px;
+      line-height: 1.5;
+    }
+
+    .setup-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 16px;
+    }
+
+    .setup-action {
+      padding: 6px 14px;
+      font-size: 11px;
+      font-weight: 500;
+      color: hsl(var(--foreground));
+      background: hsl(var(--background));
+      border: 1px solid hsl(var(--border));
+      border-radius: 6px;
+      cursor: pointer;
+    }
+
+    .setup-action:hover {
+      background: hsl(var(--secondary));
+    }
+
+    .setup-action-primary {
+      color: hsl(var(--primary-foreground));
+      background: hsl(var(--primary));
+      border-color: hsl(var(--primary));
+    }
+
+    .setup-action-primary:hover {
+      background: hsl(var(--primary) / 0.9);
+    }
+
+    .progress-bar.is-error {
+      background: hsl(var(--destructive));
     }
 
     /* ===== App Shell & Tab Navigation ===== */
@@ -3638,6 +3675,10 @@
       <div class="progress-bar" id="setupProgress"></div>
     </div>
     <div class="setup-subtext" id="setupSubtext">Esto tomará unos minutos</div>
+    <div class="setup-actions" id="setupActions" style="display: none;">
+      <button type="button" class="setup-action setup-action-primary" id="setupRetryBtn">Retry</button>
+      <button type="button" class="setup-action" id="setupDismissBtn">Not now</button>
+    </div>
   </div>
 
   <!-- SETUP OVERLAY -->
@@ -5237,6 +5278,58 @@
       }
     }
 
+    /** @param {number} bytes */
+    function formatMegabytes(bytes) {
+      return `${Math.round((bytes || 0) / (1024 * 1024))} MB`;
+    }
+
+    /**
+     * Descarga única de los pesos del modelo local (~1.3 GB) al arrancar por
+     * primera vez. Ya no viajan dentro de la app: el backend los guarda en la
+     * carpeta de datos del usuario y los verifica por sha256.
+     *
+     * @param {(status: string, sub?: string, pct?: number) => void} showStep
+     */
+    async function ensureLocalModelDownloaded(showStep) {
+      /** @type {{ ready?: boolean, totalBytes?: number }} */
+      let status = { ready: true };
+      try {
+        status = await invoke('local_model_status');
+      } catch (e) {
+        console.warn('[FlowSight] local_model_status failed, letting the server path decide:', e);
+        return;
+      }
+      if (status.ready) return;
+
+      const totalLabel = formatMegabytes(status.totalBytes);
+      showStep(
+        'Downloading local AI model…',
+        `One-time download of ${totalLabel}. It stays on this Mac; FlowSight never sends your screen anywhere.`,
+        2
+      );
+
+      const unlisten = await listen('local-model-download', (event) => {
+        const p = event.payload || {};
+        if (p.phase === 'downloading') {
+          showStep(
+            `Downloading local AI model… ${p.percent || 0}%`,
+            `File ${p.index} of ${p.count} — ${formatMegabytes(p.downloadedBytes)} of ${formatMegabytes(p.totalBytes)}. One-time download.`,
+            Math.max(2, Math.round((p.percent || 0) * 0.9))
+          );
+        } else if (p.phase === 'verifying') {
+          showStep('Verifying download…', `Checking the integrity of file ${p.index} of ${p.count}.`, 95);
+        } else if (p.phase === 'ready') {
+          showStep('Local AI model ready', 'Starting the local server…', 100);
+        }
+      });
+
+      try {
+        await invoke('download_local_model');
+      } finally {
+        await unlisten();
+      }
+    }
+
     async function startMonitoringFull() {
       const btn = document.getElementById('playTimerBtn');
       btn.disabled = true;
@@ -5246,16 +5339,39 @@
       const progress = document.getElementById('setupProgress');
       const statusText = document.getElementById('setupStatus');
       const subtext = document.getElementById('setupSubtext');
+      const actions = document.getElementById('setupActions');
 
       const showStep = (status, sub = "Initializing...", pct = 0) => {
         overlay.style.display = 'flex';
+        actions.style.display = 'none';
+        progress.classList.remove('is-error');
         statusText.textContent = status;
         subtext.textContent = sub;
         progress.style.width = pct + '%';
       };
 
+      /** Deja el overlay en un estado legible y accionable en vez de un toast que se va. */
+      const showBlockingError = (title, message) => {
+        overlay.style.display = 'flex';
+        progress.classList.add('is-error');
+        progress.style.width = '100%';
+        statusText.textContent = title;
+        subtext.textContent = message;
+        actions.style.display = 'flex';
+        document.getElementById('setupRetryBtn').onclick = () => {
+          actions.style.display = 'none';
+          startMonitoringFull();
+        };
+        document.getElementById('setupDismissBtn').onclick = () => {
+          overlay.style.display = 'none';
+          actions.style.display = 'none';
+        };
+      };
+
       try {
-        showStep("Starting local vision…", "Preparing local server (first run may download model weights)…", 20);
+        await ensureLocalModelDownloaded(showStep);
+
+        showStep("Starting local vision…", "Preparing local server…", 20);
 
         const res = await invoke('start_server');
         console.log("Server Start Result:", res);
@@ -5375,9 +5491,18 @@
         ollamaConfirmedOnline = true;
         await checkOllama();
       } catch (e) {
-        overlay.style.display = 'none';
         console.error("Start Failed:", e);
-        showToast("Error: " + e, "error");
+        const message = String(e && e.message ? e.message : e);
+        const modelStillMissing = await invoke('local_model_status')
+          .then((s) => s && s.ready === false)
+          .catch(() => false);
+
+        if (modelStillMissing) {
+          showBlockingError('Could not download the local AI model', message);
+        } else {
+          overlay.style.display = 'none';
+          showToast("Error: " + message, "error");
+        }
       } finally {
         btn.disabled = false;
         btn.classList.remove('loading-state');

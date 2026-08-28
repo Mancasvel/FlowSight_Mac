@@ -68,7 +68,10 @@ jobs:
       APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
       RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
       FLOWSIGHT_LLM_ARCH: ${{ matrix.llm_arch }}
-      FLOWSIGHT_SKIP_LLM_RUN: "1"
+      # No FLOWSIGHT_SKIP_LLM_RUN here on purpose: it used to be set for both
+      # matrix legs, which silenced the startup smoke test even on the arm64
+      # runner that can run the binary natively. prepare-macos-llm.sh now decides
+      # for itself and only skips execution for a genuinely unrunnable arch.
       # Authenticated API avoids 403 rate limits when resolving llama.cpp assets
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
@@ -97,23 +100,35 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          cmake --version
+          # The script is the gate now: it builds llama.cpp from a pinned tag with
+          # the RPC backend off, checks every bundled Mach-O is the expected arch,
+          # audits dependencies, and requires `llama-server --version` to exit 0
+          # whenever the produced arch can run on this host.
           bash scripts/prepare-macos-llm.sh
           test -x local_llm/bin/llama-server
           ls -lah local_llm/bin
           if [[ "${{ matrix.llm_arch }}" == "macos-arm64" ]]; then
             lipo -archs local_llm/bin/llama-server | grep -q arm64
-            # Native arch: a successful load proves the pruned dylib set is complete.
-            if ! LLAMA_OUT="$(local_llm/bin/llama-server --version 2>&1)"; then
-              echo "$LLAMA_OUT"
-              if grep -qiE 'dyld|Library not loaded|image not found' <<<"$LLAMA_OUT"; then
-                echo "ERROR: llama-server cannot resolve its bundled dylibs"
-                exit 1
-              fi
-            fi
-            echo "$LLAMA_OUT" | head -n 3 || true
           else
             lipo -archs local_llm/bin/llama-server | grep -q x86_64
           fi
+
+      - name: Audit bundled llama-server dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Independent gate on top of the one inside prepare-macos-llm.sh. Fails
+          # when a bundled binary links an absolute /usr/lib or /System path that
+          # does not exist here, or an @rpath dylib that is not bundled.
+          #
+          # This is the check that would have stopped v3.6.5: its arm64
+          # libggml-rpc linked /usr/lib/librdma.dylib, which exists only on
+          # macOS 26, so llama-server died in dyld on every older system.
+          #
+          # Static analysis, so it covers the cross-compiled x86_64 slice that
+          # cannot be executed on an arm64 runner.
+          python3 scripts/audit_macos_macho_deps.py local_llm/bin
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile

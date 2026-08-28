@@ -1,6 +1,6 @@
 [package]
 name = "app"
-version = "3.6.5"
+version = "3.6.6"
 description = "FlowSight Agent — Understand your own Workflows"
 authors = ["you"]
 license = ""
@@ -31,6 +31,8 @@ screenshots = "0.8"
 base64 = "0.22"
 chrono = "0.4"
 reqwest = { version = "0.12", features = ["json", "blocking"] }
+# sha256 de los pesos GGUF descargados en primer arranque (model_assets.rs).
+sha2 = "0.10"
 image = "0.25"
 rusqlite = { version = "0.32", features = ["bundled"] }
 dirs = "5"

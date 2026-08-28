@@ -1,7 +1,6 @@
 use crate::agent_pure::{parse_analysis, resolve_persisted_category, ALLOWED_CATEGORIES};
 use crate::vision_model::{
-    CONFIG_VISION_MODEL_ID, LLAMA_CHAT_MODEL_ID, VISION_GGUF_FILENAME, VISION_MMPROJ_FILENAME,
-    VISION_STATUS_LABEL,
+    CONFIG_VISION_MODEL_ID, LLAMA_CHAT_MODEL_ID, VISION_STATUS_LABEL,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
@@ -824,6 +823,11 @@ static SERVER_PROCESS: Mutex<Option<std::process::Child>> = Mutex::new(None);
 /// Puertos nuevos ante `EADDRINUSE`/fallo rápido de escucha tras TOCTOU o TIME_WAIT.
 const LLAMA_LISTEN_PORT_SPAWN_ATTEMPTS: u8 = 8;
 
+/// Los pesos ya no van en el bundle: si faltan, el remedio es descargarlos,
+/// no reinstalar la app.
+const MISSING_WEIGHTS_MESSAGE: &str =
+    "Local AI model weights are not downloaded yet. Run the first-run model download and retry.";
+
 fn clamp_llama_gpu_layers(n: i32) -> i32 {
     n.max(0).min(16_384)
 }
@@ -1147,14 +1151,14 @@ fn spawn_llama_managed_child(
     gpu_layers: i32,
     vulkan_visible_device_index: Option<&str>,
 ) -> Result<std::process::Child, String> {
-    // Runtime (binarios + pesos) empacados como Tauri bundle resources. En
-    // dev cae al layout del repo autom\u00e1ticamente.
+    // El runtime de llama.cpp s\u00ed viaja en el bundle (es c\u00f3digo firmado); los
+    // pesos no, se resuelven desde el directorio de datos del usuario.
     let local_llm_dir = crate::paths::resource_local_llm_dir(app)?;
     let bin_path = local_llm_dir
         .join("bin")
         .join(crate::paths::llama_server_bin_name());
-    let model_path = local_llm_dir.join(VISION_GGUF_FILENAME);
-    let mmproj_path = local_llm_dir.join(VISION_MMPROJ_FILENAME);
+    let (model_path, mmproj_path) = crate::model_assets::resolved_vision_weights(app)
+        .ok_or_else(|| MISSING_WEIGHTS_MESSAGE.to_string())?;
 
     if !bin_path.exists() {
         return Err(format!("llama-server not found at {:?}. Reinstall FlowSight Agent.", bin_path));
@@ -1170,13 +1174,6 @@ fn spawn_llama_managed_child(
             }
         }
     }
-    if !model_path.exists() {
-        return Err(format!("Vision weights not found at {:?}. Reinstall FlowSight Agent.", model_path));
-    }
-    if !mmproj_path.exists() {
-        return Err(format!("Vision projector not found at {:?}. Reinstall FlowSight Agent.", mmproj_path));
-    }
-
     let log_path = crate::paths::server_log_path()?;
 
     let mut last_err: Option<String> = None;
@@ -1283,6 +1280,10 @@ pub fn start_server(app: tauri::AppHandle, state: State<'_, AgentState>) -> Resu
             }));
         }
     }
+
+    // Red de seguridad para el primer arranque: la UI ya descarga los pesos de
+    // forma explícita, pero nunca hay que lanzar llama-server sin ellos.
+    crate::model_assets::ensure_vision_weights(&app)?;
 
     match mode {
         GpuServeMode::Manual(gpu_layers) => {
