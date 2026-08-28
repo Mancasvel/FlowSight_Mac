@@ -42,11 +42,18 @@
 #                                     any future upstream call into an API newer
 #                                     than the deployment target fails the build
 #                                     instead of shipping another weak NULL
-#   * LLAMA_CURL / LLAMA_*_UI = OFF   FlowSight loads local GGUF paths and talks
-#                                     to the HTTP API directly, so neither the
-#                                     Hugging Face downloader nor the server's
-#                                     web UI is used. Dropping them also removes
-#                                     a Hugging Face fetch from the release build.
+#   * LLAMA_OPENSSL=OFF               llama.cpp defaults this ON and then
+#                                     find_package(OpenSSL) picks Homebrew's
+#                                     arm64 libssl on GitHub macos-14 runners.
+#                                     Cross-compiling x86_64 then fails at link
+#                                     ("ignoring file ... architecture 'arm64'").
+#                                     Native arm64 would *succeed* and ship an
+#                                     LC_LOAD_DYLIB into /opt/homebrew, which
+#                                     exists on CI and nowhere on user Macs.
+#                                     FlowSight only talks HTTP to localhost and
+#                                     downloads GGUF itself, so HTTPS in
+#                                     llama-server is unused.
+#   * LLAMA_*_UI = OFF                the server's web UI is unused.
 #
 # Every path ends in verify_output(), which refuses to leave behind a tree that
 # is the wrong architecture, has an unresolvable dependency, or cannot execute.
@@ -439,7 +446,7 @@ build_from_source() {
     -DLLAMA_BUILD_SERVER=ON \
     -DLLAMA_BUILD_TESTS=OFF \
     -DLLAMA_BUILD_EXAMPLES=OFF \
-    -DLLAMA_CURL=OFF \
+    -DLLAMA_OPENSSL=OFF \
     -DLLAMA_BUILD_UI=OFF \
     -DLLAMA_USE_PREBUILT_UI=OFF \
     -DCMAKE_BUILD_WITH_INSTALL_RPATH=ON \

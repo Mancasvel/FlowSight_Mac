@@ -9,7 +9,7 @@ during startup".
 This is static analysis (`otool -l`), so it also works for the cross-compiled
 x86_64 slice that cannot be executed on an arm64 runner.
 
-Two classes of breakage are detected:
+Three classes of breakage are detected:
 
 1. Absolute system paths (`/usr/lib/...`, `/System/...`) that do not resolve on
    this machine. Note that most system dylibs no longer exist on disk since
@@ -22,7 +22,12 @@ Two classes of breakage are detected:
    `libggml-rpc` as a hard `LC_LOAD_DYLIB`. That library does not exist on
    macOS 15 or earlier, so every user below macOS 26 got SIGABRT.
 
-2. `@rpath`/`@loader_path`/`@executable_path` dependencies with no matching file
+2. Absolute *non-system* paths (`/opt/homebrew/...`, `/usr/local/...`, a
+   CMake build tree). These resolve on CI (`dlopen` / `Path.exists` succeed)
+   and abort on every user machine that does not have the same cellar.
+   That is how an arm64 Homebrew `libssl` would have shipped from macos-14.
+
+3. `@rpath`/`@loader_path`/`@executable_path` dependencies with no matching file
    in the audited directory, i.e. a dylib that was dropped from the bundle while
    something still links it.
 
@@ -55,6 +60,15 @@ HARD_LOAD_COMMANDS = {"LC_LOAD_DYLIB", "LC_REEXPORT_DYLIB", "LC_LOAD_UPWARD_DYLI
 WEAK_LOAD_COMMANDS = {"LC_LOAD_WEAK_DYLIB"}
 
 DYLD_PLACEHOLDERS = ("@rpath", "@loader_path", "@executable_path")
+
+# Only Apple-shipped locations are portable. Homebrew/MacPorts/build-tree
+# absolute LC_LOAD_DYLIB entries exist on GitHub-hosted macos-14 runners and
+# nowhere on a stock user Mac.
+APPLE_SYSTEM_PREFIXES = ("/usr/lib/", "/System/", "/Library/Apple/")
+
+
+def is_apple_system_dep(dep: str) -> bool:
+    return dep.startswith(APPLE_SYSTEM_PREFIXES)
 
 
 def is_mach_o(path: Path) -> bool:
@@ -177,13 +191,20 @@ def audit_directory(directory: Path) -> tuple[int, list[str]]:
                     f"is bundled in {directory}"
                 )
             elif dep.startswith("/"):
-                if system_library_loadable(dep):
+                if not is_apple_system_dep(dep):
+                    message = (
+                        f"{path.name}: links non-system library {dep} "
+                        f"({load_command}). Homebrew/MacPorts/build-tree paths "
+                        f"resolve on CI and abort on user machines"
+                    )
+                elif system_library_loadable(dep):
                     continue
-                message = (
-                    f"{path.name}: links absolute system library {dep} "
-                    f"({load_command}) which does not exist on this machine and "
-                    f"is not in the dyld shared cache"
-                )
+                else:
+                    message = (
+                        f"{path.name}: links absolute system library {dep} "
+                        f"({load_command}) which does not exist on this machine and "
+                        f"is not in the dyld shared cache"
+                    )
             else:
                 continue
 
