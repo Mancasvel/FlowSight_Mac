@@ -188,6 +188,9 @@ jobs:
               exit 1
             fi
             rm -f "$CERT_TMP"
+            # Make the imported identity usable non-interactively for nested codesign.
+            security list-keychains -d user -s "$KC" $(security list-keychains -d user | sed 's/"//g')
+            security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KC_PASS" "$KC" >/dev/null 2>&1 || true
             echo "APPLE_CERTIFICATE PKCS12 import OK — attempting Developer ID signed build"
             SIGNED_WITH_DEVELOPER_ID=1
 
@@ -203,6 +206,39 @@ jobs:
               APPLE_PASSWORD="${APPLE_PASSWORD%"${APPLE_PASSWORD##*[![:space:]]}"}"
               export APPLE_ID APPLE_PASSWORD
               echo "Notarization credentials present — Tauri will notarize after codesign"
+            fi
+
+            # Notarization rejects unsigned nested Mach-O under Resources/local_llm/bin
+            # (Tauri signs the .app / main binary but not every bundled resource dylib).
+            # Pre-sign before build so copied resources already have Developer ID + timestamp.
+            ENTITLEMENTS="apps/agent/src-tauri/Entitlements.plist"
+            SIGN_ID="${APPLE_SIGNING_IDENTITY:-}"
+            if [[ -z "$SIGN_ID" ]]; then
+              SIGN_ID="$(security find-identity -v -p codesigning "$KC" \
+                | awk -F'"' '/Developer ID Application/{print $2; exit}')"
+            fi
+            if [[ -z "$SIGN_ID" ]]; then
+              echo "ERROR: no Developer ID Application identity available for nested signing"
+              exit 1
+            fi
+            echo "Pre-signing local_llm Mach-O binaries for notarization..."
+            SIGNED_NESTED=0
+            while IFS= read -r -d '' bin; do
+              if ! file -b "$bin" | grep -q 'Mach-O'; then
+                continue
+              fi
+              if [[ "$(basename "$bin")" == "llama-server" ]]; then
+                codesign --force --options runtime --timestamp \
+                  --entitlements "$ENTITLEMENTS" --sign "$SIGN_ID" "$bin"
+              else
+                codesign --force --options runtime --timestamp --sign "$SIGN_ID" "$bin"
+              fi
+              SIGNED_NESTED=$((SIGNED_NESTED + 1))
+            done < <(find local_llm/bin -type f -print0 2>/dev/null || true)
+            echo "Pre-signed ${SIGNED_NESTED} nested Mach-O files"
+            if [[ "$SIGNED_NESTED" -lt 1 ]]; then
+              echo "ERROR: expected local_llm/bin Mach-O files to pre-sign before notarization"
+              exit 1
             fi
           fi
           # With `set -u`, empty "${SIGN_ARGS[@]}" is an unbound variable on bash.

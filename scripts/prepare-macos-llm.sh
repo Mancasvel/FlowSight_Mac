@@ -87,27 +87,60 @@ extract_archive() {
 }
 
 keep_existing_if_valid() {
-  if [[ -x "$OUT_DIR/llama-server" ]] && verify_llama_arch "$OUT_DIR/llama-server" "$WANT_ARCH"; then
+  if [[ ! -x "$OUT_DIR/llama-server" ]]; then
+    return 1
+  fi
+  if verify_llama_arch "$OUT_DIR/llama-server" "$WANT_ARCH"; then
     echo "[FlowSight] Keeping existing local_llm/bin/llama-server ($ASSET_ARCH)"
     if [[ "${FLOWSIGHT_SKIP_LLM_RUN:-0}" != "1" ]]; then
       "$OUT_DIR/llama-server" --version 2>/dev/null || true
     fi
     return 0
   fi
+  echo "[FlowSight] Existing llama-server wrong arch for ${ASSET_ARCH}; ignoring committed binary"
   return 1
 }
 
 echo "[FlowSight] Looking up latest llama.cpp release asset for ${ASSET_ARCH}..."
-API="https://api.github.com/repos/ggml-org/llama.cpp/releases/latest"
+# Prefer rolling bXXXX releases that ship bin-macos-{arm64,x64}. GitHub's
+# /releases/latest can point at a versioned tag (e.g. v0.3.0) with no macOS
+# assets, which used to force a broken host-native source rebuild for x64 CI.
 ASSET_URL=""
-if github_curl "$API" "$TMP/latest.json"; then
-  ASSET_URL="$(
-    /usr/bin/grep -oE "\"browser_download_url\": \"[^\"]*${ASSET_ARCH}[^\"]*\"" "$TMP/latest.json" \
-      | /usr/bin/head -n1 \
-      | /usr/bin/sed -E 's/.*"browser_download_url": "([^"]+)".*/\1/'
+ASSET_TAG=""
+for page in 1 2 3; do
+  API="https://api.github.com/repos/ggml-org/llama.cpp/releases?per_page=30&page=${page}"
+  if ! github_curl "$API" "$TMP/releases-${page}.json"; then
+    echo "[FlowSight] GitHub API lookup failed (page ${page}; rate limit/403?). Will try existing binary or source build."
+    break
+  fi
+  # Exact asset name segment: llama-*-bin-macos-arm64.tar.gz / macos-x64
+  MATCH="$(
+    python3 - "$TMP/releases-${page}.json" "$ASSET_ARCH" <<'PY'
+import json, sys
+path, arch = sys.argv[1], sys.argv[2]
+needle = f"bin-{arch}"
+with open(path, encoding="utf-8") as f:
+    releases = json.load(f)
+if not isinstance(releases, list):
+    sys.exit(0)
+for rel in releases:
+    for asset in rel.get("assets") or []:
+        name = asset.get("name") or ""
+        url = asset.get("browser_download_url") or ""
+        if needle in name and url:
+            print(f"{rel.get('tag_name','')}\t{url}")
+            sys.exit(0)
+PY
   )" || true
-else
-  echo "[FlowSight] GitHub API lookup failed (rate limit/403?). Will try existing binary or source build."
+  if [[ -n "${MATCH:-}" ]]; then
+    ASSET_TAG="${MATCH%%$'\t'*}"
+    ASSET_URL="${MATCH#*$'\t'}"
+    echo "[FlowSight] Found ${ASSET_ARCH} asset on release ${ASSET_TAG}"
+    break
+  fi
+done
+if [[ -z "${ASSET_URL:-}" ]]; then
+  echo "[FlowSight] No ${ASSET_ARCH} prebuilt asset in recent releases. Will try existing binary or source build."
 fi
 
 install_from_url() {
@@ -163,9 +196,14 @@ fi
 
 CMAKE_OSX_ARCH="$WANT_ARCH"
 /usr/bin/find "$OUT_DIR" -maxdepth 1 \( -name 'llama-server' -o -name '*.dylib' \) -delete 2>/dev/null || true
-/usr/bin/git clone --depth 1 https://github.com/ggml-org/llama.cpp.git "$TMP/llama.cpp"
+# Prefer a known-good release tag when HEAD main may not cross-compile cleanly.
+CLONE_REF="${FLOWSIGHT_LLAMA_REF:-b10666}"
+/usr/bin/git clone --depth 1 --branch "$CLONE_REF" https://github.com/ggml-org/llama.cpp.git "$TMP/llama.cpp" \
+  || /usr/bin/git clone --depth 1 https://github.com/ggml-org/llama.cpp.git "$TMP/llama.cpp"
+# GGML_NATIVE=OFF avoids host -march=apple-m1 when cross-building x86_64 on arm64 runners.
 cmake -S "$TMP/llama.cpp" -B "$TMP/build" \
   -DGGML_METAL=ON \
+  -DGGML_NATIVE=OFF \
   -DLLAMA_BUILD_SERVER=ON \
   -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_OSX_ARCHITECTURES="$CMAKE_OSX_ARCH"
