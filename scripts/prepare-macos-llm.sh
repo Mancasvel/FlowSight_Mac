@@ -177,16 +177,15 @@ verify_all_arch() {
 }
 
 # True when a $WANT_ARCH binary can actually be executed on this host.
+# Rosetta is intentionally not treated as "can execute": v3.6.7's x86_64
+# llama-server built, audited, then died with SIGILL (exit 132) under
+# `arch -x86_64` on macos-14. `arch -x86_64 true` succeeding does not mean
+# ggml's CPU backend will start. Intel Macs run the binary natively; the
+# static Mach-O audit still covers the cross-compiled slice.
 can_execute_target() {
   local host
   host="$(uname -m)"
   if [[ "$WANT_ARCH" == "$host" ]]; then
-    return 0
-  fi
-  # Rosetta 2 lets an arm64 host run x86_64 binaries; nothing lets an x86_64
-  # host run arm64 ones.
-  if [[ "$host" == "arm64" && "$WANT_ARCH" == "x86_64" ]] \
-    && /usr/bin/arch -x86_64 /usr/bin/true >/dev/null 2>&1; then
     return 0
   fi
   return 1
@@ -195,10 +194,10 @@ can_execute_target() {
 # The old version of this check was `llama-server --version 2>/dev/null || true`,
 # which threw away both stderr and the exit code — the reason CI shipped a binary
 # that could not start. It now fails the build, and FLOWSIGHT_SKIP_LLM_RUN is
-# refused when the binary demonstrably can run here.
+# refused when the binary runs natively here (Apple Silicon job).
 smoke_test() {
   if ! can_execute_target; then
-    echo "[FlowSight] Skipping execution smoke test: ${WANT_ARCH} cannot run on $(uname -m)"
+    echo "[FlowSight] Skipping execution smoke test: ${WANT_ARCH} cannot run natively on $(uname -m)"
     echo "[FlowSight] (the dependency audit above is static and still covers this build)"
     return 0
   fi

@@ -68,10 +68,11 @@ jobs:
       APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
       RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
       FLOWSIGHT_LLM_ARCH: ${{ matrix.llm_arch }}
-      # No FLOWSIGHT_SKIP_LLM_RUN here on purpose: it used to be set for both
-      # matrix legs, which silenced the startup smoke test even on the arm64
-      # runner that can run the binary natively. prepare-macos-llm.sh now decides
-      # for itself and only skips execution for a genuinely unrunnable arch.
+      # prepare-macos-llm.sh only runs `llama-server --version` when the target
+      # arch matches the runner (arm64). The x86_64 slice is cross-compiled and
+      # audited statically: Rosetta SIGILL'd --version on macos-14 even after a
+      # clean link (v3.6.7). Do not set FLOWSIGHT_SKIP_LLM_RUN here — on arm64
+      # the script ignores it so the native binary still has to start.
       # Authenticated API avoids 403 rate limits when resolving llama.cpp assets
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
