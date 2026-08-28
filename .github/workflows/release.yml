@@ -20,12 +20,21 @@ permissions:
 # Builds BOTH Apple Silicon (aarch64) and Intel (x86_64) DMGs from this repo.
 # Secrets (optional): TAURI_*, NEXT_PUBLIC_*, APPLE_* for signing/notarization.
 #
+# Gatekeeper pipeline order (do not reorder — anything that touches the .app or the
+# DMG after its staple invalidates the notarization ticket):
+#   1. tauri build --bundles app   → Developer ID codesign, no notarization
+#   2. codesign --timestamp .app   → guarantees a secure timestamp
+#   3. notarytool submit + stapler staple .app
+#   4. hdiutil create DMG from the stapled .app
+#   5. codesign --timestamp DMG, notarytool submit + stapler staple DMG
+#   6. updater .app.tar.gz (read-only) and the release verification gates
+#
 # In-app updater (parity with Windows) requires the same minisign keypair:
 #   TAURI_SIGNING_PRIVATE_KEY            — private key (same as FlowSight Windows)
 #   TAURI_SIGNING_PRIVATE_KEY_PASSWORD   — only if the key was generated with -p
-# When those are set, CI enables createUpdaterArtifacts, then AFTER Gatekeeper
-# re-seal of the .app rebuilds signed .app.tar.gz (+ .sig) and merges them into
-# latest.json under darwin-aarch64 / darwin-x86_64. DMGs remain for manual install.
+# When those are set, CI enables createUpdaterArtifacts and rebuilds the signed
+# .app.tar.gz (+ .sig) from the stapled .app, merging them into latest.json under
+# darwin-aarch64 / darwin-x86_64. DMGs remain for manual install.
 
 jobs:
   build-macos:
@@ -90,8 +99,18 @@ jobs:
           set -euo pipefail
           bash scripts/prepare-macos-llm.sh
           test -x local_llm/bin/llama-server
+          ls -lah local_llm/bin
           if [[ "${{ matrix.llm_arch }}" == "macos-arm64" ]]; then
             lipo -archs local_llm/bin/llama-server | grep -q arm64
+            # Native arch: a successful load proves the pruned dylib set is complete.
+            if ! LLAMA_OUT="$(local_llm/bin/llama-server --version 2>&1)"; then
+              echo "$LLAMA_OUT"
+              if grep -qiE 'dyld|Library not loaded|image not found' <<<"$LLAMA_OUT"; then
+                echo "ERROR: llama-server cannot resolve its bundled dylibs"
+                exit 1
+              fi
+            fi
+            echo "$LLAMA_OUT" | head -n 3 || true
           else
             lipo -archs local_llm/bin/llama-server | grep -q x86_64
           fi
@@ -117,14 +136,66 @@ jobs:
             echo "No TAURI_SIGNING_PRIVATE_KEY — building without updater signatures"
           fi
 
-      - name: Build macOS app + DMG (${{ matrix.rust_target }})
+      - name: Build, sign, notarize and staple (${{ matrix.rust_target }})
         shell: bash
         run: |
           set -euo pipefail
           RUST_TARGET="${{ matrix.rust_target }}"
+          ENTITLEMENTS="apps/agent/src-tauri/Entitlements.plist"
           # Empty/invalid Apple secrets make Tauri try `security import` and fail the bundle.
           SIGN_ARGS=()
           SIGNED_WITH_DEVELOPER_ID=0
+          NOTARIZE=0
+          SIGN_ID=""
+          # Kept out of the environment on purpose: the bundler must NOT notarize during
+          # `tauri build`, because we need to re-sign the .app with a secure timestamp
+          # first. Tauri notarizes inside the same step that signs, leaving no seam.
+          NOTARY_APPLE_ID=""
+          NOTARY_PASSWORD=""
+          NOTARY_TEAM_ID=""
+
+          notarize_file() {
+            local submission="$1"
+            local out
+            out="${RUNNER_TEMP:-/tmp}/notary-$(basename "$submission").json"
+            echo "Submitting $(basename "$submission") to the Apple notary service..."
+            if ! xcrun notarytool submit "$submission" \
+              --apple-id "$NOTARY_APPLE_ID" \
+              --password "$NOTARY_PASSWORD" \
+              --team-id "$NOTARY_TEAM_ID" \
+              --output-format json --wait >"$out"; then
+              echo "ERROR: notarytool submit failed for $submission"
+              cat "$out" 2>/dev/null || true
+              return 1
+            fi
+            local id status
+            id="$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1])).get("id",""))' "$out")"
+            status="$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1])).get("status",""))' "$out")"
+            echo "notarytool id=${id} status=${status}"
+            if [[ "$status" != "Accepted" ]]; then
+              echo "ERROR: notarization returned '${status}' for $submission"
+              xcrun notarytool log "$id" \
+                --apple-id "$NOTARY_APPLE_ID" \
+                --password "$NOTARY_PASSWORD" \
+                --team-id "$NOTARY_TEAM_ID" 2>&1 | head -n 120 || true
+              return 1
+            fi
+          }
+
+          # tauri_macos_sign::staple_app() discards the stapler exit code, so a failed
+          # staple used to pass silently. Check it explicitly.
+          staple_and_validate() {
+            local target="$1"
+            if ! xcrun stapler staple -v "$target"; then
+              echo "ERROR: xcrun stapler staple failed for $target"
+              return 1
+            fi
+            if ! xcrun stapler validate "$target"; then
+              echo "ERROR: xcrun stapler validate failed for $target"
+              return 1
+            fi
+            echo "Stapled + validated: $target"
+          }
 
           # GitHub secret paste often adds a trailing newline; base64 paste often keeps
           # line wraps. Both break SecKeychainItemImport ("MAC verification failed /
@@ -194,24 +265,28 @@ jobs:
             echo "APPLE_CERTIFICATE PKCS12 import OK — attempting Developer ID signed build"
             SIGNED_WITH_DEVELOPER_ID=1
 
-            # GitHub Actions injects empty strings for missing secrets. Tauri treats
-            # present-but-empty APPLE_ID/APPLE_PASSWORD as "notarize" and then 401s.
-            if [[ -z "${APPLE_ID:-}" || -z "${APPLE_PASSWORD:-}" ]]; then
-              echo "APPLE_ID/APPLE_PASSWORD missing — skipping notarization (signed build only)"
-              unset APPLE_ID APPLE_PASSWORD APPLE_API_KEY APPLE_API_ISSUER || true
+            # GitHub Actions injects empty strings for missing secrets. A missing
+            # APPLE_TEAM_ID makes the bundler hard-fail (NotarizeAuthError::MissingTeamId)
+            # instead of degrading, so it belongs in the same guard.
+            if [[ -z "${APPLE_ID:-}" || -z "${APPLE_PASSWORD:-}" || -z "${APPLE_TEAM_ID:-}" ]]; then
+              echo "APPLE_ID/APPLE_PASSWORD/APPLE_TEAM_ID missing — skipping notarization (signed build only)"
             else
-              APPLE_ID="$(printf '%s' "$APPLE_ID" | tr -d '\r\n' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
-              APPLE_PASSWORD="$(printf '%s' "$APPLE_PASSWORD" | tr -d '\r')"
-              APPLE_PASSWORD="${APPLE_PASSWORD#"${APPLE_PASSWORD%%[![:space:]]*}"}"
-              APPLE_PASSWORD="${APPLE_PASSWORD%"${APPLE_PASSWORD##*[![:space:]]}"}"
-              export APPLE_ID APPLE_PASSWORD
-              echo "Notarization credentials present — Tauri will notarize after codesign"
+              NOTARY_APPLE_ID="$(printf '%s' "$APPLE_ID" | tr -d '\r\n' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+              NOTARY_TEAM_ID="$(printf '%s' "$APPLE_TEAM_ID" | tr -d '\r\n' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+              NOTARY_PASSWORD="$(printf '%s' "$APPLE_PASSWORD" | tr -d '\r')"
+              NOTARY_PASSWORD="${NOTARY_PASSWORD#"${NOTARY_PASSWORD%%[![:space:]]*}"}"
+              NOTARY_PASSWORD="${NOTARY_PASSWORD%"${NOTARY_PASSWORD##*[![:space:]]}"}"
+              NOTARIZE=1
+              echo "Notarization credentials present — this job will notarize the .app AND the DMG"
             fi
+            # The bundler must only codesign. We notarize/staple ourselves so the .app
+            # gets an explicit --timestamp re-sign *before* it is submitted, and so the
+            # DMG (built from the stapled .app) is notarized and stapled too.
+            unset APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID APPLE_API_KEY APPLE_API_ISSUER || true
 
             # Notarization rejects unsigned nested Mach-O under Resources/local_llm/bin
             # (Tauri signs the .app / main binary but not every bundled resource dylib).
             # Pre-sign before build so copied resources already have Developer ID + timestamp.
-            ENTITLEMENTS="apps/agent/src-tauri/Entitlements.plist"
             SIGN_ID="${APPLE_SIGNING_IDENTITY:-}"
             if [[ -z "$SIGN_ID" ]]; then
               SIGN_ID="$(security find-identity -v -p codesigning "$KC" \
@@ -223,6 +298,8 @@ jobs:
             fi
             echo "Pre-signing local_llm Mach-O binaries for notarization..."
             SIGNED_NESTED=0
+            # `-type f` deliberately skips symlinks: codesign must sign the target, and
+            # signing through a link would rewrite the same Mach-O several times.
             while IFS= read -r -d '' bin; do
               if ! file -b "$bin" | grep -q 'Mach-O'; then
                 continue
@@ -241,30 +318,52 @@ jobs:
               exit 1
             fi
           fi
+          # `--bundles app`: the DMG is assembled below, after the .app is stapled.
+          # Tauri's dmg target runs inside the same bundler pass that signs/notarizes the
+          # .app, so it cannot be sequenced after our timestamped re-sign. Its layout
+          # config is inert on CI anyway (the bundler passes --skip-jenkins, which skips
+          # the AppleScript that positions the icons).
           # With `set -u`, empty "${SIGN_ARGS[@]}" is an unbound variable on bash.
           corepack pnpm --filter @flowsight/agent exec tauri build --target "$RUST_TARGET" \
-            ${SIGN_ARGS[@]+"${SIGN_ARGS[@]}"}
+            --bundles app ${SIGN_ARGS[@]+"${SIGN_ARGS[@]}"}
 
           APP="apps/agent/src-tauri/target/${RUST_TARGET}/release/bundle/macos/FlowSight Agent.app"
-          ENTITLEMENTS="apps/agent/src-tauri/Entitlements.plist"
           test -d "$APP"
 
-          # Always deep ad-hoc re-sign when we are not Developer ID signed, then refresh DMG.
-          if [[ "$SIGNED_WITH_DEVELOPER_ID" -ne 1 ]]; then
-            echo "Deep ad-hoc codesign to seal bundle resources..."
-            codesign --force --deep --options runtime \
-              --entitlements "$ENTITLEMENTS" \
-              --sign - "$APP"
+          if [[ "$SIGNED_WITH_DEVELOPER_ID" -eq 1 ]]; then
+            # tauri_macos_sign runs `codesign --force -s ID --options runtime` with no
+            # --timestamp, so the secure timestamp is left to system defaults. Apple has
+            # already rejected this bundle once for a missing timestamp — make it explicit.
+            echo "Re-sealing the .app with an explicit secure timestamp..."
+            codesign --force --timestamp --options runtime \
+              --entitlements "$ENTITLEMENTS" --sign "$SIGN_ID" "$APP"
+          else
+            # No certificate: ad-hoc sign inside-out. `--deep` is discouraged by Apple and
+            # would push the app's entitlements onto every nested Mach-O.
+            echo "Ad-hoc codesign (nested Mach-O first, then the bundle)..."
+            # `-type f` skips symlinks so each Mach-O is signed exactly once.
+            while IFS= read -r -d '' nested; do
+              if file -b "$nested" | grep -q 'Mach-O'; then
+                codesign --force --options runtime --sign - "$nested"
+              fi
+            done < <(find "$APP/Contents" -type f -print0)
+            codesign --force --options runtime \
+              --entitlements "$ENTITLEMENTS" --sign - "$APP"
           fi
+
           codesign --verify --deep --strict "$APP"
-          codesign -dv --verbose=2 "$APP" 2>&1 | head -25
+          codesign -dv --verbose=2 "$APP" 2>&1 | head -25 || true
           if [[ "$SIGNED_WITH_DEVELOPER_ID" -eq 1 ]]; then
             if ! codesign -dv --verbose=4 "$APP" 2>&1 | grep -q 'Authority=Developer ID Application'; then
               echo "ERROR: expected Developer ID Application signature after signed build"
               codesign -dv --verbose=4 "$APP" 2>&1 | head -40 || true
               exit 1
             fi
-            echo "Developer ID Application signature confirmed"
+            if ! codesign -dvv "$APP" 2>&1 | grep -q '^Timestamp='; then
+              echo "ERROR: .app signature has no secure timestamp; notarization would be rejected"
+              exit 1
+            fi
+            echo "Developer ID Application signature + secure timestamp confirmed"
           fi
 
           MAIN="$(ls "$APP/Contents/MacOS" | head -n1)"
@@ -283,7 +382,17 @@ jobs:
             ARCH_TAG="x64"
           fi
 
-          # Recreate DMG from the sealed .app (Tauri may have packaged a pre-resign copy).
+          # Notarize + staple the .app BEFORE it is copied into the DMG. Nothing may
+          # modify the .app after this point or the ticket is invalidated.
+          if [[ "$NOTARIZE" -eq 1 ]]; then
+            APP_ZIP="${RUNNER_TEMP:-/tmp}/FlowSightAgent-${ARCH_TAG}.zip"
+            rm -f "$APP_ZIP"
+            ditto -c -k --keepParent --sequesterRsrc "$APP" "$APP_ZIP"
+            notarize_file "$APP_ZIP"
+            staple_and_validate "$APP"
+            rm -f "$APP_ZIP"
+          fi
+
           VERSION="$(python3 -c "import json; print(json.load(open('apps/agent/src-tauri/tauri.conf.json'))['version'])")"
           DMG_DIR="apps/agent/src-tauri/target/${RUST_TARGET}/release/bundle/dmg"
           MACOS_DIR="apps/agent/src-tauri/target/${RUST_TARGET}/release/bundle/macos"
@@ -291,6 +400,10 @@ jobs:
           rm -f "$DMG_DIR"/*.dmg "$DMG_DIR"/*.sig 2>/dev/null || true
           STAGE="$(mktemp -d)"
           ditto "$APP" "$STAGE/FlowSight Agent.app"
+          if [[ "$NOTARIZE" -eq 1 ]]; then
+            # ditto must carry the notarization ticket into the DMG payload.
+            xcrun stapler validate "$STAGE/FlowSight Agent.app"
+          fi
           ln -s /Applications "$STAGE/Applications"
           DMG_PATH="$DMG_DIR/FlowSight Agent_${VERSION}_${ARCH_TAG}.dmg"
           # hdiutil occasionally fails with "Resource busy" on Actions runners.
@@ -313,12 +426,22 @@ jobs:
             exit 1
           fi
           rm -rf "$STAGE"
-          ls -lah "$DMG_DIR"
           hdiutil verify "$DMG_PATH"
 
-          # Updater needs signed .app.tar.gz of the *sealed* .app. Tauri's build-time
-          # archive (and its .sig) are stale after the Gatekeeper re-sign above, and
-          # our DMG recreation never produced updater artifacts. Rebuild + resign here.
+          # A downloaded DMG carries the quarantine bit, so Gatekeeper assesses the DMG
+          # itself — it must be signed, notarized and stapled in its own right.
+          if [[ "$SIGNED_WITH_DEVELOPER_ID" -eq 1 ]]; then
+            codesign --force --timestamp --sign "$SIGN_ID" "$DMG_PATH"
+            codesign --verify --strict --verbose=2 "$DMG_PATH"
+          fi
+          if [[ "$NOTARIZE" -eq 1 ]]; then
+            notarize_file "$DMG_PATH"
+            staple_and_validate "$DMG_PATH"
+          fi
+          ls -lah "$DMG_DIR"
+
+          # Updater needs a signed .app.tar.gz of the stapled .app. Creating the archive
+          # only reads the bundle, so the notarization ticket stays intact.
           if [[ -n "${TAURI_SIGNING_PRIVATE_KEY:-}" ]]; then
             echo "Rebuilding updater archive from sealed .app..."
             # Arch-specific names so aarch64 + x86_64 can both attach to one release.
@@ -339,6 +462,40 @@ jobs:
             echo "No TAURI_SIGNING_PRIVATE_KEY — skipping updater .app.tar.gz"
             rm -f "$MACOS_DIR"/*.app.tar.gz "$MACOS_DIR"/*.app.tar.gz.sig 2>/dev/null || true
           fi
+
+          # ---------------------------------------------------------------------
+          # Release gate. A build that reaches this point but fails any check must
+          # never be published — that is exactly how unsigned DMGs shipped before.
+          # ---------------------------------------------------------------------
+          GATE_FAILED=0
+          gate() {
+            local label="$1"
+            shift
+            if "$@" >/tmp/fs-gate.log 2>&1; then
+              echo "PASS  ${label}"
+              tail -n 6 /tmp/fs-gate.log || true
+            else
+              echo "FAIL  ${label}"
+              cat /tmp/fs-gate.log || true
+              GATE_FAILED=1
+            fi
+          }
+
+          echo "=== Release verification gates ==="
+          gate "codesign --verify .app" codesign --verify --deep --strict --verbose=2 "$APP"
+          if [[ "$NOTARIZE" -eq 1 ]]; then
+            gate "stapler validate .app" xcrun stapler validate "$APP"
+            gate "spctl exec .app" spctl -a -vvv -t exec "$APP"
+            gate "stapler validate .dmg" xcrun stapler validate "$DMG_PATH"
+            gate "spctl open .dmg" spctl -a -vvv -t open --context context:primary-signature "$DMG_PATH"
+          else
+            echo "SKIP  notarization gates (unsigned or unnotarized build)"
+          fi
+          if [[ "$GATE_FAILED" -ne 0 ]]; then
+            echo "ERROR: release verification gates failed — refusing to publish"
+            exit 1
+          fi
+          echo "=== All release verification gates passed ==="
 
       - name: Stage bundle + per-arch updater fragment
         shell: bash

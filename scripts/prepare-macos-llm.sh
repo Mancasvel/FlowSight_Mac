@@ -68,6 +68,100 @@ verify_llama_arch() {
   return 0
 }
 
+# llama.cpp releases ship every CLI tool's helper dylib plus three byte-identical
+# aliases of each library (libggml-base.dylib / .0.dylib / .0.20.1.dylib). Tauri
+# copies resources with fs::copy, which dereferences symlinks, so the only way to
+# keep the bundle small is to ship just the libraries llama-server actually loads.
+# Everything is reachable statically (verified with otool: the Metal/BLAS/RPC
+# backends are LC_LOAD_DYLIB entries, not dlopen'd), so the link closure is exact.
+prune_unreferenced_dylibs() {
+  if ! command -v /usr/bin/otool >/dev/null 2>&1; then
+    echo "[FlowSight] otool unavailable — keeping every downloaded dylib"
+    return 0
+  fi
+  /usr/bin/python3 - "$OUT_DIR" <<'PY'
+import os
+import re
+import shutil
+import subprocess
+import sys
+
+out_dir = sys.argv[1]
+root_name = "llama-server"
+if not os.path.exists(os.path.join(out_dir, root_name)):
+    raise SystemExit("[FlowSight] ERROR: llama-server missing before dylib prune")
+
+DEP_COMMANDS = {"LC_LOAD_DYLIB", "LC_LOAD_WEAK_DYLIB", "LC_REEXPORT_DYLIB", "LC_LOAD_UPWARD_DYLIB"}
+VERSION_SUFFIX = re.compile(r"(\.\d+)+$")
+
+
+def load_commands(path):
+    """Return (dependency install names, LC_RPATH entries) for a Mach-O file."""
+    result = subprocess.run(["/usr/bin/otool", "-l", path], capture_output=True, text=True)
+    if result.returncode != 0:
+        raise SystemExit(f"[FlowSight] ERROR: otool -l failed for {path}")
+    deps, rpaths, command = [], [], None
+    for raw in result.stdout.splitlines():
+        line = raw.strip()
+        if line.startswith("cmd "):
+            command = line.split(None, 1)[1]
+        elif line.startswith("name ") and command in DEP_COMMANDS:
+            deps.append(line[5:].split(" (offset")[0])
+        elif line.startswith("path ") and command == "LC_RPATH":
+            rpaths.append(line[5:].split(" (offset")[0])
+    return deps, rpaths
+
+
+def library_stem(name):
+    return VERSION_SUFFIX.sub("", name[: -len(".dylib")]) if name.endswith(".dylib") else name
+
+
+entries = {name for name in os.listdir(out_dir) if not name.startswith(".")}
+keep = {root_name}
+queue = [root_name]
+while queue:
+    name = queue.pop()
+    deps, rpaths = load_commands(os.path.join(out_dir, name))
+    for rpath in rpaths:
+        if not rpath.startswith(("@loader_path", "@executable_path")):
+            raise SystemExit(f"[FlowSight] ERROR: {name} has non-relocatable LC_RPATH '{rpath}'")
+    for dep in deps:
+        base = os.path.basename(dep)
+        if base in entries:
+            if base not in keep:
+                keep.add(base)
+                queue.append(base)
+        elif dep.startswith(("@rpath", "@loader_path", "@executable_path")):
+            raise SystemExit(f"[FlowSight] ERROR: {name} needs '{dep}' which is missing from {out_dir}")
+
+# A future llama.cpp built with GGML_BACKEND_DL would dlopen its backends instead
+# of linking them, making them invisible to otool. Keep any ggml library whose
+# family is absent from the link closure rather than silently dropping Metal.
+linked_stems = {library_stem(name) for name in keep}
+for name in entries - keep:
+    if name.startswith("libggml") and library_stem(name) not in linked_stems:
+        print(f"[FlowSight] Keeping possibly dlopen'd backend {name}")
+        keep.add(name)
+
+for name in sorted(keep):
+    path = os.path.join(out_dir, name)
+    if os.path.islink(path):
+        materialised = path + ".real"
+        shutil.copy2(os.path.realpath(path), materialised)
+        os.remove(path)
+        os.rename(materialised, path)
+
+removed = 0
+for name in sorted(entries - keep):
+    path = os.path.join(out_dir, name)
+    if os.path.islink(path) or os.path.isfile(path):
+        os.remove(path)
+        removed += 1
+
+print(f"[FlowSight] Bundling {len(keep)} Mach-O files; dropped {removed} unused/duplicate ones")
+PY
+}
+
 extract_archive() {
   local archive="$1"
   local dest="$2"
@@ -167,8 +261,12 @@ install_from_url() {
   /bin/cp -f "$SERVER" "$OUT_DIR/llama-server"
   /bin/chmod +x "$OUT_DIR/llama-server"
   SERVER_DIR="$(/usr/bin/dirname "$SERVER")"
-  /bin/cp -f "$SERVER_DIR"/*.dylib "$OUT_DIR/" 2>/dev/null || true
-  /bin/cp -f "$SERVER_DIR/../lib"/*.dylib "$OUT_DIR/" 2>/dev/null || true
+  # -a keeps upstream symlinks as symlinks. Plain `cp` dereferences them, which
+  # produced three byte-identical copies of every dylib (libggml-base.dylib,
+  # .0.dylib and .0.20.1.dylib) — 3x payload, codesign calls and notary scanning.
+  /bin/cp -a "$SERVER_DIR"/*.dylib "$OUT_DIR/" 2>/dev/null || true
+  /bin/cp -a "$SERVER_DIR/../lib"/*.dylib "$OUT_DIR/" 2>/dev/null || true
+  prune_unreferenced_dylibs
   verify_llama_arch "$OUT_DIR/llama-server" "$WANT_ARCH"
   echo "[FlowSight] Installed $OUT_DIR/llama-server ($ASSET_ARCH)"
   if [[ "${FLOWSIGHT_SKIP_LLM_RUN:-0}" != "1" ]]; then
@@ -210,6 +308,7 @@ cmake -S "$TMP/llama.cpp" -B "$TMP/build" \
 cmake --build "$TMP/build" --config Release -j "$(sysctl -n hw.ncpu)" --target llama-server
 /bin/cp -f "$TMP/build/bin/llama-server" "$OUT_DIR/llama-server"
 /bin/chmod +x "$OUT_DIR/llama-server"
-/bin/cp -f "$TMP/build/bin"/*.dylib "$OUT_DIR/" 2>/dev/null || true
+/bin/cp -a "$TMP/build/bin"/*.dylib "$OUT_DIR/" 2>/dev/null || true
+prune_unreferenced_dylibs
 echo "[FlowSight] Built $OUT_DIR/llama-server ($ASSET_ARCH)"
 verify_llama_arch "$OUT_DIR/llama-server" "$WANT_ARCH"
