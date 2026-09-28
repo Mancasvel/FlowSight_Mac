@@ -18,6 +18,14 @@ FlowSight is a desktop application that helps distributed engineering teams unde
 - **Activity-oriented** — Accessibility + frontmost-app signals (not keystroke surveillance).
 - **Team analytics, with consent** — opt-in aggregation into Supabase only when joining a team.
 
+## Bring your own AI (MCP)
+
+The installed app includes a read-only [FlowSight MCP server](docs/MCP.md).
+Open Settings > Connect your AI for the exact command to use in a compatible
+desktop AI client. No extra runtime is required, and activity descriptions
+and ticket IDs are excluded by default. A cloud AI client may receive the
+returned report data.
+
 ## Prerequisites
 
 - macOS 12+

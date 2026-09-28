@@ -3604,6 +3604,32 @@
           </div>
         </div>
 
+        <div class="card" id="mcpConnectionCard">
+          <div class="card-header">
+            <div class="card-title">Connect your AI</div>
+          </div>
+          <p class="onboarding-prefs-summary">
+            Generate a FlowSight work report in any desktop AI client that supports local MCP (STDIO).
+            No extra runtime or FlowSight cloud account is needed.
+          </p>
+          <button type="button" class="button button-secondary" id="showMcpConnectionBtn" style="width:100%;margin-top:8px;">
+            Show connection details
+          </button>
+          <div id="mcpConnectionDetails" hidden style="margin-top:12px;">
+            <label class="label" for="mcpCommandPath">MCP command</label>
+            <input id="mcpCommandPath" class="input" type="text" readonly spellcheck="false"
+              aria-label="MCP executable path" style="width:100%;font-family:monospace;font-size:11px;">
+            <p class="onboarding-prefs-summary" style="margin-top:8px;">Transport: STDIO. Argument: <code>--mcp</code>.</p>
+            <button type="button" class="button button-ghost" id="copyMcpCommandBtn" style="width:100%;margin-top:6px;">
+              Copy command path
+            </button>
+            <p class="onboarding-prefs-summary" style="margin-top:8px;">
+              Reports exclude activity descriptions and ticket IDs by default. A cloud AI client may
+              receive the report data it requests.
+            </p>
+          </div>
+        </div>
+
         <div class="card" id="integrationsCard">
           <div class="card-header">
             <div class="card-title">Integrations</div>
@@ -3731,6 +3757,34 @@
     } from './auth-service.js';
 
     console.log('[FlowSight] Imports loaded successfully');
+
+    document.getElementById('showMcpConnectionBtn')?.addEventListener('click', async () => {
+      try {
+        const connection = await invoke('get_mcp_connection_info');
+        const pathField = document.getElementById('mcpCommandPath');
+        const details = document.getElementById('mcpConnectionDetails');
+        if (pathField) pathField.value = connection.command || '';
+        if (details) details.hidden = false;
+      } catch (error) {
+        showToast('Could not find the MCP command: ' + String(error), 'error');
+      }
+    });
+    document.getElementById('copyMcpCommandBtn')?.addEventListener('click', async () => {
+      const pathField = document.getElementById('mcpCommandPath');
+      if (!pathField?.value) return;
+      try {
+        if (navigator.clipboard?.writeText) {
+          await navigator.clipboard.writeText(pathField.value);
+        } else {
+          pathField.select();
+          if (!document.execCommand('copy')) throw new Error('Clipboard unavailable');
+        }
+        showToast('MCP command path copied');
+      } catch {
+        pathField.select();
+        showToast('Select and copy the command path manually', 'error');
+      }
+    });
 
     document.documentElement.removeAttribute('native-scrollbar');
 

@@ -348,6 +348,12 @@ jobs:
           APP="apps/agent/src-tauri/target/${RUST_TARGET}/release/bundle/macos/FlowSight Agent.app"
           test -d "$APP"
 
+          # The Intel slice is cross-compiled and not run under Rosetta here.
+          if [[ "$RUST_TARGET" == "aarch64-apple-darwin" ]]; then
+            MCP_BIN="$(/usr/libexec/PlistBuddy -c 'Print CFBundleExecutable' "$APP/Contents/Info.plist")"
+            node scripts/check-mcp-stdio.mjs "$APP/Contents/MacOS/$MCP_BIN"
+          fi
+
           if [[ "$SIGNED_WITH_DEVELOPER_ID" -eq 1 ]]; then
             # tauri_macos_sign runs `codesign --force -s ID --options runtime` with no
             # --timestamp, so the secure timestamp is left to system defaults. Apple has

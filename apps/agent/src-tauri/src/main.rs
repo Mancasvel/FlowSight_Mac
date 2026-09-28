@@ -121,6 +121,12 @@ fn harden_process_early() {
 }
 
 fn main() {
+  // The installed app is also a self-contained MCP STDIO server. Handle this
+  // before Windows GUI startup detaches its console/stdin/stdout.
+  if std::env::args().skip(1).any(|arg| arg == "--mcp") {
+    std::process::exit(app_lib::mcp::run_stdio());
+  }
+
   // Must be first: blocks AppInit_DLLs before user32.dll is loaded.
   // See the module-level comment above for the full rationale.
   #[cfg(windows)]

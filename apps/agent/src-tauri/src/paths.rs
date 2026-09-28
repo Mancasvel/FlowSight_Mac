@@ -45,6 +45,17 @@ pub fn db_path() -> Result<PathBuf, String> {
     Ok(app_data_dir()?.join(DB_FILE))
 }
 
+/// Resolve the existing database for read-only integrations without creating
+/// application directories or an empty database as a side effect.
+pub fn db_path_read_only() -> Result<PathBuf, String> {
+    let base = dirs::data_local_dir().ok_or_else(|| "No local data dir available".to_string())?;
+    let path = base.join(APP_DIR_NAME).join(DB_FILE);
+    if !path.is_file() {
+        return Err("FlowSight local database not found. Start monitoring in the desktop app first.".to_string());
+    }
+    Ok(path)
+}
+
 /// Variante infalible para sitios donde no podemos propagar Result (panic hooks,
 /// static init). En ese caso cae a `.` que es subóptimo pero no panica.
 pub fn db_path_or_fallback() -> PathBuf {

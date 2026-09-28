@@ -1,6 +1,6 @@
 use chrono::Local;
 use reqwest::blocking::Client;
-use rusqlite::{params, Connection};
+use rusqlite::{params, Connection, OpenFlags};
 use serde::Serialize;
 use std::collections::HashMap;
 use std::time::Duration;
@@ -93,7 +93,8 @@ struct ActivitySample {
 /// Aggregated local SQLite activity for cloud AI reports (Individual plan).
 pub fn build_local_insights_report(db_path: &std::path::Path, period_days: i32) -> Result<serde_json::Value, String> {
     let days = period_days.clamp(1, 30);
-    let conn = Connection::open(db_path).map_err(|e| e.to_string())?;
+    let conn = Connection::open_with_flags(db_path, OpenFlags::SQLITE_OPEN_READ_ONLY)
+        .map_err(|e| e.to_string())?;
 
     let period_end = Local::now().date_naive();
     let period_start = period_end - chrono::Duration::days((days - 1) as i64);
