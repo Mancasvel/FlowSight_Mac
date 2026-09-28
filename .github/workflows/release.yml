@@ -642,7 +642,8 @@ jobs:
           tag_name: ${{ github.event.release.tag_name || inputs.tag }}
           draft: true
           fail_on_unmatched_files: false
-          overwrite_files: true
+          # Publishing a verified draft reruns this workflow; keep its existing assets available.
+          overwrite_files: false
           files: |
             artifacts/**/*.dmg
             artifacts/**/*.app.tar.gz
