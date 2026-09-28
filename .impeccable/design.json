@@ -1,0 +1,520 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-28T07:18:50Z",
+  "title": "Design System: FlowSight Mac Desktop Renderer",
+  "extensions": {
+    "colorMeta": {
+      "canvas-light": {
+        "role": "neutral",
+        "displayName": "Pale Grid Canvas",
+        "canonical": "#fbfcfb",
+        "tonalRamp": [
+          "oklch(15% 0.014 150)",
+          "oklch(25% 0.014 150)",
+          "oklch(35% 0.014 150)",
+          "oklch(45% 0.014 150)",
+          "oklch(55% 0.014 150)",
+          "oklch(65% 0.014 150)",
+          "oklch(80% 0.014 150)",
+          "oklch(95% 0.014 150)"
+        ]
+      },
+      "canvas-dark": {
+        "role": "neutral",
+        "displayName": "Deep Slate Canvas",
+        "canonical": "#101d25",
+        "tonalRamp": [
+          "oklch(15% 0.035 225)",
+          "oklch(25% 0.035 225)",
+          "oklch(35% 0.035 225)",
+          "oklch(45% 0.035 225)",
+          "oklch(55% 0.035 225)",
+          "oklch(65% 0.035 225)",
+          "oklch(80% 0.035 225)",
+          "oklch(95% 0.035 225)"
+        ]
+      },
+      "surface-white": {
+        "role": "neutral",
+        "displayName": "Solid White",
+        "canonical": "#ffffff",
+        "tonalRamp": [
+          "oklch(15% 0 0)",
+          "oklch(25% 0 0)",
+          "oklch(35% 0 0)",
+          "oklch(45% 0 0)",
+          "oklch(55% 0 0)",
+          "oklch(65% 0 0)",
+          "oklch(80% 0 0)",
+          "oklch(95% 0 0)"
+        ]
+      },
+      "card-light": {
+        "role": "neutral",
+        "displayName": "Soft White Card",
+        "canonical": "rgb(255 255 255 / 0.97)",
+        "tonalRamp": [
+          "oklch(15% 0 0 / 0.97)",
+          "oklch(25% 0 0 / 0.97)",
+          "oklch(35% 0 0 / 0.97)",
+          "oklch(45% 0 0 / 0.97)",
+          "oklch(55% 0 0 / 0.97)",
+          "oklch(65% 0 0 / 0.97)",
+          "oklch(80% 0 0 / 0.97)",
+          "oklch(95% 0 0 / 0.97)"
+        ]
+      },
+      "card-dark": {
+        "role": "neutral",
+        "displayName": "Deep Slate Card",
+        "canonical": "#1a2c36",
+        "tonalRamp": [
+          "oklch(15% 0.03 220)",
+          "oklch(25% 0.03 220)",
+          "oklch(35% 0.03 220)",
+          "oklch(45% 0.03 220)",
+          "oklch(55% 0.03 220)",
+          "oklch(65% 0.03 220)",
+          "oklch(80% 0.03 220)",
+          "oklch(95% 0.03 220)"
+        ]
+      },
+      "ink-light": {
+        "role": "neutral",
+        "displayName": "Slate Reading Ink",
+        "canonical": "#303c50",
+        "tonalRamp": [
+          "oklch(15% 0.045 250)",
+          "oklch(25% 0.045 250)",
+          "oklch(35% 0.045 250)",
+          "oklch(45% 0.045 250)",
+          "oklch(55% 0.045 250)",
+          "oklch(65% 0.045 250)",
+          "oklch(80% 0.045 250)",
+          "oklch(95% 0.045 250)"
+        ]
+      },
+      "ink-dark": {
+        "role": "neutral",
+        "displayName": "Pale Reading Ink",
+        "canonical": "#e5f0f1",
+        "tonalRamp": [
+          "oklch(15% 0.018 195)",
+          "oklch(25% 0.018 195)",
+          "oklch(35% 0.018 195)",
+          "oklch(45% 0.018 195)",
+          "oklch(55% 0.018 195)",
+          "oklch(65% 0.018 195)",
+          "oklch(80% 0.018 195)",
+          "oklch(95% 0.018 195)"
+        ]
+      },
+      "muted-light": {
+        "role": "neutral",
+        "displayName": "Supporting Slate",
+        "canonical": "#586c7d",
+        "tonalRamp": [
+          "oklch(15% 0.035 235)",
+          "oklch(25% 0.035 235)",
+          "oklch(35% 0.035 235)",
+          "oklch(45% 0.035 235)",
+          "oklch(55% 0.035 235)",
+          "oklch(65% 0.035 235)",
+          "oklch(80% 0.035 235)",
+          "oklch(95% 0.035 235)"
+        ]
+      },
+      "muted-dark": {
+        "role": "neutral",
+        "displayName": "Supporting Mist",
+        "canonical": "#b4c5cf",
+        "tonalRamp": [
+          "oklch(15% 0.022 210)",
+          "oklch(25% 0.022 210)",
+          "oklch(35% 0.022 210)",
+          "oklch(45% 0.022 210)",
+          "oklch(55% 0.022 210)",
+          "oklch(65% 0.022 210)",
+          "oklch(80% 0.022 210)",
+          "oklch(95% 0.022 210)"
+        ]
+      },
+      "border-light": {
+        "role": "neutral",
+        "displayName": "Cool Panel Border",
+        "canonical": "rgb(227 236 240 / 0.9)",
+        "tonalRamp": [
+          "oklch(15% 0.018 220 / 0.9)",
+          "oklch(25% 0.018 220 / 0.9)",
+          "oklch(35% 0.018 220 / 0.9)",
+          "oklch(45% 0.018 220 / 0.9)",
+          "oklch(55% 0.018 220 / 0.9)",
+          "oklch(65% 0.018 220 / 0.9)",
+          "oklch(80% 0.018 220 / 0.9)",
+          "oklch(95% 0.018 220 / 0.9)"
+        ]
+      },
+      "border-dark": {
+        "role": "neutral",
+        "displayName": "Dark Panel Border",
+        "canonical": "#2a414b",
+        "tonalRamp": [
+          "oklch(15% 0.03 210)",
+          "oklch(25% 0.03 210)",
+          "oklch(35% 0.03 210)",
+          "oklch(45% 0.03 210)",
+          "oklch(55% 0.03 210)",
+          "oklch(65% 0.03 210)",
+          "oklch(80% 0.03 210)",
+          "oklch(95% 0.03 210)"
+        ]
+      },
+      "grid-light": {
+        "role": "neutral",
+        "displayName": "Light Grid Line",
+        "canonical": "rgb(63 93 120 / 0.075)",
+        "tonalRamp": [
+          "oklch(15% 0.03 245 / 0.075)",
+          "oklch(25% 0.03 245 / 0.075)",
+          "oklch(35% 0.03 245 / 0.075)",
+          "oklch(45% 0.03 245 / 0.075)",
+          "oklch(55% 0.03 245 / 0.075)",
+          "oklch(65% 0.03 245 / 0.075)",
+          "oklch(80% 0.03 245 / 0.075)",
+          "oklch(95% 0.03 245 / 0.075)"
+        ]
+      },
+      "grid-dark": {
+        "role": "neutral",
+        "displayName": "Dark Grid Line",
+        "canonical": "rgb(194 226 233 / 0.055)",
+        "tonalRamp": [
+          "oklch(15% 0.03 200 / 0.055)",
+          "oklch(25% 0.03 200 / 0.055)",
+          "oklch(35% 0.03 200 / 0.055)",
+          "oklch(45% 0.03 200 / 0.055)",
+          "oklch(55% 0.03 200 / 0.055)",
+          "oklch(65% 0.03 200 / 0.055)",
+          "oklch(80% 0.03 200 / 0.055)",
+          "oklch(95% 0.03 200 / 0.055)"
+        ]
+      },
+      "action-teal": {
+        "role": "primary",
+        "displayName": "Action Teal",
+        "canonical": "#087f78",
+        "tonalRamp": [
+          "oklch(15% 0.095 178)",
+          "oklch(25% 0.095 178)",
+          "oklch(35% 0.095 178)",
+          "oklch(45% 0.095 178)",
+          "oklch(55% 0.095 178)",
+          "oklch(65% 0.095 178)",
+          "oklch(80% 0.095 178)",
+          "oklch(95% 0.095 178)"
+        ]
+      },
+      "action-teal-hover": {
+        "role": "primary",
+        "displayName": "Deep Action Teal",
+        "canonical": "#076f69",
+        "tonalRamp": [
+          "oklch(15% 0.085 178)",
+          "oklch(25% 0.085 178)",
+          "oklch(35% 0.085 178)",
+          "oklch(45% 0.085 178)",
+          "oklch(55% 0.085 178)",
+          "oklch(65% 0.085 178)",
+          "oklch(80% 0.085 178)",
+          "oklch(95% 0.085 178)"
+        ]
+      },
+      "signal-teal-dark": {
+        "role": "primary",
+        "displayName": "Dark-Mode Signal Teal",
+        "canonical": "#75ddd0",
+        "tonalRamp": [
+          "oklch(15% 0.1 178)",
+          "oklch(25% 0.1 178)",
+          "oklch(35% 0.1 178)",
+          "oklch(45% 0.1 178)",
+          "oklch(55% 0.1 178)",
+          "oklch(65% 0.1 178)",
+          "oklch(80% 0.1 178)",
+          "oklch(95% 0.1 178)"
+        ]
+      },
+      "progress-teal": {
+        "role": "primary",
+        "displayName": "Progress Teal",
+        "canonical": "#25b9ad",
+        "tonalRamp": [
+          "oklch(15% 0.13 178)",
+          "oklch(25% 0.13 178)",
+          "oklch(35% 0.13 178)",
+          "oklch(45% 0.13 178)",
+          "oklch(55% 0.13 178)",
+          "oklch(65% 0.13 178)",
+          "oklch(80% 0.13 178)",
+          "oklch(95% 0.13 178)"
+        ]
+      },
+      "active-teal-light": {
+        "role": "primary",
+        "displayName": "Soft Active Teal",
+        "canonical": "#e8f8f5",
+        "tonalRamp": [
+          "oklch(15% 0.035 178)",
+          "oklch(25% 0.035 178)",
+          "oklch(35% 0.035 178)",
+          "oklch(45% 0.035 178)",
+          "oklch(55% 0.035 178)",
+          "oklch(65% 0.035 178)",
+          "oklch(80% 0.035 178)",
+          "oklch(95% 0.035 178)"
+        ]
+      },
+      "tracking-indigo": {
+        "role": "secondary",
+        "displayName": "Tracking Indigo",
+        "canonical": "#5d61c9",
+        "tonalRamp": [
+          "oklch(15% 0.16 280)",
+          "oklch(25% 0.16 280)",
+          "oklch(35% 0.16 280)",
+          "oklch(45% 0.16 280)",
+          "oklch(55% 0.16 280)",
+          "oklch(65% 0.16 280)",
+          "oklch(80% 0.16 280)",
+          "oklch(95% 0.16 280)"
+        ]
+      },
+      "tracking-blue": {
+        "role": "secondary",
+        "displayName": "Tracking Blue",
+        "canonical": "#2b7898",
+        "tonalRamp": [
+          "oklch(15% 0.1 225)",
+          "oklch(25% 0.1 225)",
+          "oklch(35% 0.1 225)",
+          "oklch(45% 0.1 225)",
+          "oklch(55% 0.1 225)",
+          "oklch(65% 0.1 225)",
+          "oklch(80% 0.1 225)",
+          "oklch(95% 0.1 225)"
+        ]
+      },
+      "tracking-teal": {
+        "role": "secondary",
+        "displayName": "Tracking Teal",
+        "canonical": "#0b7b75",
+        "tonalRamp": [
+          "oklch(15% 0.095 180)",
+          "oklch(25% 0.095 180)",
+          "oklch(35% 0.095 180)",
+          "oklch(45% 0.095 180)",
+          "oklch(55% 0.095 180)",
+          "oklch(65% 0.095 180)",
+          "oklch(80% 0.095 180)",
+          "oklch(95% 0.095 180)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Measured Display",
+        "purpose": "Centered elapsed time with tabular numerals."
+      },
+      "headline": {
+        "displayName": "Page Headline",
+        "purpose": "Primary headings on Today, Insights, and Settings."
+      },
+      "title": {
+        "displayName": "Card Title",
+        "purpose": "Section and card headings."
+      },
+      "body": {
+        "displayName": "Reading Body",
+        "purpose": "Explanations, forms, and compact work content."
+      },
+      "label": {
+        "displayName": "Section Kicker",
+        "purpose": "Brief uppercase section cues."
+      }
+    },
+    "shadows": [
+      {
+        "name": "surface-lift",
+        "value": "0 8px 28px rgb(30 53 68 / 0.045)",
+        "purpose": "Low ambient elevation token."
+      },
+      {
+        "name": "card-lift",
+        "value": "0 8px 26px rgb(44 76 94 / 0.045)",
+        "purpose": "Ordinary reading cards in light appearance."
+      },
+      {
+        "name": "dock-lift",
+        "value": "0 18px 36px rgb(40 67 86 / 0.13), 0 3px 9px rgb(40 67 86 / 0.06)",
+        "purpose": "Persistent navigation above scrolling content."
+      },
+      {
+        "name": "consent-lift",
+        "value": "0 20px 56px rgb(23 50 64 / 0.2)",
+        "purpose": "Blocking monitoring consent dialog."
+      }
+    ],
+    "motion": [
+      {
+        "name": "tracking-hover",
+        "value": "filter 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease",
+        "purpose": "Small lift and brightness response on the tracking button."
+      },
+      {
+        "name": "goal-progress",
+        "value": "transform 0.3s ease-out",
+        "purpose": "Measured goal fill; disabled for reduced motion."
+      },
+      {
+        "name": "reduced-motion",
+        "value": "none",
+        "purpose": "No tracking-button or goal-progress transition when prefers-reduced-motion is reduce."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "narrow",
+        "value": "max-width: 380px"
+      },
+      {
+        "name": "wide",
+        "value": "min-width: 600px"
+      },
+      {
+        "name": "short-window",
+        "value": "max-height: 520px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Solid teal for routine affirmative actions.",
+      "html": "<button class=\"ds-btn-primary\">Save changes</button>",
+      "css": ".ds-btn-primary{min-height:38px;padding:8px 13px;border:1px solid #087f78;border-radius:11px;background:#087f78;color:#fff;font:700 11px \"Plus Jakarta Sans\",sans-serif;cursor:pointer;transition:background .16s ease}.ds-btn-primary:hover:not(:disabled){background:#076f69}.ds-btn-primary:focus-visible{outline:3px solid rgb(0 184 169 / .38);outline-offset:2px}.ds-btn-primary:active:not(:disabled){background:#076f69}.ds-btn-primary:disabled{opacity:.56;cursor:default}"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Pale bordered alternative for lower-emphasis actions.",
+      "html": "<button class=\"ds-btn-secondary\">Not now</button>",
+      "css": ".ds-btn-secondary{min-height:38px;padding:8px 13px;border:1px solid #d9e6e9;border-radius:11px;background:#f7fbfa;color:#2b5961;font:700 11px \"Plus Jakarta Sans\",sans-serif;cursor:pointer;transition:background .16s ease}.ds-btn-secondary:hover:not(:disabled){background:#e9f8f5}.ds-btn-secondary:focus-visible{outline:3px solid rgb(0 184 169 / .38);outline-offset:2px}.ds-btn-secondary:active:not(:disabled){background:#e9f8f5}@media(prefers-color-scheme:dark){.ds-btn-secondary{border-color:#3c625f;background:#204341;color:#b2efe4}}"
+    },
+    {
+      "name": "Ghost Button",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "Quiet text action on an otherwise open surface.",
+      "html": "<button class=\"ds-btn-ghost\">View details</button>",
+      "css": ".ds-btn-ghost{min-height:38px;padding:8px 13px;border:0;border-radius:11px;background:transparent;color:#147d76;font:700 11px \"Plus Jakarta Sans\",sans-serif;cursor:pointer;transition:background .16s ease}.ds-btn-ghost:hover:not(:disabled){background:#eaf8f6}.ds-btn-ghost:focus-visible{outline:3px solid rgb(0 184 169 / .38);outline-offset:2px}.ds-btn-ghost:active:not(:disabled){background:#eaf8f6}@media(prefers-color-scheme:dark){.ds-btn-ghost{color:#9ce6db}.ds-btn-ghost:hover{background:#244c48}}"
+    },
+    {
+      "name": "Tracking Action",
+      "kind": "button",
+      "refersTo": "button-tracking",
+      "description": "The one prominent indigo-to-blue-to-teal tracking decision.",
+      "html": "<button class=\"ds-btn-tracking\">Start tracking</button>",
+      "css": ".ds-btn-tracking{width:100%;height:52px;padding:0 16px;border:1px solid rgb(255 255 255 / .6);border-radius:16px;background:var(--fs-action,linear-gradient(104deg,#5d61c9 0%,#2b7898 56%,#0b7b75 100%));color:#fff;box-shadow:0 9px 22px rgb(49 168 182 / .17),inset 0 1px 0 rgb(255 255 255 / .2);font:800 14px \"Plus Jakarta Sans\",sans-serif;letter-spacing:-.015em;cursor:pointer;transition:filter .16s ease,box-shadow .16s ease,transform .16s ease}.ds-btn-tracking:hover:not(:disabled){filter:brightness(1.04);transform:translateY(-1px);box-shadow:0 12px 24px rgb(49 168 182 / .22)}.ds-btn-tracking:active:not(:disabled){transform:translateY(0)}.ds-btn-tracking:focus-visible{outline:3px solid rgb(0 184 169 / .38);outline-offset:2px}.ds-btn-tracking:disabled{opacity:.56;box-shadow:none}@media(max-height:520px){.ds-btn-tracking{height:44px}}@media(prefers-reduced-motion:reduce){.ds-btn-tracking{transition:none}}"
+    },
+    {
+      "name": "Input Field",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Compact field with cool border and visible teal focus.",
+      "html": "<label class=\"ds-field\">Daily goal<input class=\"ds-input\" type=\"text\" placeholder=\"Set a goal\"></label>",
+      "css": ".ds-field{display:grid;gap:7px;max-width:280px;color:#425267;font:700 11px \"Plus Jakarta Sans\",sans-serif}.ds-input{min-height:39px;padding:8px 11px;border:1px solid #d9e4e9;border-radius:11px;background:#fff;color:#34445a;font:400 12px \"Plus Jakarta Sans\",sans-serif;box-shadow:none}.ds-input::placeholder{color:#586c7d}.ds-input:focus{border-color:#28b9ad;outline:none;box-shadow:0 0 0 3px rgb(0 184 169 / .13)}.ds-input:focus-visible{outline:3px solid rgb(0 184 169 / .38);outline-offset:2px}@media(prefers-color-scheme:dark){.ds-field{color:#d5e5e8}.ds-input{border-color:#39545e;background:#213742;color:#ecf4f3}.ds-input::placeholder{color:#b4c5cf}}"
+    },
+    {
+      "name": "Reading Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "Softly lifted content surface for evidence and settings.",
+      "html": "<section class=\"ds-card\"><span class=\"ds-card-kicker\">This week</span><h3 class=\"ds-card-title\">Tracked time</h3><p class=\"ds-card-copy\">Review your activity in context.</p></section>",
+      "css": ".ds-card{max-width:350px;padding:20px;border:1px solid rgb(227 236 240 / .9);border-radius:20px;background:rgb(255 255 255 / .97);color:#303c50;box-shadow:0 8px 26px rgb(44 76 94 / .045)}.ds-card-kicker{display:block;margin-bottom:8px;color:#076f69;font:800 11px \"Plus Jakarta Sans\",sans-serif;letter-spacing:.13em;text-transform:uppercase}.ds-card-title{margin:0 0 7px;color:#334256;font:800 15px Manrope,sans-serif;letter-spacing:-.025em}.ds-card-copy{margin:0;color:#586c7d;font:400 12px/1.55 \"Plus Jakarta Sans\",sans-serif}@media(prefers-color-scheme:dark){.ds-card{border-color:#2a414b;background:#1a2c36;color:#e5f0f1;box-shadow:0 10px 26px rgb(0 0 0 / .12)}.ds-card-kicker{color:#75ddd0}.ds-card-title{color:#e5f0f1}.ds-card-copy{color:#b4c5cf}}"
+    },
+    {
+      "name": "Success Badge",
+      "kind": "chip",
+      "refersTo": "badge-success",
+      "description": "Small pale-teal status marker.",
+      "html": "<span class=\"ds-badge\">Tracking on</span>",
+      "css": ".ds-badge{display:inline-flex;align-items:center;padding:5px 8px;border-radius:999px;background:#def7f0;color:#0a766c;font:700 10px \"Plus Jakarta Sans\",sans-serif}@media(prefers-color-scheme:dark){.ds-badge{background:#204b44;color:#9de9db}}"
+    },
+    {
+      "name": "Mac Floating Dock",
+      "kind": "nav",
+      "refersTo": "bottom-nav",
+      "description": "Four visible tabs; Coach remains visible but locked until authenticated, actively paid, and cloud-AI eligible.",
+      "html": "<nav class=\"ds-nav\" aria-label=\"Primary navigation\"><button class=\"ds-nav-item ds-nav-active\" aria-current=\"page\"><svg viewBox=\"0 0 24 24\" width=\"21\" height=\"21\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.9\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"12\" r=\"10\"/><polyline points=\"12 6 12 12 16 14\"/></svg><span class=\"ds-nav-label\">Today</span></button><button class=\"ds-nav-item\"><svg viewBox=\"0 0 24 24\" width=\"21\" height=\"21\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.9\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><line x1=\"18\" y1=\"20\" x2=\"18\" y2=\"10\"/><line x1=\"12\" y1=\"20\" x2=\"12\" y2=\"4\"/><line x1=\"6\" y1=\"20\" x2=\"6\" y2=\"14\"/></svg><span class=\"ds-nav-label\">Insights</span></button><button class=\"ds-nav-item ds-nav-locked\" aria-label=\"Coach, locked\"><svg viewBox=\"0 0 24 24\" width=\"21\" height=\"21\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.9\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5L12 3z\"/><path d=\"M5 19h14\"/></svg><span class=\"ds-nav-label\">Coach</span></button><button class=\"ds-nav-item\"><svg viewBox=\"0 0 24 24\" width=\"21\" height=\"21\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.9\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2\"/><circle cx=\"12\" cy=\"7\" r=\"4\"/></svg><span class=\"ds-nav-label\">Settings</span></button></nav>",
+      "css": ".ds-nav{display:flex;gap:3px;width:min(calc(100% - 24px),540px);margin:auto;padding:7px;border:1px solid rgb(211 223 228 / .7);border-radius:24px;background:rgb(255 255 255 / .96);box-shadow:0 18px 36px rgb(40 67 86 / .13),0 3px 9px rgb(40 67 86 / .06)}.ds-nav-item{display:flex;flex:1 1 0;min-width:0;min-height:51px;align-items:center;justify-content:center;flex-direction:column;gap:3px;padding:6px 3px;border:0;border-radius:17px;background:transparent;color:#586c7d;font:600 10px \"Plus Jakarta Sans\",sans-serif;cursor:pointer}.ds-nav-label{font-size:10px;font-weight:700;line-height:1.1}.ds-nav-active,.ds-nav-active:hover{background:#e8f8f5;color:#076f69}.ds-nav-item:hover:not(.ds-nav-active){background:#f2f7f8;color:#526d7b}.ds-nav-item:focus-visible{outline:3px solid rgb(0 184 169 / .38);outline-offset:2px}.ds-nav-locked .ds-nav-label{opacity:.83}.ds-nav-ai{display:none}.ds-nav-ai[data-eligible=\"true\"]{display:flex}@media(max-width:380px){.ds-nav{padding:5px;border-radius:20px}.ds-nav-item{min-height:49px}}@media(prefers-color-scheme:dark){.ds-nav{border-color:#2a414b;background:#1a2c36;box-shadow:0 10px 26px rgb(0 0 0 / .12)}.ds-nav-item{color:#a4b6c2}.ds-nav-active,.ds-nav-active:hover{background:#204441;color:#75ddd0}.ds-nav-item:hover:not(.ds-nav-active){background:#243b44;color:#d5e5e8}}"
+    },
+    {
+      "name": "Today Timer Surface",
+      "kind": "custom",
+      "refersTo": "timer-surface",
+      "description": "Measured time, goal progress, and one dominant tracking action.",
+      "html": "<section class=\"ds-timer\"><span class=\"ds-timer-state\">Ready</span><div class=\"ds-timer-time\">00:00:00</div><div class=\"ds-timer-track\"><span class=\"ds-timer-fill\"></span></div><div class=\"ds-timer-label\"><span>Daily goal</span><span>Streak</span></div><button class=\"ds-timer-action\">Start tracking</button></section>",
+      "css": ".ds-timer{max-width:420px;padding:22px 22px 20px;border:1px solid rgb(232 238 242 / .92);border-radius:27px;background:linear-gradient(153deg,#fff 0%,#fff 64%,#f6fbff 87%,#effcfa 100%);box-shadow:0 14px 35px rgb(70 100 120 / .06);font-family:\"Plus Jakarta Sans\",sans-serif}.ds-timer-state{display:inline-block;padding:5px 9px;border:1px solid #e5edf3;border-radius:999px;background:#f9fbfd;color:#586c7d;font-size:10px;font-weight:800;letter-spacing:.07em;text-transform:uppercase}.ds-timer-time{margin:20px 0;text-align:center;color:#3e4759;font:800 46px/1.12 Manrope,sans-serif;letter-spacing:-.035em;font-variant-numeric:tabular-nums}.ds-timer-track{height:7px;border-radius:999px;background:#e2f8f6;overflow:hidden}.ds-timer-fill{display:block;width:42%;height:100%;border-radius:inherit;background:#30bdb4}.ds-timer-label{display:flex;justify-content:space-between;margin:12px 0 15px;color:#586c7d;font-size:10px;font-weight:800;letter-spacing:.11em;text-transform:uppercase}.ds-timer-action{width:100%;height:52px;border:1px solid rgb(255 255 255 / .6);border-radius:16px;background:var(--fs-action,linear-gradient(104deg,#5d61c9 0%,#2b7898 56%,#0b7b75 100%));color:#fff;font:800 14px \"Plus Jakarta Sans\",sans-serif;cursor:pointer;transition:filter .16s ease,transform .16s ease}.ds-timer-action:hover{filter:brightness(1.04);transform:translateY(-1px)}.ds-timer-action:active{transform:translateY(0)}.ds-timer-action:focus-visible{outline:3px solid rgb(0 184 169 / .38);outline-offset:2px}@media(prefers-color-scheme:dark){.ds-timer{border-color:#2b444d;background:linear-gradient(147deg,#1b3039,#182a34 74%,#18383a);box-shadow:0 16px 36px rgb(0 0 0 / .12)}.ds-timer-state{border-color:#3b5560;background:#263a43;color:#b4c5cf}.ds-timer-time{color:#e5f0f1}.ds-timer-track{background:#265450}.ds-timer-label{color:#b4c5cf}}@media(max-width:380px){.ds-timer{padding:17px 18px 18px;border-radius:23px}.ds-timer-time{font-size:40px}.ds-timer-action{height:48px}}@media(prefers-reduced-motion:reduce){.ds-timer-action{transition:none}}"
+    },
+    {
+      "name": "Monitoring Consent",
+      "kind": "custom",
+      "refersTo": "consent-dialog",
+      "description": "Bounded decision surface with independently scrollable details and anchored actions.",
+      "html": "<section class=\"ds-consent\" role=\"dialog\" aria-label=\"Monitoring details\"><h2 class=\"ds-consent-title\">Monitoring details</h2><div class=\"ds-consent-scroll\"><p>Review what tracking records and how to control it.</p><p>Details remain scrollable while the actions stay visible.</p></div><button class=\"ds-consent-cue\">Read remaining details</button><div class=\"ds-consent-actions\"><button class=\"ds-consent-secondary\">Not now</button><button class=\"ds-consent-primary\">Continue</button></div></section>",
+      "css": ".ds-consent{display:flex;flex-direction:column;max-width:470px;max-height:240px;padding:24px;border:1px solid #e0eaec;border-radius:22px;background:#fff;color:#303c50;box-shadow:0 20px 56px rgb(23 50 64 / .2);font-family:\"Plus Jakarta Sans\",sans-serif}.ds-consent-title{flex:none;margin:0 0 9px;color:#354458;font:800 20px Manrope,sans-serif}.ds-consent-scroll{flex:1 1 auto;min-height:0;overflow-y:auto;color:#63788a;font-size:11px;line-height:1.6}.ds-consent-scroll p{margin:0 0 8px}.ds-consent-cue{flex:none;min-height:30px;padding:3px 0;border:0;background:transparent;color:#087e77;text-align:left;font:800 10px \"Plus Jakarta Sans\",sans-serif;cursor:pointer}.ds-consent-cue:hover{color:#04665f}.ds-consent-cue:focus-visible{outline:3px solid rgb(0 184 169 / .38);outline-offset:2px}.ds-consent-actions{display:flex;flex:none;gap:9px;margin-top:16px}.ds-consent-actions button{flex:1;min-height:42px;padding:9px 11px;border-radius:11px;font:700 11px \"Plus Jakarta Sans\",sans-serif;cursor:pointer}.ds-consent-secondary{border:1px solid #d9e6e9;background:#f7fbfa;color:#2b5961}.ds-consent-primary{border:1px solid #087f78;background:#087f78;color:#fff}.ds-consent-primary:hover{background:#076f69}.ds-consent-actions button:focus-visible{outline:3px solid rgb(0 184 169 / .38);outline-offset:2px}@media(prefers-color-scheme:dark){.ds-consent{border-color:#2a414b;background:#1a2c36;box-shadow:0 10px 26px rgb(0 0 0 / .12)}.ds-consent-title{color:#e5f0f1}.ds-consent-scroll{color:#adbec8}.ds-consent-cue{color:#8ce1d5}.ds-consent-secondary{border-color:#3c625f;background:#204341;color:#b2efe4}}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Gridded Work Companion",
+    "overview": "The macOS renderer belongs to the FlowSight mobile family. A pale technical grid, slate reading text, teal signals, softly lifted white panels, and one indigo-to-teal tracking action make a narrow work window feel calm and capable. The layout adapts the family's density to a resizable desktop surface rather than enlarging a phone screen.\n\nToday puts the tracking decision beside measured time; Insights, Coach, Settings, first run, and consent use quieter cards and rails for supporting context. This is the visual contract for the desktop WebView. Native macOS traffic lights remain the window's own controls.",
+    "keyCharacteristics": [
+      "A 56px pale grid behind centered, softly layered work surfaces.",
+      "Manrope headings and measured figures with Plus Jakarta Sans reading and controls.",
+      "Teal for state and progress; the indigo-to-blue-to-teal gradient is concentrated in tracking and selected first-run actions.",
+      "A floating four-tab dock whose Coach entry remains visible while access is gated."
+    ],
+    "rules": [
+      {
+        "name": "The Signal Rule",
+        "body": "Teal denotes a real state, progress, selection, or action; reserve the gradient for tracking and selected first-run decisions.",
+        "section": "colors"
+      },
+      {
+        "name": "The Measurement Rule",
+        "body": "Align measured figures with tabular numerals while retaining the same Manrope display voice.",
+        "section": "typography"
+      },
+      {
+        "name": "The Layer Rule",
+        "body": "Give ordinary content a quiet lift; reserve the strongest elevation for persistent navigation and blocking overlays.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do use the 56px grid quietly behind readable surfaces.",
+      "Do pair Manrope display type with Plus Jakarta Sans reading type across tabs.",
+      "Do use the tracking gradient for tracking and selected first-run actions, with solid Action Teal for routine confirmation.",
+      "Do preserve the 72px traffic-light clearance and keep the dock and consent actions reachable in narrow, short windows."
+    ],
+    "donts": [
+      "Don't stretch the phone layout or its spacing directly into a wide desktop window.",
+      "Don't turn categorized focus time into a sustained-focus claim or observed activity into a score-like visual.",
+      "Don't present Coach as unlocked on sign-in alone or imply an unverified entitlement.",
+      "Don't let the dock obscure the last controls or hide unread consent details behind fixed actions."
+    ]
+  }
+}

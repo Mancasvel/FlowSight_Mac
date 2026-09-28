@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "FlowSight Agent",
-  "version": "3.6.9",
+  "version": "3.6.10",
   "identifier": "ai.flowsight.agent",
   "build": {
     "frontendDist": "../dist",
@@ -26,8 +26,7 @@
           "x": 14,
           "y": 16
         },
-        "theme": "Light",
-        "backgroundColor": "#FAFAFA"
+        "backgroundColor": "#FBFCFB"
       }
     ],
     "security": {

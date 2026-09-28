@@ -1,8 +1,8 @@
 {
   "name": "@flowsight/agent",
-  "version": "3.6.9",
+  "version": "3.6.10",
   "private": true,
-  "description": "FlowSight Agent \u2014 Understand your own Workflows",
+  "description": "FlowSight Agent — Understand your own Workflows",
   "scripts": {
     "vite": "vite",
     "dev": "tauri dev",
@@ -12,6 +12,8 @@
     "test:coverage": "cargo llvm-cov --manifest-path src-tauri/Cargo.toml --lib --summary-only"
   },
   "dependencies": {
+    "@fontsource/manrope": "5",
+    "@fontsource/plus-jakarta-sans": "5",
     "@supabase/supabase-js": "^2.93.3",
     "@tauri-apps/api": "2.11.0",
     "@tauri-apps/plugin-process": "^2.3.0",

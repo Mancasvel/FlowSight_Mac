@@ -110,10 +110,6 @@ pub fn run() {
             paths::open_path_in_file_manager,
         ])
     .setup(|app| {
-      if let Some(window) = app.get_webview_window("main") {
-        let _ = window.set_theme(Some(tauri::Theme::Light));
-      }
-
       // Self-update support (GitHub Releases). Desktop-only; mobile targets skip it.
       // `process` provides relaunch() so the frontend can restart after installing.
       #[cfg(desktop)]

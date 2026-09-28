@@ -179,3 +179,4 @@ out/
 *.seed
 *.pid.lock
 .cache/
+.impeccable/review/

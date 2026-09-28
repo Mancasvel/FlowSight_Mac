@@ -8,8 +8,6 @@
   <meta name="description" content="Understand your own Workflows">
   <link rel="icon" href="/flowsight_sinfondo.png" type="image/png" />
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
-
     * {
       margin: 0;
       padding: 0;
@@ -3172,12 +3170,17 @@
       margin-bottom: 4px;
       word-break: break-all;
     }
-  </style>
+</style>
+<link rel="stylesheet" href="./mobile-theme.css">
 </head>
 
 <body>
   <header class="app-titlebar">
     <div class="titlebar-traffic-lights-space" aria-hidden="true"></div>
+    <div class="titlebar-brand" aria-label="FlowSight Agent">
+      <img src="/flowsight_sinfondo.png" alt="" class="titlebar-logo" width="19" height="19">
+      <span class="titlebar-name">FlowSight</span>
+    </div>
     <div class="titlebar-spacer" data-tauri-drag-region></div>
   </header>
 
@@ -3212,7 +3215,7 @@
         <li>The main core activity you perform during the week</li>
       </ul>
       <p class="consent-note">
-        This helps the FlowSight team improve the app. You can send additional feedback from Profile,
+        This helps the FlowSight team improve the app. You can send additional feedback from Settings,
         and change this preference there at any time. FlowSight works fully without sharing data.
       </p>
       <div class="consent-actions">
@@ -3362,20 +3365,34 @@
       <!-- TAB: Today -->
       <div id="tabToday" class="tab-panel active">
         <div class="today-header">
-          <div class="today-greeting" id="todayGreeting">Good morning!</div>
+          <div class="today-heading-meta"><span class="today-kicker">Today</span><time id="todayDate"></time></div>
+          <h1 class="today-greeting" id="todayGreeting">What's next?</h1>
+          <p class="today-intro">Start a block. Activity is measured only while tracking runs.</p>
         </div>
 
         <div class="today-timer-section">
           <div class="today-timer-ring">
-            <svg viewBox="0 0 200 200">
+            <div class="today-timer-meta">
+              <span>Tracking session</span>
+              <span class="today-tracking-state" id="todayTrackingState" aria-live="polite">Ready</span>
+            </div>
+            <svg viewBox="0 0 200 200" aria-hidden="true">
               <circle class="timer-track" cx="100" cy="100" r="82"/>
               <circle class="timer-progress" id="timerProgressRing" cx="100" cy="100" r="82"
                 stroke-dasharray="515.22" stroke-dashoffset="515.22"/>
             </svg>
             <div class="timer-inner">
-              <div class="timer-goal-label" id="timerGoalLabel">No goal target</div>
               <div class="timer-display" id="timerDisplay">0:00</div>
-              <button class="play-timer-btn" id="playTimerBtn" disabled title="Start tracking">
+            </div>
+            <div class="today-goal-progress" role="progressbar" aria-label="Daily goal progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="todayGoalProgressTrack">
+              <span id="todayGoalProgress"></span>
+            </div>
+            <div class="timer-meta-row">
+              <div class="timer-meta-item"><span class="timer-meta-label">Daily goal</span><span class="timer-goal-label" id="timerGoalLabel">No goal</span></div>
+              <div class="timer-meta-item timer-streak" id="timerStreak"><span class="timer-meta-label">Streak</span><span id="streakText">0 days</span></div>
+            </div>
+            <div class="timer-actions">
+              <button type="button" class="play-timer-btn" id="playTimerBtn" disabled title="Start tracking" aria-label="Start tracking">
                 <svg id="playIcon" viewBox="0 0 24 24" fill="currentColor">
                   <polygon points="8,5 19,12 8,19"/>
                 </svg>
@@ -3383,24 +3400,21 @@
                   <rect x="6" y="5" width="4" height="14" rx="1"/>
                   <rect x="14" y="5" width="4" height="14" rx="1"/>
                 </svg>
+                <span id="playTimerLabel">Start tracking</span>
               </button>
+              <div class="timer-controls">
+                <button type="button" class="stop-timer-btn" id="stopTimerBtn" title="Stop tracking and shut down server">
+                  <svg viewBox="0 0 24 24" fill="currentColor">
+                    <rect x="6" y="6" width="12" height="12" rx="1"/>
+                  </svg>
+                  Stop
+                </button>
+              </div>
             </div>
-          </div>
-
-          <div class="timer-streak" id="timerStreak">
-            <span id="streakText">0 days Streak</span>
-          </div>
-
-          <div class="timer-controls">
-            <button class="stop-timer-btn" id="stopTimerBtn" title="Stop tracking and shut down server">
-              <svg viewBox="0 0 24 24" fill="currentColor">
-                <rect x="6" y="6" width="12" height="12" rx="1"/>
-              </svg>
-              Stop
-            </button>
           </div>
         </div>
 
+        <div class="today-preferences">
         <div class="today-goal-row">
           <div class="form-group" style="margin-bottom: 0;">
             <label class="label" for="dailyGoalSelect">Daily goal</label>
@@ -3438,6 +3452,7 @@
             <input type="checkbox" id="syncToJira" class="checkbox" checked>
             <span class="checkbox-label">Sync time to Jira</span>
           </label>
+        </div>
         </div>
 
         <div class="sr-only" aria-hidden="true">
@@ -3494,8 +3509,8 @@
         </div>
         <div class="coach-lock-overlay" id="coachLockOverlay">
           <div class="coach-lock-card">
-            <h3 id="coachLockTitle">Upgrade to Pro</h3>
-            <p id="coachLockText">Unlock your AI coach — personalized guidance from your tracked activity.</p>
+            <h3 id="coachLockTitle">Connect to use Coach</h3>
+            <p id="coachLockText">Sign in to see your Coach options. AI guidance requires an eligible license.</p>
             <button type="button" class="button button-primary" id="coachUpgradeBtn" style="width:100%;">Activate cloud</button>
           </div>
         </div>
@@ -3503,6 +3518,11 @@
 
       <!-- TAB: Profile -->
       <div id="tabProfile" class="tab-panel">
+        <div class="profile-heading">
+          <span class="profile-kicker">Your space</span>
+          <h1>Settings</h1>
+          <p>Account, privacy and preferences for how FlowSight works.</p>
+        </div>
         <div class="card">
           <div class="card-header">
             <div class="card-header-title-row">
@@ -3635,8 +3655,8 @@
     </div>
 
     <!-- Bottom Navigation -->
-    <nav class="bottom-nav">
-      <button class="nav-item active" data-tab="tabToday" id="navToday">
+    <nav class="bottom-nav" aria-label="Primary navigation">
+      <button class="nav-item active" data-tab="tabToday" id="navToday" aria-current="page">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
         </svg>
@@ -3646,20 +3666,20 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>
         </svg>
-        <span class="nav-label">Summary</span>
+        <span class="nav-label">Insights</span>
       </button>
       <button class="nav-item nav-pro nav-pro-locked" data-tab="tabCloudInsights" id="navCloudInsights">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5L12 3z"/>
           <path d="M5 19h14"/><path d="M8 19v-3"/><path d="M16 19v-3"/>
         </svg>
-        <span class="nav-label" id="navCloudInsightsLabel">Pro</span>
+        <span class="nav-label" id="navCloudInsightsLabel">Coach</span>
       </button>
       <button class="nav-item" data-tab="tabProfile" id="navProfile">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
         </svg>
-        <span class="nav-label">Profile</span>
+        <span class="nav-label">Settings</span>
       </button>
     </nav>
   </div>
@@ -3699,6 +3719,8 @@
     import { check as checkAppUpdate } from '@tauri-apps/plugin-updater';
     import { relaunch } from '@tauri-apps/plugin-process';
     import { jsPDF } from 'jspdf';
+    import { createStatusReportViewModel } from './status-report-model.mjs';
+    import { renderStatusReportPdf } from './status-report-pdf.mjs';
     import {
       claimLicenseCode,
       ensurePersonalTeam,
@@ -3971,7 +3993,7 @@
       const sub = document.getElementById('loginSubtitle');
       if (mode === 'cloud') {
         if (title) title.textContent = 'Activate cloud features';
-        if (sub) sub.textContent = 'Sign in, then activate your license in Profile.';
+        if (sub) sub.textContent = 'Sign in, then activate your license in Settings.';
       } else {
         resetLoginSplashCopy();
       }
@@ -4152,7 +4174,7 @@
         showToast(
           isPaidActive()
             ? 'Cloud features activated'
-            : 'Signed in — activate your license in Profile',
+            : 'Signed in — activate your license in Settings',
           'success',
         );
       } catch (error) {
@@ -4208,6 +4230,12 @@
     function updateTodayGreeting() {
       const el = document.getElementById('todayGreeting');
       if (!el) return;
+      const dateEl = document.getElementById('todayDate');
+      if (dateEl) {
+        const now = new Date();
+        dateEl.dateTime = [now.getFullYear(), String(now.getMonth() + 1).padStart(2, '0'), String(now.getDate()).padStart(2, '0')].join('-');
+        dateEl.textContent = now.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+      }
       const h = new Date().getHours();
       let period;
       if (h < 12) period = 'morning';
@@ -4246,7 +4274,7 @@
     function updateGoalUI() {
       const hours = getDailyGoalHours();
       const label = document.getElementById('timerGoalLabel');
-      if (label) label.textContent = hours > 0 ? `Daily goal ${hours}h` : 'No goal target';
+      if (label) label.textContent = hours > 0 ? `${hours}h target` : 'No goal set';
       syncDailyGoalSelect();
     }
 
@@ -4270,15 +4298,29 @@
       const btn = document.getElementById('playTimerBtn');
       const playIcon = document.getElementById('playIcon');
       const pauseIcon = document.getElementById('pauseIcon');
+      const label = document.getElementById('playTimerLabel');
+      const state = document.getElementById('todayTrackingState');
       if (!btn) return;
       if (isMonitoring) {
         btn.classList.add('active');
         btn.title = 'Pause tracking';
+        btn.setAttribute('aria-label', btn.title);
+        if (label) label.textContent = btn.title;
+        if (state) {
+          state.textContent = 'Recording';
+          state.className = 'today-tracking-state is-recording';
+        }
         if (playIcon) playIcon.style.display = 'none';
         if (pauseIcon) pauseIcon.style.display = 'block';
       } else {
         btn.classList.remove('active');
         btn.title = isPaused ? 'Resume tracking' : 'Start tracking';
+        btn.setAttribute('aria-label', btn.title);
+        if (label) label.textContent = btn.title;
+        if (state) {
+          state.textContent = isPaused ? 'Paused' : 'Ready';
+          state.className = isPaused ? 'today-tracking-state is-paused' : 'today-tracking-state';
+        }
         if (playIcon) playIcon.style.display = 'block';
         if (pauseIcon) pauseIcon.style.display = 'none';
       }
@@ -4291,7 +4333,15 @@
       const total = getDisplayTotalSeconds();
       display.textContent = formatTimerDisplay(total);
       const goalSec = getDailyGoalHours() * 3600;
-      updateTimerRing(goalSec > 0 ? total / goalSec : 0);
+      const progress = goalSec > 0 ? Math.min(Math.max(total / goalSec, 0), 1) : 0;
+      updateTimerRing(progress);
+      const track = document.getElementById('todayGoalProgressTrack');
+      const fill = document.getElementById('todayGoalProgress');
+      if (track) {
+        track.hidden = goalSec <= 0;
+        track.setAttribute('aria-valuenow', String(Math.round(progress * 100)));
+      }
+      if (fill) fill.style.transform = `scaleX(${progress})`;
     }
 
     function stopSessionTimerTicks() {
@@ -4452,7 +4502,7 @@
         const week = await invoke('get_week_summary').catch(() => null);
         const streak = computeStreak(week);
         const streakEl = document.getElementById('streakText');
-        if (streakEl) streakEl.textContent = `${streak} day${streak === 1 ? '' : 's'} Streak`;
+        if (streakEl) streakEl.textContent = `${streak} day${streak === 1 ? '' : 's'}`;
         const history = await invoke('get_today_history');
         const dbTotal = history.total_seconds || 0;
         syncTodayFromDb(dbTotal, { catchUp: options.catchUp === true });
@@ -4638,7 +4688,7 @@
             showToast(
               isPaidActive()
                 ? 'Cloud features activated'
-                : 'Signed in — activate your license in Profile',
+                : 'Signed in — activate your license in Settings',
               'success',
             );
             return;
@@ -4902,17 +4952,17 @@
 
       if (locked && title && text && btn) {
         if (!authSession) {
-          title.textContent = 'Upgrade to Pro';
-          text.textContent = 'Unlock your AI coach — personalized guidance from your tracked activity.';
+          title.textContent = 'Connect to use Coach';
+          text.textContent = 'Sign in to see your Coach options. AI guidance requires an eligible license.';
           btn.textContent = 'Activate cloud';
         } else if (!isPaidActive()) {
-          title.textContent = 'Upgrade to Pro';
+          title.textContent = 'Activate Coach license';
           text.textContent = 'Activate your Individual or Team license to chat with your AI coach.';
           btn.textContent = 'Activate license';
         } else {
-          title.textContent = 'Pro feature';
-          text.textContent = 'Your plan does not include the AI coach yet. Upgrade to Pro to continue.';
-          btn.textContent = 'View Profile';
+          title.textContent = 'Coach unavailable';
+          text.textContent = 'Your current plan does not include Coach. Check your plan in Settings.';
+          btn.textContent = 'View Settings';
         }
       }
     }
@@ -6426,9 +6476,14 @@
 
     function switchTab(tabId) {
       document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-      document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+      document.querySelectorAll('.nav-item').forEach(n => {
+        n.classList.remove('active');
+        n.removeAttribute('aria-current');
+      });
       document.getElementById(tabId)?.classList.add('active');
-      document.querySelector(`.nav-item[data-tab="${tabId}"]`)?.classList.add('active');
+      const activeNavItem = document.querySelector(`.nav-item[data-tab="${tabId}"]`);
+      activeNavItem?.classList.add('active');
+      activeNavItem?.setAttribute('aria-current', 'page');
       if (tabId === 'tabSummary') loadHistory();
       if (tabId === 'tabCloudInsights') loadCoachChat();
       if (tabId === 'tabToday') refreshTodayView();
@@ -6532,22 +6587,14 @@
         const pct = totalSeconds > 0 ? Math.round((item.seconds / totalSeconds) * 100) : 0;
         const barWidth = maxBar > 0 ? Math.round((item.seconds / maxBar) * 100) : 0;
         const fillWidth = item.seconds > 0 ? Math.max(barWidth, 4) : 0;
-        const minInsidePct = Math.min(32, 10 + item.label.length * 3.5);
-        const labelOutside = fillWidth < minInsidePct;
         const color = TASK_BAR_COLORS[idx % TASK_BAR_COLORS.length];
-        const mins = Math.round(item.seconds / 60);
-        const labelClass = labelOutside ? 'task-bar-label task-bar-label-outside' : 'task-bar-label task-bar-label-inside';
-        const labelStyle = labelOutside
-          ? `left:calc(${fillWidth}% + 6px);max-width:calc(${100 - fillWidth}% - 10px);`
-          : `max-width:calc(${fillWidth}% - 16px);`;
         return `
           <div class="task-bar-row">
-            <span class="task-bar-pct">${pct}%</span>
-            <div class="task-bar-track">
+            <span class="task-bar-name" title="${escapeHtml(item.label)}">${escapeHtml(item.label)}</span>
+            <span class="task-bar-meta"><span class="task-bar-pct">${pct}%</span><span class="task-bar-time">${formatShortDuration(item.seconds)}</span></span>
+            <div class="task-bar-track" role="img" aria-label="${escapeHtml(item.label)}: ${pct}% of tracked time">
               <div class="task-bar-fill" style="width:${fillWidth}%;background:${color}"></div>
-              <span class="${labelClass}" style="${labelStyle}">${item.label}</span>
             </div>
-            <span class="task-bar-time">${mins}m</span>
           </div>`;
       }).join('');
     }
@@ -6555,7 +6602,7 @@
     function renderFocusChart(entries) {
       const focusEntries = entries.filter(e => FOCUS_CATEGORIES.has(e.category));
       if (!focusEntries.length) {
-        return '<div class="focus-chart-empty">No deep focus sessions yet today</div>';
+        return '<div class="focus-chart-empty">No focus-category activity recorded today</div>';
       }
 
       const byHour = new Array(24).fill(0);
@@ -6575,7 +6622,7 @@
       const bars = slots.map(({ hour, seconds }) => {
         const pct = seconds > 0 ? Math.max(Math.round((seconds / maxSec) * 100), 12) : 8;
         const mins = Math.round(seconds / 60);
-        const tip = mins > 0 ? `${hour}:00 — ${mins} min focus` : `${hour}:00 — no focus`;
+        const tip = mins > 0 ? `${hour}:00 — ${mins} min in focus categories` : `${hour}:00 — no focus-category activity`;
         const cls = seconds > 0 ? 'focus-bar' : 'focus-bar focus-bar-empty';
         return `<div class="${cls}" style="height:${pct}%" title="${tip}"></div>`;
       }).join('');
@@ -6584,7 +6631,7 @@
         <div class="focus-chart-wrap">
           <div class="focus-chart">${bars}</div>
           <div class="focus-chart-axis"><span>8am</span><span>8pm</span></div>
-          <div class="focus-chart-caption">Deep focus minutes per hour · hover a bar for details</div>
+          <div class="focus-chart-caption">Minutes in focus categories by hour · hover for details</div>
         </div>`;
     }
 
@@ -6615,11 +6662,13 @@
     }
 
     function renderHistory(data, week) {
+      const activeDays = week?.days?.filter(day => day.has_activity).length || 0;
+      const weekActivityLabel = `${activeDays} active day${activeDays === 1 ? '' : 's'}`;
       if (data.entries.length === 0) {
         summaryBody.innerHTML = `
           <div class="summary-header">
-            <h1 class="summary-title">Summary</h1>
-            <button class="summary-download-btn" id="generateReportBtn" title="Generate AI work report" aria-label="Generate AI work report">
+            <h1 class="summary-title">Insights</h1>
+            <button class="summary-download-btn" id="generateReportBtn" title="Generate work report" aria-label="Generate work report">
               <span class="summary-download-label">Work report</span>
               <span class="summary-download-icon">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
@@ -6627,8 +6676,11 @@
             </button>
           </div>
           <div class="summary-date">${formatDisplayDate(data.date)}</div>
-          <div class="week-row">${renderWeekRow(week)}</div>
-          <div class="empty-state">No activity recorded today</div>`;
+          <section class="week-card" aria-label="Activity this week">
+            <div class="week-card-heading"><span>This week</span><span>${weekActivityLabel}</span></div>
+            <div class="week-row">${renderWeekRow(week)}</div>
+          </section>
+          <div class="empty-state">No activity recorded today. Start a tracking block to see your work patterns here.</div>`;
         document.getElementById('generateReportBtn').onclick = () => {
           generateStatusReport().catch((e) => showToast(String(e), 'error', 6000));
         };
@@ -6636,10 +6688,12 @@
       }
 
       const goalSeconds = getDailyGoalHours() * 3600;
-      const progress = data.total_seconds / goalSeconds;
-      const goalMet = data.total_seconds >= goalSeconds;
+      const progress = goalSeconds > 0 ? data.total_seconds / goalSeconds : 0;
+      const goalMet = goalSeconds > 0 && data.total_seconds >= goalSeconds;
       const taskItems = buildTaskBreakdown(data);
       const focusSeconds = computeFocusSeconds(data);
+      const focusShare = data.total_seconds > 0
+        ? Math.min(100, Math.round(focusSeconds / data.total_seconds * 100)) : 0;
       const distractionCount = computeDistractionCount(data);
       const yesterdayTotal = week?.yesterday_seconds || 0;
       let focusInsight = 'Start tracking to see your focus insights.';
@@ -6649,13 +6703,13 @@
         else if (diff < 0) focusInsight = `Your tracked time is <strong>${Math.abs(diff)}% lower</strong> than yesterday.`;
         else focusInsight = 'Your tracked time matches yesterday.';
       } else if (focusSeconds > 0) {
-        focusInsight = `You've logged <strong>${formatShortDuration(focusSeconds)}</strong> of deep focus today.`;
+        focusInsight = `You've logged <strong>${formatShortDuration(focusSeconds)}</strong> in focus categories today.`;
       }
 
       summaryBody.innerHTML = `
         <div class="summary-header">
-          <h1 class="summary-title">Summary</h1>
-          <button class="summary-download-btn" id="generateReportBtn" title="Generate AI work report" aria-label="Generate AI work report">
+          <h1 class="summary-title">Insights</h1>
+          <button class="summary-download-btn" id="generateReportBtn" title="Generate work report" aria-label="Generate work report">
             <span class="summary-download-label">Work report</span>
             <span class="summary-download-icon">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
@@ -6663,7 +6717,10 @@
           </button>
         </div>
         <div class="summary-date">${formatDisplayDate(data.date)}</div>
-        <div class="week-row">${renderWeekRow(week)}</div>
+        <section class="week-card" aria-label="Activity this week">
+          <div class="week-card-heading"><span>This week</span><span>${weekActivityLabel}</span></div>
+          <div class="week-row">${renderWeekRow(week)}</div>
+        </section>
 
         <div class="summary-main-card">
           <div class="summary-time-row">
@@ -6672,9 +6729,15 @@
               <div class="summary-total-time">${formatDuration(data.total_seconds)}</div>
               <div class="summary-goal">
                 <span class="goal-dot ${goalMet ? '' : 'behind'}"></span>
-                Daily goal ${getDailyGoalHours()} hours
+                ${goalSeconds > 0 ? `Daily goal ${getDailyGoalHours()} hours` : 'No daily goal set'}
               </div>
             </div>
+            ${goalSeconds > 0 ? `<div class="summary-goal-track" role="progressbar" aria-label="Daily goal progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(Math.min(progress, 1) * 100)}"><span style="width:${Math.round(Math.min(progress, 1) * 100)}%"></span></div>` : ''}
+          </div>
+          <div class="summary-focus-ratio">
+            <div class="summary-focus-head"><span>Focus-category share</span><strong>${focusShare}%</strong></div>
+            <div class="summary-focus-track" role="img" aria-label="${focusShare}% of tracked time in focus categories"><span style="width:${focusShare}%"></span></div>
+            <p>${formatShortDuration(focusSeconds)} in focus categories · ${formatShortDuration(data.total_seconds)} tracked</p>
           </div>
           ${renderTaskBars(taskItems, data.total_seconds)}
         </div>
@@ -6682,7 +6745,7 @@
         <div class="highlights-title">Highlights</div>
 
         <div class="highlight-card highlight-focus">
-          <div class="highlight-card-header">${renderIcon('target', 15)} Deep Focus</div>
+          <div class="highlight-card-header">${renderIcon('target', 15)} Focus categories</div>
           <div class="highlight-insight">${focusInsight}</div>
           ${renderFocusChart(data.entries)}
         </div>
@@ -6690,7 +6753,7 @@
         <div class="highlight-card highlight-distraction">
           <div class="distraction-row">
             <div>
-              <div class="highlight-card-header">${renderIcon('smartphone', 15)} Distractions today</div>
+              <div class="highlight-card-header">${renderIcon('smartphone', 15)} Browsing and idle entries</div>
             </div>
             <div class="distraction-count">${distractionCount}</div>
           </div>
@@ -7059,7 +7122,12 @@
         showToast('Generate a report first', 'error');
         return;
       }
-      const { doc, filename } = buildStatusReportPdf(payload, currentHistoryData, currentWeekData);
+      const model = createStatusReportViewModel(payload, {
+        userName: currentUser?.display_name || currentUser?.name || currentUser?.email || 'Developer',
+        todayDate: currentHistoryData?.date || new Date().toISOString().slice(0, 10),
+      });
+      const doc = renderStatusReportPdf(new jsPDF(), model);
+      const filename = buildStatusReportPdfFilename(payload, currentHistoryData);
       const bytes = Array.from(new Uint8Array(doc.output('arraybuffer')));
       const savedPath = await invoke('save_pdf_to_downloads', { filename, bytes });
       showPdfDownloadModal(savedPath, filename);
@@ -7102,397 +7170,6 @@
         summaryBody.innerHTML = `<div class="empty-state" style="color:hsl(var(--destructive))">Failed to load summary: ${e}</div>`;
       }
     }
-
-    const PDF_MARGIN = 16;
-    const PDF_PAGE_W = 210;
-    const PDF_CONTENT_W = PDF_PAGE_W - PDF_MARGIN * 2;
-
-    function pdfEnsureSpace(doc, y, needed = 20) {
-      if (y + needed > 282) {
-        doc.addPage();
-        return PDF_MARGIN;
-      }
-      return y;
-    }
-
-    function pdfWrapText(doc, text, x, y, maxWidth, lineHeight = 4.8) {
-      const lines = doc.splitTextToSize(String(text ?? ''), maxWidth);
-      doc.text(lines, x, y);
-      return y + lines.length * lineHeight;
-    }
-
-    function pdfHealthColor(status) {
-      const s = String(status ?? '').toLowerCase();
-      if (s.includes('risk')) return [229, 115, 115];
-      if (s.includes('attention')) return [255, 213, 79];
-      return [77, 182, 172];
-    }
-
-    function pdfHealthTextColor(status) {
-      const s = String(status ?? '').toLowerCase();
-      if (s.includes('attention')) return [93, 64, 55];
-      return [255, 255, 255];
-    }
-
-    function pdfSectionLabel(doc, title, y) {
-      y = pdfEnsureSpace(doc, y, 12);
-      doc.setFont(undefined, 'bold');
-      doc.setFontSize(11);
-      doc.setTextColor(35, 35, 40);
-      doc.text(String(title), PDF_MARGIN, y);
-      return y + 7;
-    }
-
-    function pdfDrawTbiTitle(doc, y, userName, generatedAt) {
-      y = pdfEnsureSpace(doc, y, 22);
-      doc.setFont(undefined, 'bold');
-      doc.setFontSize(18);
-      doc.setTextColor(30, 30, 35);
-      doc.text('Work Status Report', PDF_PAGE_W / 2, y, { align: 'center' });
-      y += 8;
-      doc.setDrawColor(210, 210, 215);
-      doc.line(PDF_MARGIN, y, PDF_PAGE_W - PDF_MARGIN, y);
-      y += 6;
-      doc.setFont(undefined, 'normal');
-      doc.setFontSize(9);
-      doc.setTextColor(100, 100, 110);
-      doc.text(`FlowSight · ${generatedAt} · ${userName}`, PDF_PAGE_W / 2, y, { align: 'center' });
-      return y + 10;
-    }
-
-    function pdfDrawMetaSummaryRow(doc, y, metaBoxes, summaryText) {
-      y = pdfEnsureSpace(doc, y, 42);
-      const leftW = 62;
-      const gap = 6;
-      const rightX = PDF_MARGIN + leftW + gap;
-      const rightW = PDF_CONTENT_W - leftW - gap;
-      const boxH = 11;
-      let leftY = y;
-
-      metaBoxes.forEach((box) => {
-        doc.setFillColor(245, 245, 248);
-        doc.setDrawColor(225, 225, 232);
-        doc.roundedRect(PDF_MARGIN, leftY, leftW, boxH, 2, 2, 'FD');
-        doc.setFont(undefined, 'bold');
-        doc.setFontSize(6.5);
-        doc.setTextColor(120, 120, 130);
-        doc.text(box.label.toUpperCase(), PDF_MARGIN + 4, leftY + 4);
-        doc.setFont(undefined, 'normal');
-        doc.setFontSize(8);
-        doc.setTextColor(40, 40, 48);
-        doc.text(String(box.value).slice(0, 28), PDF_MARGIN + 4, leftY + 8.5);
-        leftY += boxH + 3;
-      });
-
-      const summaryH = Math.max(38, leftY - y);
-      doc.setFillColor(227, 242, 253);
-      doc.setDrawColor(179, 229, 252);
-      doc.roundedRect(rightX, y, rightW, summaryH, 3, 3, 'FD');
-      doc.setFont(undefined, 'normal');
-      doc.setFontSize(9);
-      doc.setTextColor(45, 55, 72);
-      pdfWrapText(doc, summaryText, rightX + 5, y + 7, rightW - 10, 4.3);
-      return y + summaryH + 8;
-    }
-
-    function pdfDrawOverallHealth(doc, y, status, notes) {
-      y = pdfSectionLabel(doc, 'Overall project health:', y);
-      y = pdfEnsureSpace(doc, y, 28);
-      const badgeW = 38;
-      const badgeH = 22;
-      const [r, g, b] = pdfHealthColor(status);
-      const [tr, tg, tb] = pdfHealthTextColor(status);
-      doc.setFillColor(r, g, b);
-      doc.roundedRect(PDF_MARGIN, y, badgeW, badgeH, 3, 3, 'F');
-      doc.setFont(undefined, 'bold');
-      doc.setFontSize(10);
-      doc.setTextColor(tr, tg, tb);
-      doc.text(String(status || 'Attention'), PDF_MARGIN + badgeW / 2, y + 13, { align: 'center' });
-      doc.setFont(undefined, 'normal');
-      doc.setFontSize(9);
-      doc.setTextColor(55, 55, 65);
-      const notesEnd = pdfWrapText(doc, notes, PDF_MARGIN + badgeW + 8, y + 5, PDF_CONTENT_W - badgeW - 8, 4.4);
-      return Math.max(y + badgeH, notesEnd) + 8;
-    }
-
-    function pdfDrawTbiTable(doc, y, rows) {
-      y = pdfSectionLabel(doc, 'Project health breakdown:', y);
-      y = pdfEnsureSpace(doc, y, 14);
-      const cols = { element: PDF_MARGIN + 2, status: 52, owner: 78, notes: 108 };
-      doc.setFillColor(55, 58, 64);
-      doc.roundedRect(PDF_MARGIN, y - 4, PDF_CONTENT_W, 7, 1, 1, 'F');
-      doc.setFont(undefined, 'bold');
-      doc.setFontSize(7);
-      doc.setTextColor(255, 255, 255);
-      doc.text('Element', cols.element, y);
-      doc.text('Status', cols.status, y);
-      doc.text('Owner/team', cols.owner, y);
-      doc.text('Notes', cols.notes, y);
-      y += 6;
-
-      rows.forEach((row, idx) => {
-        y = pdfEnsureSpace(doc, y, 10);
-        if (idx % 2 === 0) {
-          doc.setFillColor(248, 248, 250);
-          doc.rect(PDF_MARGIN, y - 3.5, PDF_CONTENT_W, 8, 'F');
-        }
-        doc.setFont(undefined, 'normal');
-        doc.setFontSize(7.5);
-        doc.setTextColor(40, 40, 48);
-        doc.text(String(row.element ?? '').slice(0, 16), cols.element, y);
-        const [r, g, b] = pdfHealthColor(row.status);
-        const [tr, tg, tb] = pdfHealthTextColor(row.status);
-        doc.setFillColor(r, g, b);
-        doc.roundedRect(cols.status, y - 3.2, 22, 5.5, 1, 1, 'F');
-        doc.setFont(undefined, 'bold');
-        doc.setFontSize(6);
-        doc.setTextColor(tr, tg, tb);
-        doc.text(String(row.status ?? '').slice(0, 10), cols.status + 11, y, { align: 'center' });
-        doc.setFont(undefined, 'normal');
-        doc.setFontSize(7.5);
-        doc.setTextColor(70, 70, 80);
-        doc.text(String(row.owner_team ?? 'Self').slice(0, 12), cols.owner, y);
-        const notesY = pdfWrapText(doc, row.notes ?? '', cols.notes, y, PDF_PAGE_W - cols.notes - PDF_MARGIN, 3.8);
-        y = Math.max(y + 5, notesY) + 2;
-      });
-      return y + 4;
-    }
-
-    function pdfDrawTimelineReview(doc, y, weekDays, categories, caption) {
-      y = pdfSectionLabel(doc, 'Timeline review:', y);
-      y = pdfDrawWeekChart(doc, y, weekDays);
-      if (categories.length) {
-        const catMax = Math.max(...categories.map((c) => c.value), 1);
-        y = pdfDrawBarChart(doc, y, 'Time by category', categories, catMax);
-      }
-      doc.setFont(undefined, 'normal');
-      doc.setFontSize(8.5);
-      doc.setTextColor(90, 90, 100);
-      y = pdfWrapText(doc, caption, PDF_MARGIN, y, PDF_CONTENT_W, 4.2) + 6;
-      return y;
-    }
-
-    function pdfDrawRisksProgressColumns(doc, y, knownIssues, potentialRisks, tasksCompleted, workProgress) {
-      y = pdfEnsureSpace(doc, y, 50);
-      const colW = (PDF_CONTENT_W - 6) / 2;
-      const leftX = PDF_MARGIN;
-      const rightX = PDF_MARGIN + colW + 6;
-      const blockH = 46;
-
-      doc.setFillColor(255, 251, 235);
-      doc.roundedRect(leftX, y, colW, blockH, 2, 2, 'F');
-      doc.setFillColor(227, 242, 253);
-      doc.roundedRect(rightX, y, colW, blockH, 2, 2, 'F');
-
-      doc.setFont(undefined, 'bold');
-      doc.setFontSize(8);
-      doc.setTextColor(120, 80, 20);
-      doc.text('Known issues', leftX + 4, y + 6);
-      doc.setTextColor(40, 90, 130);
-      doc.text('Team progress', rightX + 4, y + 6);
-
-      doc.setFont(undefined, 'normal');
-      doc.setFontSize(7.2);
-      doc.setTextColor(60, 60, 70);
-      let ly = y + 11;
-      (knownIssues || []).slice(0, 3).forEach((item) => {
-        ly = pdfWrapText(doc, `• ${item}`, leftX + 4, ly, colW - 8, 3.6) + 1;
-      });
-      doc.setFont(undefined, 'bold');
-      doc.setFontSize(7);
-      doc.setTextColor(40, 90, 130);
-      doc.text('Potential risks', leftX + 4, y + 28);
-      doc.setFont(undefined, 'normal');
-      doc.setTextColor(60, 60, 70);
-      ly = y + 33;
-      (potentialRisks || []).slice(0, 2).forEach((item) => {
-        ly = pdfWrapText(doc, `• ${item}`, leftX + 4, ly, colW - 8, 3.6) + 1;
-      });
-
-      doc.setFont(undefined, 'bold');
-      doc.setFontSize(7);
-      doc.setTextColor(40, 90, 130);
-      doc.text('Tasks completed', rightX + 4, y + 12);
-      doc.setFont(undefined, 'normal');
-      let ry = y + 17;
-      (tasksCompleted || []).slice(0, 4).forEach((item) => {
-        ry = pdfWrapText(doc, `• ${item}`, rightX + 4, ry, colW - 8, 3.6) + 1;
-      });
-      doc.setFont(undefined, 'bold');
-      doc.text('Highlights', rightX + 4, y + 32);
-      doc.setFont(undefined, 'normal');
-      ry = y + 37;
-      (workProgress || []).slice(0, 2).forEach((item) => {
-        ry = pdfWrapText(doc, `• ${item}`, rightX + 4, ry, colW - 8, 3.6) + 1;
-      });
-
-      return y + blockH + 8;
-    }
-
-    function buildStatusReportPdf(payload, todayData, weekData) {
-      const doc = new jsPDF();
-      const report = payload?.report || {};
-      const meta = report.report_meta || {};
-      const local = payload?.local_data || {};
-      const en = (t) => extractEnglishText(t ?? '');
-      const userName = currentUser?.display_name || currentUser?.name || currentUser?.email || 'Developer';
-      const period = meta.period_label || (local.period_start && local.period_end
-        ? `${local.period_start} — ${local.period_end}`
-        : (todayData?.date || new Date().toISOString().slice(0, 10)));
-      const focusPct = local.total_seconds > 0
-        ? Math.round((local.focus_seconds / local.total_seconds) * 100)
-        : 0;
-      const generatedAt = payload?.generated_at || new Date().toLocaleDateString(undefined, {
-        month: 'long', day: 'numeric', year: 'numeric',
-      });
-
-      let y = PDF_MARGIN;
-      y = pdfDrawTbiTitle(doc, y, userName, generatedAt);
-
-      y = pdfDrawMetaSummaryRow(doc, y, [
-        { label: 'Period', value: period },
-        { label: 'Focus target', value: en(report.focus_target || meta.focus_target || '—') },
-        { label: 'Tracked hours', value: `${local.total_hours ?? 0}h · ${focusPct}% focus` },
-      ], en(report.executive_overview || report.work_summary) || '—');
-
-      y = pdfDrawOverallHealth(doc, y, en(report.overall_health) || 'Attention', en(report.health_notes) || '—');
-
-      const tableRows = (report.health_breakdown || []).map((r) => ({
-        element: en(r.element),
-        status: en(r.status),
-        owner_team: en(r.owner_team || 'Self'),
-        notes: en(r.notes),
-      }));
-      y = pdfDrawTbiTable(doc, y, tableRows);
-
-      const weekDays = weekData?.days?.length
-        ? weekData.days
-        : (local.daily_totals || []).map((d) => ({ weekday: d.date?.slice(5), total_seconds: d.total_seconds }));
-      const categories = (local.category_breakdown || []).slice(0, 6).map((c) => ({
-        label: c.category,
-        value: c.total_seconds,
-        display: `${(c.total_seconds / 3600).toFixed(1)}h`,
-      }));
-      y = pdfDrawTimelineReview(
-        doc,
-        y,
-        weekDays,
-        categories,
-        en(report.timeline_caption || report.work_summary) || '—',
-      );
-
-      y = pdfDrawRisksProgressColumns(
-        doc,
-        y,
-        (report.known_issues || []).map(en),
-        (report.potential_risks || []).map(en),
-        (report.tasks_completed || []).map(en),
-        (report.work_progress || []).map(en),
-      );
-
-      y = pdfSectionLabel(doc, 'Lessons learned', y);
-      for (const lesson of (report.lessons_learned || []).slice(0, 3)) {
-        y = pdfEnsureSpace(doc, y, 18);
-        doc.setFillColor(237, 233, 254);
-        doc.roundedRect(PDF_MARGIN, y, PDF_CONTENT_W, 16, 2, 2, 'F');
-        doc.setFont(undefined, 'bold');
-        doc.setFontSize(8.5);
-        doc.setTextColor(80, 60, 140);
-        doc.text(en(lesson.title) || 'Lesson', PDF_MARGIN + 4, y + 5);
-        doc.setFont(undefined, 'normal');
-        doc.setFontSize(7.5);
-        doc.setTextColor(70, 70, 80);
-        y = pdfWrapText(doc, en(lesson.body), PDF_MARGIN + 4, y + 10, PDF_CONTENT_W - 8, 3.8) + 8;
-      }
-
-      if ((report.recommendations || []).length) {
-        y = pdfSectionLabel(doc, 'Recommendations', y);
-        y = pdfBulletList(doc, report.recommendations.map(en), y);
-      }
-
-      y = pdfEnsureSpace(doc, y, 8);
-      doc.setFontSize(7);
-      doc.setTextColor(150, 150, 160);
-      const sectionCount = (payload.generation_passes || []).length;
-      doc.text(
-        `Generated locally · ${payload?.model || 'FlowSight'} · ${sectionCount} AI sections`,
-        PDF_MARGIN,
-        y,
-      );
-
-      const filename = buildStatusReportPdfFilename(payload, todayData);
-      return { doc, filename };
-    }
-
-    function pdfBulletList(doc, items, y) {
-      doc.setFontSize(9.5);
-      doc.setTextColor(60, 60, 60);
-      for (const item of items || []) {
-        y = pdfEnsureSpace(doc, y, 8);
-        const bullet = `\u2022 ${item}`;
-        y = pdfWrapText(doc, bullet, PDF_MARGIN + 2, y, PDF_CONTENT_W - 4, 4.5) + 2;
-      }
-      return y + 2;
-    }
-
-    function pdfDrawBarChart(doc, y, title, items, maxVal) {
-      y = pdfEnsureSpace(doc, y, 20);
-      doc.setFont(undefined, 'bold');
-      doc.setFontSize(9);
-      doc.setTextColor(80, 80, 90);
-      doc.text(title, PDF_MARGIN, y);
-      y += 6;
-      const barMaxW = PDF_CONTENT_W - 52;
-      const colors = [[99, 102, 241], [34, 197, 94], [251, 146, 60], [236, 72, 153], [14, 165, 233], [168, 85, 247]];
-      items.forEach((item, idx) => {
-        y = pdfEnsureSpace(doc, y, 10);
-        const val = item.value || 0;
-        const pct = maxVal > 0 ? val / maxVal : 0;
-        const barW = Math.max(pct * barMaxW, val > 0 ? 4 : 0);
-        const [cr, cg, cb] = colors[idx % colors.length];
-        doc.setFontSize(8);
-        doc.setTextColor(50, 50, 55);
-        doc.text(String(item.label).slice(0, 18), PDF_MARGIN, y + 3);
-        doc.setFillColor(235, 235, 240);
-        doc.roundedRect(PDF_MARGIN + 42, y - 2, barMaxW, 5, 1, 1, 'F');
-        if (barW > 0) {
-          doc.setFillColor(cr, cg, cb);
-          doc.roundedRect(PDF_MARGIN + 42, y - 2, barW, 5, 1, 1, 'F');
-        }
-        doc.setTextColor(90, 90, 100);
-        doc.text(item.display || '', PDF_MARGIN + 42 + barMaxW + 2, y + 3);
-        y += 7;
-      });
-      return y + 4;
-    }
-
-    function pdfDrawWeekChart(doc, y, days) {
-      if (!days?.length) return y;
-      y = pdfEnsureSpace(doc, y, 38);
-      doc.setFont(undefined, 'bold');
-      doc.setFontSize(9);
-      doc.setTextColor(80, 80, 90);
-      doc.text('Weekly activity', PDF_MARGIN, y);
-      y += 5;
-      const chartH = 24;
-      const barW = (PDF_CONTENT_W - (days.length - 1) * 3) / days.length;
-      const maxSec = Math.max(...days.map((d) => d.total_seconds || d.seconds || 0), 1);
-      days.forEach((d, i) => {
-        const sec = d.total_seconds ?? d.seconds ?? 0;
-        const h = Math.max(2, (sec / maxSec) * chartH);
-        const x = PDF_MARGIN + i * (barW + 3);
-        doc.setFillColor(235, 235, 240);
-        doc.roundedRect(x, y + chartH - 2, barW, 2, 1, 1, 'F');
-        doc.setFillColor(99, 102, 241);
-        doc.roundedRect(x, y + chartH - h, barW, h, 1, 1, 'F');
-        doc.setFontSize(7);
-        doc.setTextColor(100, 100, 110);
-        const lbl = d.weekday || (d.date ? d.date.slice(5) : '');
-        doc.text(lbl, x + barW / 2, y + chartH + 5, { align: 'center' });
-      });
-      return y + chartH + 10;
-    }
-
 
     // ===== MANUAL LOGIN LOGIC =====
     const toggleManualLogin = document.getElementById('toggleManualLogin');
