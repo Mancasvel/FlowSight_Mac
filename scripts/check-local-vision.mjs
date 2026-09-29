@@ -34,6 +34,7 @@ const args = [
   "--mmproj", projector,
   "--alias", alias,
   "--reasoning-budget", "0",
+  "--chat-template-kwargs", '{"enable_thinking":false}',
   "--host", "127.0.0.1",
   "--port", String(port),
   "--ctx-size", "4096",
@@ -90,6 +91,10 @@ try {
   const answer = body?.choices?.[0]?.message?.content?.trim();
   if (body.model !== alias || !answer) {
     throw new Error(`Wrong model alias or empty multimodal content: ${JSON.stringify(body)}`);
+  }
+  const reasoning = body?.choices?.[0]?.message?.reasoning_content?.trim();
+  if (reasoning) {
+    throw new Error(`Qwen thinking was not disabled (${reasoning.length} reasoning chars)`);
   }
   console.log(`[check-local-vision] OK: ${alias}, multimodal response ${answer.length} chars`);
 } finally {

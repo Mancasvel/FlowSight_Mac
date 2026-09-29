@@ -996,6 +996,8 @@ fn configure_llama_command(
         .arg(LLAMA_CHAT_MODEL_ID)
         .arg("--reasoning-budget")
         .arg("0")
+        .arg("--chat-template-kwargs")
+        .arg(r#"{"enable_thinking":false}"#)
         .arg("--host")
         .arg("127.0.0.1")
         .arg("--port")
