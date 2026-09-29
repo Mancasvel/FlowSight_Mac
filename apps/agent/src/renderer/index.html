@@ -1117,7 +1117,6 @@
       height: 100%;
       border-radius: 8px;
       min-width: 4px;
-      transition: width 0.4s ease;
     }
 
     .task-bar-label {
@@ -1202,7 +1201,6 @@
       background: hsl(var(--summary-teal));
       border-radius: 3px 3px 0 0;
       min-height: 4px;
-      transition: height 0.3s ease;
     }
 
     .focus-bar-empty {
@@ -3171,7 +3169,8 @@
       word-break: break-all;
     }
 </style>
-<link rel="stylesheet" href="./mobile-theme.css">
+  <link rel="stylesheet" href="./mobile-theme.css">
+  <link rel="stylesheet" href="./profile-redesign.css">
 </head>
 
 <body>
@@ -3523,7 +3522,7 @@
           <h1>Settings</h1>
           <p>Account, privacy and preferences for how FlowSight works.</p>
         </div>
-        <div class="card">
+        <div class="card" id="profileAccountCard">
           <div class="card-header">
             <div class="card-header-title-row">
               <img src="/flowsight_sinfondo.png" alt="" class="header-logo" width="26" height="26" />
@@ -3539,7 +3538,7 @@
 
           <div id="userProfile">
             <div class="user-profile">
-              <img id="userAvatar" class="user-avatar" src="" alt="" style="display: none;">
+              <img id="userAvatar" class="user-avatar" src="/flowsight_sinfondo.png" alt="" style="display: none;">
               <div class="user-info">
                 <div class="user-name" id="userName">Guest</div>
                 <div class="user-email" id="userEmail">Free local mode</div>
@@ -3547,7 +3546,7 @@
               <button class="button button-primary" id="activateCloudBtn" style="padding: 6px 10px; font-size: 11px;">
                 Activate cloud
               </button>
-              <button class="button button-ghost" id="logoutBtn" title="Sign out of cloud features" style="padding: 4px 8px; display: none;"><svg class="icon-svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></button>
+              <button class="button button-ghost" id="logoutBtn" title="Sign out of cloud features" aria-label="Sign out of cloud features" style="padding: 4px 8px; display: none;"><svg class="icon-svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></button>
             </div>
           </div>
         </div>
@@ -3561,10 +3560,10 @@
           </p>
           <div class="form-group" style="margin-bottom: 0;">
             <label class="label" for="profileLicenseCode">License code</label>
-            <div style="display: flex; gap: 6px;">
+            <div class="profile-inline-entry">
               <input type="text" id="profileLicenseCode" class="input" placeholder="FS-XXXX-XXXX"
-                autocomplete="off" style="flex: 1; font-family: monospace;">
-              <button type="button" class="button button-primary" id="claimLicenseBtn" style="padding: 8px 12px;">
+                autocomplete="off" style="font-family: monospace;">
+              <button type="button" class="button button-primary" id="claimLicenseBtn">
                 Activate
               </button>
             </div>
@@ -3577,7 +3576,7 @@
             <div class="card-title">Work preferences</div>
           </div>
           <p class="onboarding-prefs-summary" id="workPreferencesSummary">Not set yet.</p>
-          <button type="button" class="button button-secondary" id="editWorkPreferencesBtn" style="width:100%;margin-top:8px;">
+          <button type="button" class="button button-secondary profile-full-button" id="editWorkPreferencesBtn">
             Edit work preferences
           </button>
         </div>
@@ -3586,21 +3585,26 @@
           <div class="card-header">
             <div class="card-title">Privacy &amp; analytics</div>
           </div>
-          <p class="upgrade-hint" style="margin-bottom: 0;">
+          <p class="upgrade-hint profile-card-intro">
             Help improve FlowSight with anonymized usage data. No account or personal information is collected.
           </p>
+          <div class="profile-settings-group">
           <label class="consent-toggle-row" for="analyticsConsentToggle">
             <input type="checkbox" id="analyticsConsentToggle">
             <span>Share anonymized usage data</span>
           </label>
           <p class="onboarding-prefs-summary" id="analyticsConsentStatus">Not set yet.</p>
-          <div class="form-group" style="margin-top:12px;margin-bottom:0;">
+          </div>
+          <div class="profile-settings-group">
+            <h3>Feedback</h3>
+          <div class="form-group">
             <label class="label" for="appFeedbackInput">Send feedback</label>
             <textarea id="appFeedbackInput" class="input" rows="3" maxlength="2000"
               placeholder="Tell us what you think about FlowSight…"></textarea>
-            <button type="button" class="button button-secondary" id="sendFeedbackBtn" style="width:100%;margin-top:8px;">
+            <button type="button" class="button button-secondary profile-full-button" id="sendFeedbackBtn">
               Send feedback
             </button>
+          </div>
           </div>
         </div>
 
@@ -3612,7 +3616,7 @@
             Generate a FlowSight work report in any desktop AI client that supports local MCP (STDIO).
             No extra runtime or FlowSight cloud account is needed.
           </p>
-          <button type="button" class="button button-secondary" id="showMcpConnectionBtn" style="width:100%;margin-top:8px;">
+          <button type="button" class="button button-secondary profile-full-button" id="showMcpConnectionBtn">
             Show connection details
           </button>
           <div id="mcpConnectionDetails" hidden style="margin-top:12px;">
@@ -3620,7 +3624,7 @@
             <input id="mcpCommandPath" class="input" type="text" readonly spellcheck="false"
               aria-label="MCP executable path" style="width:100%;font-family:monospace;font-size:11px;">
             <p class="onboarding-prefs-summary" style="margin-top:8px;">Transport: STDIO. Argument: <code>--mcp</code>.</p>
-            <button type="button" class="button button-ghost" id="copyMcpCommandBtn" style="width:100%;margin-top:6px;">
+            <button type="button" class="button button-ghost profile-full-button" id="copyMcpCommandBtn">
               Copy command path
             </button>
             <p class="onboarding-prefs-summary" style="margin-top:8px;">
@@ -3635,17 +3639,17 @@
             <div class="card-title">Integrations</div>
           </div>
 
-          <div style="margin-bottom: 12px;" id="integrationsProviderRow">
-            <div class="label" style="margin-bottom: 6px;">Task Provider (paid plans)</div>
-            <div style="display: flex; gap: 6px;">
-              <button class="button button-secondary" id="linkJiraBtn" style="flex: 1; padding: 8px; font-size: 11px;">
+          <div id="integrationsProviderRow">
+            <div class="label">Task Provider (paid plans)</div>
+            <div class="profile-provider-actions">
+              <button class="button button-secondary" id="linkJiraBtn">
                 <svg width="12" height="12" viewBox="0 0 24 24" style="margin-right: 4px;">
                   <path fill="#2684FF"
                     d="M11.571 11.513H0a5.218 5.218 0 0 0 5.232 5.215h2.13v2.057A5.215 5.215 0 0 0 12.575 24V12.518a1.005 1.005 0 0 0-1.005-1.005z" />
                 </svg>
                 <span id="jiraLinkStatus">Link Jira</span>
               </button>
-              <button class="button button-secondary" id="linkLinearBtn" style="flex: 1; padding: 8px; font-size: 11px;">
+              <button class="button button-secondary" id="linkLinearBtn">
                 <svg width="12" height="12" viewBox="0 0 24 24" style="margin-right: 4px;">
                   <path fill="#5E6AD2"
                     d="M3.357 3.357a12.19 12.19 0 0 1 17.286 0 12.19 12.19 0 0 1 0 17.286 12.19 12.19 0 0 1-17.286 0 12.19 12.19 0 0 1 0-17.286z" />
@@ -3661,10 +3665,10 @@
 
           <div class="form-group" id="teamCodeGroup">
             <label class="label">Team Code (from PM)</label>
-            <div style="display: flex; gap: 6px;">
+            <div class="profile-inline-entry">
               <input type="text" id="teamCodeInput" class="select" placeholder="Enter team code..."
-                style="flex: 1; font-family: monospace;">
-              <button class="button button-primary" id="joinTeamBtn" style="padding: 8px 12px;">Join</button>
+                style="font-family: monospace;">
+              <button class="button button-primary" id="joinTeamBtn">Join</button>
             </div>
             <div id="teamStatus" style="font-size: 10px; color: hsl(var(--muted-foreground)); margin-top: 4px;"></div>
           </div>
@@ -3747,6 +3751,14 @@
     import { jsPDF } from 'jspdf';
     import { createStatusReportViewModel } from './status-report-model.mjs';
     import { renderStatusReportPdf } from './status-report-pdf.mjs';
+    import {
+      bucketFocusEntriesByHour,
+      buildTaskBreakdown,
+      focusChartSlots,
+      formatChartHour,
+      taskColorForCategory,
+      taskSharePercent,
+    } from './insights-charts.mjs';
     import {
       claimLicenseCode,
       ensurePersonalTeam,
@@ -6517,15 +6529,7 @@
     document.getElementById('statusReportModal')?.addEventListener('click', (e) => {
       if (e.target.id === 'statusReportModal') closeStatusReportModal();
     });
-    const TASK_BAR_COLORS = [
-      'hsl(var(--summary-purple))',
-      'hsl(var(--summary-magenta))',
-      'hsl(var(--summary-blue))',
-      'hsl(var(--summary-teal))',
-      'hsl(142 60% 45%)',
-      'hsl(45 90% 50%)',
-    ];
-    const FOCUS_CATEGORIES = new Set(['Coding', 'Debugging', 'CodeReview', 'Testing', 'Design', 'DevOps', 'Database']);
+    const FOCUS_CATEGORIES = new Set(['Coding', 'Debugging', 'CodeReview', 'Testing', 'Design', 'DevOps', 'Database', 'Research', 'Documentation']);
     const DISTRACTION_CATEGORIES = new Set(['Browsing', 'Idle']);
 
     function switchTab(tabId) {
@@ -6570,32 +6574,6 @@
       return formatted;
     }
 
-    function buildTaskBreakdown(data) {
-      const items = [];
-      if (data.ticket_breakdown?.length) {
-        data.ticket_breakdown.forEach(t => {
-          items.push({ label: t.ticket, seconds: t.total_seconds });
-        });
-      }
-      const unticketedMap = {};
-      data.entries.forEach(e => {
-        if (!e.ticket) {
-          const label = e.category || 'General';
-          unticketedMap[label] = (unticketedMap[label] || 0) + e.duration_seconds;
-        }
-      });
-      Object.entries(unticketedMap).forEach(([label, seconds]) => {
-        items.push({ label, seconds });
-      });
-      if (items.length === 0 && data.category_breakdown?.length) {
-        data.category_breakdown.forEach(c => {
-          items.push({ label: c.category, seconds: c.total_seconds });
-        });
-      }
-      items.sort((a, b) => b.seconds - a.seconds);
-      return items;
-    }
-
     function computeFocusSeconds(data) {
       return data.category_breakdown
         .filter(c => FOCUS_CATEGORIES.has(c.category))
@@ -6636,12 +6614,11 @@
 
     function renderTaskBars(items, totalSeconds) {
       if (!items.length) return '<div class="empty-state" style="padding:12px;">No task time recorded yet</div>';
-      const maxBar = Math.max(...items.map(i => i.seconds));
-      return items.slice(0, 6).map((item, idx) => {
-        const pct = totalSeconds > 0 ? Math.round((item.seconds / totalSeconds) * 100) : 0;
-        const barWidth = maxBar > 0 ? Math.round((item.seconds / maxBar) * 100) : 0;
-        const fillWidth = item.seconds > 0 ? Math.max(barWidth, 4) : 0;
-        const color = TASK_BAR_COLORS[idx % TASK_BAR_COLORS.length];
+      return items.slice(0, 6).map((item) => {
+        const share = taskSharePercent(item.seconds, totalSeconds);
+        const pct = Math.round(share);
+        const fillWidth = share.toFixed(1);
+        const color = taskColorForCategory(item.category);
         return `
           <div class="task-bar-row">
             <span class="task-bar-name" title="${escapeHtml(item.label)}">${escapeHtml(item.label)}</span>
@@ -6653,39 +6630,31 @@
       }).join('');
     }
 
-    function renderFocusChart(entries) {
+    function renderFocusChart(entries, localDate) {
       const focusEntries = entries.filter(e => FOCUS_CATEGORIES.has(e.category));
       if (!focusEntries.length) {
         return '<div class="focus-chart-empty">No focus-category activity recorded today</div>';
       }
 
-      const byHour = new Array(24).fill(0);
-      focusEntries.forEach(e => {
-        const hour = new Date(e.time).getHours();
-        byHour[hour] += e.duration_seconds || 0;
-      });
-
-      const startHour = 8;
-      const endHour = 20;
-      const slots = [];
-      for (let h = startHour; h < endHour; h++) {
-        slots.push({ hour: h, seconds: byHour[h] });
+      const slots = focusChartSlots(bucketFocusEntriesByHour(focusEntries, localDate));
+      if (!slots.length) {
+        return '<div class="focus-chart-empty">No focus-category time recorded on this local date</div>';
       }
-
-      const maxSec = Math.max(...slots.map(s => s.seconds), 1);
       const bars = slots.map(({ hour, seconds }) => {
-        const pct = seconds > 0 ? Math.max(Math.round((seconds / maxSec) * 100), 12) : 8;
-        const mins = Math.round(seconds / 60);
-        const tip = mins > 0 ? `${hour}:00 — ${mins} min in focus categories` : `${hour}:00 — no focus-category activity`;
+        const pct = Math.min(100, Math.round((seconds / 3600) * 100));
+        const minutes = seconds < 60 ? 'under 1 minute' : `${Math.round(seconds / 60)} minutes`;
+        const tip = seconds > 0
+          ? `${formatChartHour(hour)} — ${minutes} in focus categories`
+          : `${formatChartHour(hour)} — no focus-category activity`;
         const cls = seconds > 0 ? 'focus-bar' : 'focus-bar focus-bar-empty';
-        return `<div class="${cls}" style="height:${pct}%" title="${tip}"></div>`;
+        return `<div class="${cls}" style="height:${pct}%" role="img" aria-label="${tip}" title="${tip}"></div>`;
       }).join('');
 
       return `
         <div class="focus-chart-wrap">
           <div class="focus-chart">${bars}</div>
-          <div class="focus-chart-axis"><span>8am</span><span>8pm</span></div>
-          <div class="focus-chart-caption">Minutes in focus categories by hour · hover for details</div>
+          <div class="focus-chart-axis"><span>${formatChartHour(slots[0].hour)}</span><span>${formatChartHour(slots.at(-1).hour)}</span></div>
+          <div class="focus-chart-caption">Focus-category minutes · each bar is one local hour</div>
         </div>`;
     }
 
@@ -6801,7 +6770,7 @@
         <div class="highlight-card highlight-focus">
           <div class="highlight-card-header">${renderIcon('target', 15)} Focus categories</div>
           <div class="highlight-insight">${focusInsight}</div>
-          ${renderFocusChart(data.entries)}
+          ${renderFocusChart(data.entries, data.date)}
         </div>
 
         <div class="highlight-card highlight-distraction">
@@ -6900,9 +6869,9 @@
       const maxSec = Math.max(...cats.map((c) => c.total_seconds || 0), 1);
       return `
         <div class="sr-tbi-cat-bars">
-          ${cats.map((c, i) => {
+          ${cats.map((c) => {
             const pct = Math.max(4, Math.round(((c.total_seconds || 0) / maxSec) * 100));
-            const color = TASK_BAR_COLORS[i % TASK_BAR_COLORS.length];
+            const color = taskColorForCategory(c.category);
             return `
               <div class="sr-tbi-cat-bar-row">
                 <span>${escapeHtml(c.category)}</span>

@@ -228,11 +228,11 @@ Standard cards use 20px corners, 20px padding, a fine border, and ambient lift. 
 
 ### Navigation
 
-The floating dock shows Today, Insights, Coach, and Settings with icon and label together. Each item is at least 51px tall in the default layout. The selected item has a pale-teal fill and a teal icon and label; hover on inactive items is quieter. Coach stays visible but locked unless there is an authenticated session, an active paid entitlement, and `can_cloud_ai`; signing in alone does not unlock it.
+The floating dock shows Today, Insights, Coach, and Settings as large, icon-only controls whose labels remain available to assistive technology. Each item is at least 51px tall in the default layout. The selected item has a pale-teal fill and a teal icon and label; hover on inactive items is quieter. Coach stays visible but locked unless there is an authenticated session, an active paid entitlement, and `can_cloud_ai`; signing in alone does not unlock it.
 
 ### Timer and evidence
 
-Today centers tracking state and tabular elapsed time above a goal rail, goal and streak labels, and the tracking action. Insights uses a weekly day strip, measured-time card, focus-category ratio rail, and task bars. The legacy focus-category time is categorized activity, not sustained-focus blocks. The local report may use AI or a rule-based fallback, so its visual treatment must not imply a guaranteed AI result.
+Today centers tracking state and tabular elapsed time above a goal rail, goal and streak labels, and the tracking action. Insights uses a weekly day strip, measured-time card, focus-category ratio rail, and task bars colored by activity type. The hourly focus-category chart uses the recorded local hours on a fixed 60-minute scale. The legacy focus-category time is categorized activity, not sustained-focus blocks. The local report may use AI or a rule-based fallback, so its visual treatment must not imply a guaranteed AI result.
 
 ### Monitoring consent
 

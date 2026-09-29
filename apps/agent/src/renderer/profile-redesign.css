@@ -1,0 +1,183 @@
+/* Settings keeps the mobile visual language while using desktop-width space deliberately. */
+#tabProfile {
+  --profile-space-tight: 6px;
+  --profile-space-content: 12px;
+  --profile-space-section: 16px;
+  --profile-secondary-ink: #607487;
+  --profile-heading-ink: #43556a;
+  --profile-divider: #e8eff0;
+  --profile-subtle-surface: #f5faf9;
+  gap: var(--profile-space-section);
+}
+
+#tabProfile .profile-heading { margin: 0 0 2px; }
+#tabProfile .profile-heading p { margin-top: 5px; }
+#tabProfile > .card { min-width: 0; margin: 0; padding: 16px; }
+#tabProfile .card-header {
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 var(--profile-space-content);
+  padding: 0 0 var(--profile-space-content);
+}
+#tabProfile .card-title,
+#tabProfile .card-header-title-row,
+#tabProfile .user-info { min-width: 0; }
+#tabProfile .card-title { line-height: 1.3; overflow-wrap: anywhere; }
+#tabProfile .button { min-height: 42px; }
+#tabProfile .button[hidden] { display: none; }
+#tabProfile .status-indicator { padding: 8px 10px; margin-bottom: 10px; border-radius: 12px; }
+#tabProfile .status-text { color: var(--profile-secondary-ink); font-size: 11px; }
+#tabProfile .user-profile { min-width: 0; gap: 8px; padding: 10px; border-radius: 14px; }
+#tabProfile .user-avatar { width: 32px; height: 32px; flex: none; }
+#tabProfile .user-name { font-size: 12px; font-weight: 700; }
+#tabProfile .user-email { font-size: 10px; overflow-wrap: anywhere; }
+#tabProfile #activateCloudBtn {
+  max-width: 50%;
+  flex: none;
+  white-space: normal;
+  line-height: 1.2;
+}
+#tabProfile #logoutBtn { min-width: 42px; flex: none; }
+#tabProfile .profile-card-intro { margin: 0 0 10px; line-height: 1.55; }
+#tabProfile .profile-state-copy {
+  margin: 0 0 var(--profile-space-content);
+  padding: 9px 10px;
+  border-radius: 10px;
+  background: var(--profile-subtle-surface);
+  overflow-wrap: anywhere;
+}
+#tabProfile .profile-inline-entry {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: stretch;
+  gap: 8px;
+}
+#tabProfile .profile-inline-entry .input,
+#tabProfile .profile-inline-entry .select { min-width: 0; }
+#tabProfile .profile-full-button { width: 100%; margin-top: 8px; white-space: normal; }
+#tabProfile .profile-full-button:focus-visible,
+#tabProfile .profile-inline-entry .button:focus-visible { outline-offset: 2px; }
+#tabProfile .consent-toggle-row {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  margin: 0;
+  padding: 8px 0;
+  color: #405166;
+  font-size: 11px;
+  line-height: 1.5;
+}
+#tabProfile .consent-toggle-row input { width: 18px; height: 18px; margin: 0; }
+#tabProfile .privacy-detail {
+  margin: 0 0 8px 28px;
+  color: var(--profile-secondary-ink);
+  font-size: 10px;
+  line-height: 1.5;
+}
+#tabProfile .profile-field-note { margin: var(--profile-space-tight) 0 0; }
+#tabProfile .profile-form-status { margin: 8px 0 0; }
+#tabProfile .profile-form-status:empty { display: none; }
+#tabProfile .profile-settings-group + .profile-settings-group {
+  margin-top: var(--profile-space-section);
+  padding-top: var(--profile-space-section);
+  border-top: 1px solid var(--profile-divider);
+}
+#tabProfile .profile-settings-group h3 {
+  margin: 0 0 var(--profile-space-tight);
+  color: var(--profile-heading-ink);
+  font-family: Manrope, sans-serif;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.3;
+}
+#privacyAnalyticsCard #analyticsConsentStatus {
+  margin: 0 0 8px 28px;
+  color: var(--profile-secondary-ink);
+  font-size: 10px;
+  line-height: 1.5;
+}
+#privacyAnalyticsCard .form-group { margin: var(--profile-space-content) 0 0; }
+#privacyAnalyticsCard .profile-settings-group:last-child .form-group { margin-top: 0; }
+#privacyAnalyticsCard textarea.input { display: block; width: 100%; line-height: 1.5; resize: vertical; }
+#privacyAnalyticsCard .privacy-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 8px;
+}
+#privacyAnalyticsCard .privacy-actions .button {
+  min-width: 0;
+  padding-inline: 8px;
+  white-space: normal;
+}
+#privacyAnalyticsCard .profile-settings-group h3 + .profile-full-button { margin-top: 0; }
+#integrationsProviderRow { margin-bottom: var(--profile-space-content); }
+#integrationsProviderRow .label { margin-bottom: var(--profile-space-tight); }
+#integrationsCard .profile-provider-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+#integrationsCard .profile-provider-actions .button {
+  min-width: 0;
+  padding: 8px;
+  white-space: normal;
+}
+#integrationsCard .form-group:last-child { margin-bottom: 0; }
+#tabProfile .onboarding-prefs-summary,
+#tabProfile .upgrade-hint { color: var(--profile-secondary-ink); }
+
+@media (min-width: 600px) {
+  #tabProfile.active {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+  }
+  #tabProfile .profile-heading,
+  #tabProfile > .card { grid-column: 1 / -1; }
+  #tabProfile > #appUpdatesCard,
+  #tabProfile > #mcpConnectionCard { grid-column: auto; }
+  #tabProfile > .card { padding: 20px; }
+}
+
+@media (max-width: 380px) {
+  #tabProfile > .card { padding: 15px; }
+  #tabProfile .user-profile { padding: 8px; }
+  #tabProfile .card-header { flex-wrap: wrap; }
+}
+
+/* The dock keeps labels accessible without shrinking the icon targets. */
+.bottom-nav .nav-item { position: relative; min-height: 51px; gap: 0; justify-content: center; }
+.bottom-nav .nav-item svg { width: 27px; height: 27px; stroke-width: 1.85; }
+.bottom-nav .nav-item .nav-label,
+.bottom-nav .nav-item.active .nav-label {
+  display: block;
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+html[data-theme="dark"] #tabProfile {
+  --profile-secondary-ink: #adbec8;
+  --profile-heading-ink: #d4e3e6;
+  --profile-divider: #314953;
+  --profile-subtle-surface: #213741;
+}
+html[data-theme="dark"] #tabProfile .consent-toggle-row { color: #d4e3e6; }
+@media (prefers-color-scheme: dark) {
+  html:not([data-theme="light"]) #tabProfile {
+    --profile-secondary-ink: #adbec8;
+    --profile-heading-ink: #d4e3e6;
+    --profile-divider: #314953;
+    --profile-subtle-surface: #213741;
+  }
+  html:not([data-theme="light"]) #tabProfile .consent-toggle-row { color: #d4e3e6; }
+}
