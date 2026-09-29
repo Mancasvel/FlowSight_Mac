@@ -25,7 +25,7 @@ jobs:
           node-version: 20
       - name: Prepare pinned llama.cpp runtime
         run: bash scripts/prepare-macos-llm.sh
-      - name: Fetch and verify Qwen3.5 weights
+      - name: Fetch and verify Qwen3-VL-2B-Instruct weights
         run: node scripts/fetch-models.mjs
       - name: Prove local multimodal inference
         run: node scripts/check-local-vision.mjs
