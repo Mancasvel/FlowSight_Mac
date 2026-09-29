@@ -34,6 +34,21 @@
   --summary-blue: 201 86% 48%;
   --summary-teal: 175 100% 36%;
   --summary-orange: 32 91% 43%;
+  --task-color-analysis: #855dc5;
+  --task-color-coding: #159f94;
+  --task-color-debugging: #dc705d;
+  --task-color-review: #4e89c5;
+  --task-color-testing: #c9973f;
+  --task-color-design: #9670c4;
+  --task-color-devops: #6279c3;
+  --task-color-database: #41a286;
+  --task-color-research: #6684b8;
+  --task-color-documentation: #ae6d9c;
+  --task-color-planning: #b98645;
+  --task-color-communication: #c47484;
+  --task-color-browsing: #249eb7;
+  --task-color-general: #ad8843;
+  --task-color-other: #8292a0;
   --scrollbar-track: transparent;
   --scrollbar-thumb: rgb(148 163 184 / 0.48);
   --scrollbar-thumb-hover: rgb(69 99 114 / 0.62);
@@ -317,14 +332,14 @@ input[type="checkbox"] { accent-color: #14b5a9; }
 .task-bar-time { width: auto; color: #65798c; font-size: 10px; }
 .task-bar-time { color: #33485a; }
 .task-bar-track { grid-column: 1 / -1; height: 7px; border-radius: 999px; background: #edf3f5; }
-.task-bar-fill { min-width: 0; border-radius: inherit; background: #28b9ad; }
+.task-bar-fill { min-width: 0; border-radius: inherit; background: var(--task-color-other); }
 .highlights-title { margin: 20px 0 11px; color: #344155; font-family: Manrope, sans-serif; font-size: 17px; font-weight: 800; letter-spacing: -0.025em; }
 .highlight-card { margin-bottom: 10px; padding: 17px 19px; }
 .highlight-card-header { color: #198d85 !important; font-size: 11px; font-weight: 800; }
 .highlight-insight { color: #46586d; font-size: 12px; }
-.focus-bar { background: #20b7a9; }
+.focus-bar { min-width: 0; background: #20b7a9; border-radius: 4px 4px 1px 1px; }
 .focus-bar-empty { background: #dfe9ee; opacity: 1; }
-.focus-chart { height: 66px; gap: 4px; }
+.focus-chart { height: 82px; gap: 4px; padding-bottom: 2px; border-bottom: 1px solid #dfe9ee; }
 .focus-chart-axis,
 .focus-chart-caption { color: #798b9e; }
 .distraction-count { color: #354456; }
@@ -546,6 +561,21 @@ input[type="checkbox"] { accent-color: #14b5a9; }
     --border: 203 15% 29%;
     --input: 203 15% 32%;
     --ring: 172 71% 62%;
+    --task-color-analysis: #ae8bea;
+    --task-color-coding: #4dcfc0;
+    --task-color-debugging: #f28d7e;
+    --task-color-review: #79ade5;
+    --task-color-testing: #eabd70;
+    --task-color-design: #bc9ae5;
+    --task-color-devops: #95a5e8;
+    --task-color-database: #75c6a9;
+    --task-color-research: #96b5e2;
+    --task-color-documentation: #d695bd;
+    --task-color-planning: #dfb677;
+    --task-color-communication: #e29aa6;
+    --task-color-browsing: #66d0e4;
+    --task-color-general: #e6ba69;
+    --task-color-other: #a1b0bb;
     --fs-grid: linear-gradient(to right, rgb(194 226 233 / 0.055) 1px, transparent 1px),
       linear-gradient(to bottom, rgb(194 226 233 / 0.055) 1px, transparent 1px);
     --surface-shadow: 0 9px 28px rgb(0 0 0 / 0.16);
@@ -654,6 +684,7 @@ input[type="checkbox"] { accent-color: #14b5a9; }
   .summary-focus-ratio { border-color: #30464f; }
   .task-bar-track,
   .focus-bar-empty { background: #354954; }
+  .focus-chart { border-bottom-color: #354954; }
   .coach-composer-wrap { border-color: #314953; background: #1a2c36; }
   .coach-lock-overlay { background: rgb(16 29 37 / 0.78); }
   .consent-overlay,
