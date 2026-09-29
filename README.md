@@ -89,4 +89,4 @@ Grant when macOS prompts:
 ## Support
 
 - Commercial: manuel@flowsight.site
-- Ko-fi: https://ko-fi.com/flowsight
+- [Buy me a coffee on Ko-fi](https://ko-fi.com/mancasvel)
