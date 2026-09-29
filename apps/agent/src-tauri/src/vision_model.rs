@@ -5,14 +5,14 @@
 pub const CONFIG_VISION_MODEL_ID: &str = "FlowSight/local-vision";
 
 /// GGUF weights filename. Downloaded on first run by `model_assets`.
-pub const VISION_GGUF_FILENAME: &str = "Qwen3.5-2B-Q6_K.gguf";
+pub const VISION_GGUF_FILENAME: &str = "Qwen3VL-2B-Instruct-Q4_K_M.gguf";
 
 /// Multimodal projector GGUF filename. Downloaded on first run by `model_assets`.
-pub const VISION_MMPROJ_FILENAME: &str = "mmproj-Qwen3.5-2B-Q8_0.gguf";
+pub const VISION_MMPROJ_FILENAME: &str = "mmproj-Qwen3VL-2B-Instruct-Q8_0.gguf";
 
 /// OpenAI-compatible `model` field for `POST /v1/chat/completions` to localhost llama-server.
 /// Must match the id the server registers for the loaded checkpoint.
-pub const LLAMA_CHAT_MODEL_ID: &str = "flowsight-qwen3.5-2b";
+pub const LLAMA_CHAT_MODEL_ID: &str = "flowsight-qwen3vl-2b-instruct";
 
 /// Label returned in health/status JSON for the renderer (no vendor name).
 pub const VISION_STATUS_LABEL: &str = "FlowSight Local Vision";

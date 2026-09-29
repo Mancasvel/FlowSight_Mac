@@ -1,5 +1,5 @@
 /**
- * Release smoke test for the exact Qwen3.5 llama-server contract used by the app.
+ * Release smoke test for the exact Qwen3-VL-2B-Instruct llama-server contract used by the app.
  * The image is a tiny, synthetic PNG; this checks loading and the multimodal API,
  * not classification accuracy. No user screen, account, or database is read.
  */
@@ -10,9 +10,9 @@ import { createServer } from "node:net";
 
 const root = resolve(import.meta.dirname, "..");
 const bin = join(root, "local_llm", "bin", process.platform === "win32" ? "llama-server.exe" : "llama-server");
-const model = join(root, "local_llm", "Qwen3.5-2B-Q6_K.gguf");
-const projector = join(root, "local_llm", "mmproj-Qwen3.5-2B-Q8_0.gguf");
-const alias = "flowsight-qwen3.5-2b";
+const model = join(root, "local_llm", "Qwen3VL-2B-Instruct-Q4_K_M.gguf");
+const projector = join(root, "local_llm", "mmproj-Qwen3VL-2B-Instruct-Q8_0.gguf");
+const alias = "flowsight-qwen3vl-2b-instruct";
 // A public-domain 1x1 PNG. Its content is deliberately not used as an accuracy test.
 const image = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a+FQAAAAASUVORK5CYII=";
 
@@ -94,7 +94,7 @@ try {
   }
   const reasoning = body?.choices?.[0]?.message?.reasoning_content?.trim();
   if (reasoning) {
-    throw new Error(`Qwen thinking was not disabled (${reasoning.length} reasoning chars)`);
+    throw new Error(`Unexpected reasoning content from Instruct (${reasoning.length} chars)`);
   }
   console.log(`[check-local-vision] OK: ${alias}, multimodal response ${answer.length} chars`);
 } finally {
