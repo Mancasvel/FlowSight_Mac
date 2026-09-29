@@ -24,11 +24,10 @@ const IDLE_SESSION_MIN_SECS: i32 = 300; // 5 minutes
 /// Per-section LLM context from SQLite aggregates (separate calls, richer than a single snapshot).
 const LLM_SECTION_STATS_MAX_CHARS: usize = 2800;
 
-const REPORT_SYSTEM_PROMPT: &str = "You are an expert productivity consultant writing detailed work status reports. \
-CRITICAL: English only. Output valid JSON only — no markdown. \
-Cite specific dates, ticket IDs, hours, categories, and task descriptions from the provided STATS. \
-Be concrete and actionable; avoid generic filler. \
-Array fields may contain up to 6 items. String fields may be up to 220 characters.";
+const REPORT_SYSTEM_PROMPT: &str = "You are a privacy-first local report editor. \
+Return valid JSON only. Select zero-based indices from the provided verified candidates. \
+Never write report prose, invent metrics, or add fields. \
+The application copies selected candidate text verbatim from local data.";
 
 #[derive(Serialize)]
 struct CategoryRow {
@@ -538,7 +537,7 @@ pub fn generate_local_status_report(
 
     let ai_powered = generation_passes
         .iter()
-        .any(|p| p["id"].as_str() != Some("fallback"));
+        .any(|p| p["source"].as_str() == Some("local_ai_selection"));
 
     Ok(serde_json::json!({
         "local_data": local_data,
@@ -551,15 +550,12 @@ pub fn generate_local_status_report(
     }))
 }
 
-fn call_local_llm(prompt: &str, max_tokens: u32, temperature: f32) -> Result<String, String> {
-    call_local_llm_with_system(prompt, max_tokens, temperature, REPORT_SYSTEM_PROMPT)
-}
-
 fn call_local_llm_with_system(
     prompt: &str,
     max_tokens: u32,
     temperature: f32,
     system_prompt: &str,
+    response_format: &serde_json::Value,
 ) -> Result<String, String> {
     let chat_url = crate::llama_port::managed_chat_completions_url().ok_or_else(|| {
         "Local AI server offline.".to_string()
@@ -581,7 +577,8 @@ fn call_local_llm_with_system(
         ],
         "temperature": temperature,
         "max_tokens": max_tokens,
-        "stream": false
+        "stream": false,
+        "response_format": response_format
     });
 
     let resp = client
@@ -610,21 +607,15 @@ fn call_local_llm_with_system(
     Ok(raw)
 }
 
-fn call_local_llm_json(prompt: &str, max_tokens: u32, temperature: f32) -> Result<serde_json::Value, String> {
-    let json_hint = "\n\nReturn valid JSON only. Up to 6 array items; cite specific STATS facts in each string.";
+fn call_local_llm_json(prompt: &str, max_tokens: u32, temperature: f32, fallback: &serde_json::Value) -> Result<serde_json::Value, String> {
+    let response_format = grounded_selection_response_format(fallback)
+        .ok_or_else(|| "No verified candidates to rank.".to_string())?;
     let mut last_err = String::from("unknown error");
 
     for attempt in 0..=LLM_PASS_RETRIES {
-        let user_prompt = if attempt == 0 {
-            format!("{}{}", prompt, json_hint)
-        } else {
-            format!(
-                "{}{}\n\n(RETRY {}/{}) Return valid JSON. English only. Keep schema, be specific.",
-                prompt, json_hint, attempt + 1, LLM_PASS_RETRIES + 1
-            )
-        };
-
-        let raw = match call_local_llm(&user_prompt, max_tokens, temperature) {
+        let raw = match call_local_llm_with_system(
+            prompt, max_tokens, temperature, REPORT_SYSTEM_PROMPT, &response_format,
+        ) {
             Ok(r) => r,
             Err(e) => {
                 last_err = e;
@@ -633,26 +624,15 @@ fn call_local_llm_json(prompt: &str, max_tokens: u32, temperature: f32) -> Resul
         };
 
         match parse_report_json(&raw) {
-            Ok(v) => return Ok(v),
+            Ok(v) if apply_grounded_selection(fallback, &v).is_some() => return Ok(v),
+            Ok(_) => {
+                last_err = "Local AI selected invalid candidate indices.".to_string();
+            }
             Err(e) => {
-                last_err = e.clone();
-                log::warn!("[LocalReport] JSON parse attempt {} failed: {}", attempt + 1, e);
-                if attempt < LLM_PASS_RETRIES {
-                    if let Ok(fixed) = call_local_llm(
-                        &format!(
-                            "The following is broken JSON. Return ONLY repaired valid JSON. English text only. Same schema, compact.\n\n{}",
-                            raw.chars().take(1200).collect::<String>()
-                        ),
-                        max_tokens,
-                        0.1,
-                    ) {
-                        if let Ok(v) = parse_report_json(&fixed) {
-                            return Ok(v);
-                        }
-                    }
-                }
+                last_err = e;
             }
         }
+        log::warn!("[LocalReport] Grounded selection attempt {} failed: {}", attempt + 1, last_err);
     }
 
     Err(last_err)
@@ -695,7 +675,7 @@ fn section_detail(result: &serde_json::Value, pass_id: &str) -> String {
             .as_array()
             .and_then(|a| a.first())
             .and_then(|v| v.as_str()),
-        "progress_tasks" => result["tasks_completed"]
+        "progress_tasks" => result["observed_work"]
             .as_array()
             .and_then(|a| a.first())
             .and_then(|v| v.as_str()),
@@ -714,7 +694,7 @@ fn llm_section(
     pass_id: &str,
     label: &str,
     stats: &str,
-    prompt_body: &str,
+    _prompt_body: &str,
     max_tokens: u32,
     temperature: f32,
     fallback: serde_json::Value,
@@ -722,19 +702,114 @@ fn llm_section(
 ) -> serde_json::Value {
     emit_report_progress(app, step, pass_id, label, "Generating with local AI…", "start");
     log::info!("[LocalReport] Section {} — {}", step, pass_id);
-    let prompt = format!("{}\n\nSTATS:\n{}", prompt_body, stats);
-    let result = call_local_llm_json(&prompt, max_tokens, temperature).unwrap_or_else(|err| {
-        log::warn!("[LocalReport] Section {} fallback: {}", pass_id, err);
-        fallback
-    });
+    // Local AI ranks source-backed candidates; it never authors final claims.
+    let (result, source) = match grounded_selection_prompt(stats, &fallback) {
+        None => (fallback, "verified_data"),
+        Some(prompt) => match call_local_llm_json(&prompt, max_tokens, temperature, &fallback)
+            .ok()
+            .and_then(|choice| apply_grounded_selection(&fallback, &choice))
+        {
+            Some(selected) => (selected, "local_ai_selection"),
+            None => {
+                log::warn!("[LocalReport] Section {} used verified fallback", pass_id);
+                (fallback, "verified_data")
+            }
+        },
+    };
     let detail = section_detail(&result, pass_id);
     emit_report_progress(app, step, pass_id, label, &detail, "done");
     passes.push(serde_json::json!({
         "id": pass_id,
         "label": label,
         "detail": detail,
+        "source": source,
     }));
     result
+}
+
+fn grounded_selection_prompt(stats: &str, fallback: &serde_json::Value) -> Option<String> {
+    let candidates = fallback.as_object()?.iter()
+        .filter_map(|(key, value)| value.as_array().filter(|items| items.len() > 1)
+            .map(|items| (key.clone(), serde_json::Value::Array(items.clone()))))
+        .collect::<serde_json::Map<String, serde_json::Value>>();
+    if candidates.is_empty() {
+        return None;
+    }
+    Some(format!(
+        "Rank the most useful verified report items for this period. Return JSON only: \
+{{\"selected_indices\":{{\"FIELD\":[0,1]}}}}. Use each CANDIDATES field name exactly. \
+For each field, select 1 to 6 distinct zero-based indices that exist in that field, most useful first. \
+Do not write or edit report text. The application copies candidate text verbatim; your output is only indices.\n\nSTATS:\n{}\n\nCANDIDATES:\n{}",
+        stats,
+        serde_json::Value::Object(candidates)
+    ))
+}
+
+fn grounded_selection_response_format(fallback: &serde_json::Value) -> Option<serde_json::Value> {
+    let mut properties = serde_json::Map::new();
+    let mut required = Vec::new();
+    for (key, value) in fallback.as_object()? {
+        let Some(items) = value.as_array().filter(|items| items.len() > 1) else { continue };
+        required.push(key.clone());
+        properties.insert(key.clone(), serde_json::json!({
+            "type": "array",
+            "minItems": 1,
+            "maxItems": items.len().min(6),
+            "items": {"type": "integer", "enum": (0..items.len()).collect::<Vec<_>>()}
+        }));
+    }
+    if required.is_empty() { return None; }
+    Some(serde_json::json!({
+        "type": "json_schema",
+        "json_schema": {
+            "name": "GroundedReportSelection",
+            "strict": true,
+            "schema": {
+                "type": "object", "additionalProperties": false,
+                "required": ["selected_indices"],
+                "properties": {"selected_indices": {
+                    "type": "object", "additionalProperties": false,
+                    "required": required, "properties": properties
+                }}
+            }
+        }
+    }))
+}
+
+fn apply_grounded_selection(
+    fallback: &serde_json::Value,
+    selection: &serde_json::Value,
+) -> Option<serde_json::Value> {
+    let selected = selection.as_object()?.get("selected_indices")?.as_object()?;
+    if selection.as_object()?.len() != 1 {
+        return None;
+    }
+    let mut report = fallback.clone();
+    let choices = fallback.as_object()?;
+    let selectable = choices.iter()
+        .filter_map(|(key, value)| value.as_array().filter(|items| items.len() > 1)
+            .map(|items| (key, items)))
+        .collect::<Vec<_>>();
+    if selected.len() != selectable.len() {
+        return None;
+    }
+    for (key, candidates) in selectable {
+        let indices = selected.get(key)?.as_array()?;
+        if indices.is_empty() || indices.len() > candidates.len().min(6) {
+            return None;
+        }
+        let mut seen = std::collections::HashSet::new();
+        let mut picked = Vec::with_capacity(indices.len());
+        for index in indices {
+            let index = usize::try_from(index.as_u64()?).ok()?;
+            if !seen.insert(index) {
+                return None;
+            }
+            picked.push(candidates.get(index)?.clone());
+        }
+        report[key] = serde_json::Value::Array(picked);
+    }
+    Some(report)
 }
 
 fn build_report_meta(local_data: &serde_json::Value) -> serde_json::Value {
@@ -873,16 +948,14 @@ Return JSON: {\"potential_risks\":[\"specific risk with evidence\"]}",
         app,
         7,
         "progress_tasks",
-        "Section — progress & tasks completed",
+        "Section — progress & observed work",
         &stats("progress_tasks"),
-        "English only. Use ONLY STATS. Up to 6 items per array.\n\
-tasks_completed: cite tickets and/or longest session descriptions. work_progress: cite daily totals and themes.\n\
-Return JSON: {\"work_progress\":[\"daily or thematic highlight with date/hours\"],\"tasks_completed\":[\"specific completed work from tickets or descriptions\"]}",
+        "Rank verified observations and daily highlights only; never infer task completion.",
         680,
         0.25,
         serde_json::json!({
             "work_progress": rule_fallback["work_progress"],
-            "tasks_completed": rule_fallback["tasks_completed"],
+            "observed_work": rule_fallback["observed_work"],
         }),
         &mut passes,
     );
@@ -925,7 +998,7 @@ Return JSON: {\"lessons_learned\":[{\"title\":\"\",\"body\":\"2-3 sentences\"}],
         "known_issues": issues["known_issues"],
         "potential_risks": risks["potential_risks"],
         "work_progress": progress["work_progress"],
-        "tasks_completed": progress["tasks_completed"],
+        "observed_work": progress["observed_work"],
         "lessons_learned": lessons["lessons_learned"],
         "recommendations": lessons["recommendations"],
     });
@@ -976,7 +1049,7 @@ fn build_analysis_from_stats(local_data: &serde_json::Value) -> serde_json::Valu
         "focus_patterns": focus_patterns,
         "distraction_patterns": distraction_patterns,
         "top_work_themes": themes,
-        "ticket_progress": build_tasks_completed(local_data),
+        "ticket_progress": build_observed_work(local_data),
         "daily_rhythm": daily_rhythm,
         "friction_points": build_known_issues(local_data, local_data["distraction_events"].as_i64().unwrap_or(0) as i32),
         "notable_wins": build_work_progress(local_data),
@@ -1535,7 +1608,7 @@ fn build_rule_based_report(local_data: &serde_json::Value) -> serde_json::Value 
     let overall_health = compute_overall_health(focus_seconds, total_seconds, distraction_events as i32);
 
     let health_breakdown = build_category_health_rows(local_data);
-    let tasks_completed = build_tasks_completed(local_data);
+    let observed_work = build_observed_work(local_data);
     let known_issues = build_known_issues(local_data, distraction_events as i32);
     let potential_risks = build_potential_risks(local_data, focus_seconds, total_seconds);
     let work_progress = build_work_progress(local_data);
@@ -1564,7 +1637,7 @@ fn build_rule_based_report(local_data: &serde_json::Value) -> serde_json::Value 
             .unwrap_or_default();
         format!(
             "Between {} and {} you tracked {:.1}h across {} SQLite activity reports on {} active days. \
-Deep focus was {:.1}h ({:.0}% of tracked time). Primary category: {}.{ticket_line} \
+Focus-category activity was {:.1}h ({:.0}% of tracked time). Primary category: {}.{ticket_line} \
 Ticket-linked work covered {:.0}% of hours.",
             period_start,
             period_end,
@@ -1587,9 +1660,9 @@ Ticket-linked work covered {:.0}% of hours.",
         let switches = local_data["context_switches_per_day"].as_f64().unwrap_or(0.0);
         let distraction_h = local_data["distraction_hours"].as_f64().unwrap_or(0.0);
         format!(
-            "Focus work represents {:.0}% of tracked time with {} deep-focus sessions of 30+ minutes. \
-Tracking consistency was {:.0}% of days in the period. Distraction categories consumed {:.1}h across {} events. \
-Context switching averaged {:.1} category changes per active day.",
+            "Focus-category activity represents {:.0}% of tracked time with {} recorded sessions of 30+ minutes. \
+Activity was tracked on {:.0}% of days in the period. Distraction categories totalled {:.1}h across {} events. \
+Category changes averaged {:.1} per active day; this does not establish why they occurred.",
             focus_pct,
             deep,
             consistency,
@@ -1602,7 +1675,7 @@ Context switching averaged {:.1} category changes per active day.",
     serde_json::json!({
         "executive_overview": executive_overview,
         "work_summary": format!(
-            "Primary effort concentrated on top categories and tickets shown in the breakdown. {:.1} total hours were captured locally without cloud sync.",
+            "The breakdown lists observed categories and optional ticket labels. {:.1} total hours were captured locally.",
             total_hours
         ),
         "overall_health": overall_health,
@@ -1610,24 +1683,20 @@ Context switching averaged {:.1} category changes per active day.",
         "health_breakdown": health_breakdown,
         "known_issues": known_issues,
         "potential_risks": potential_risks,
-        "tasks_completed": tasks_completed,
+        "observed_work": observed_work,
         "work_progress": work_progress,
         "lessons_learned": lessons_learned,
         "recommendations": default_recommendations(local_data),
     })
 }
 
-fn compute_overall_health(focus_seconds: i32, total_seconds: i32, distraction_events: i32) -> &'static str {
+fn compute_overall_health(focus_seconds: i32, total_seconds: i32, _distraction_events: i32) -> &'static str {
     if total_seconds == 0 {
-        return "Attention";
-    }
-    let focus_ratio = focus_seconds as f64 / total_seconds as f64;
-    if focus_ratio >= 0.5 && distraction_events < 8 {
-        "On track"
-    } else if focus_ratio >= 0.25 {
-        "Attention"
+        "Insufficient signal"
+    } else if focus_seconds > 0 {
+        "Focus-category activity observed"
     } else {
-        "At risk"
+        "No focus-category activity observed"
     }
 }
 
@@ -1641,13 +1710,9 @@ fn build_category_health_rows(local_data: &serde_json::Value) -> Vec<serde_json:
             let secs = cat["total_seconds"].as_i64().unwrap_or(0) as f64;
             let share = secs / total_seconds;
             let status = if DISTRACTION_CATEGORIES.contains(&name) && share > 0.15 {
-                "Attention"
-            } else if FOCUS_CATEGORIES.contains(&name) && share >= 0.08 {
-                "On track"
-            } else if share < 0.03 {
-                "Attention"
+                "Review"
             } else {
-                "On track"
+                "Observed"
             };
             rows.push(serde_json::json!({
                 "element": name,
@@ -1680,7 +1745,7 @@ fn build_category_health_rows(local_data: &serde_json::Value) -> Vec<serde_json:
             if !ticket.is_empty() {
                 rows.push(serde_json::json!({
                     "element": ticket,
-                    "status": "On track",
+                    "status": "Observed",
                     "owner_team": "Self",
                     "notes": format!("{:.1}h logged across {} tracked sessions in SQLite.", secs / 3600.0, n),
                 }));
@@ -1691,7 +1756,7 @@ fn build_category_health_rows(local_data: &serde_json::Value) -> Vec<serde_json:
     rows
 }
 
-fn build_tasks_completed(local_data: &serde_json::Value) -> Vec<String> {
+fn build_observed_work(local_data: &serde_json::Value) -> Vec<String> {
     let mut items = Vec::new();
 
     if let Some(sessions) = local_data["longest_sessions"].as_array() {
@@ -1739,7 +1804,7 @@ fn build_tasks_completed(local_data: &serde_json::Value) -> Vec<String> {
     }
 
     if items.is_empty() {
-        items.push("No completed tasks identified — capture more activity to populate this section.".to_string());
+        items.push("No specifically labelled work was observed in this period.".to_string());
     }
 
     items
@@ -1749,7 +1814,7 @@ fn build_known_issues(local_data: &serde_json::Value, distraction_events: i32) -
     let mut issues = Vec::new();
     if distraction_events > 0 {
         issues.push(format!(
-            "{} browsing/idle events detected — context switching may be reducing focus blocks.",
+            "{} browsing/idle events were recorded; inspect their timing before inferring any effect on focus.",
             distraction_events
         ));
     }
@@ -1787,7 +1852,7 @@ fn build_known_issues(local_data: &serde_json::Value, distraction_events: i32) -
     }
 
     if issues.is_empty() {
-        issues.push("No major friction patterns detected in tracked data.".to_string());
+        issues.push("No configured friction pattern crossed its threshold in the tracked data.".to_string());
     }
 
     issues
@@ -1799,7 +1864,7 @@ fn build_potential_risks(local_data: &serde_json::Value, focus_seconds: i32, tot
         let focus_ratio = focus_seconds as f64 / total_seconds as f64;
         if focus_ratio < 0.35 {
             risks.push(format!(
-                "Low focus-to-total ratio ({:.0}%) — deep work blocks may be fragmented across {} activities.",
+                "Focus-category activity was {:.0}% of tracked time across {} activity reports; this ratio alone does not measure productivity.",
                 focus_ratio * 100.0,
                 local_data["activity_count"].as_i64().unwrap_or(0)
             ));
@@ -1809,7 +1874,7 @@ fn build_potential_risks(local_data: &serde_json::Value, focus_seconds: i32, tot
     let ticket_cov = local_data["ticket_coverage_pct"].as_f64().unwrap_or(0.0);
     if ticket_cov < 40.0 && total_seconds > 0 {
         risks.push(format!(
-            "Only {:.0}% of tracked hours are linked to tickets — progress may be hard to audit.",
+            "Ticket labels cover {:.0}% of tracked hours; unlabelled work cannot be attributed to a ticket from this data.",
             ticket_cov
         ));
     }
@@ -1840,13 +1905,13 @@ fn build_potential_risks(local_data: &serde_json::Value, focus_seconds: i32, tot
     let switches = local_data["context_switches_per_day"].as_f64().unwrap_or(0.0);
     if switches > 15.0 {
         risks.push(format!(
-            "High context switching ({:.1} category changes per active day) may reduce sustained focus.",
+            "Category changes averaged {:.1} per active day; inspect the transitions before inferring distraction.",
             switches
         ));
     }
 
     if risks.is_empty() {
-        risks.push("Maintain consistent daily tracking to catch trends early.".to_string());
+        risks.push("No configured risk rule crossed its threshold; compare another similarly tracked period before changing workflow.".to_string());
     }
 
     risks
@@ -1858,7 +1923,7 @@ fn build_work_progress(local_data: &serde_json::Value) -> Vec<String> {
     if let Some(days) = local_data["day_category_breakdown"].as_array() {
         for d in days.iter().rev().take(7) {
             progress.push(format!(
-                "{} — {:.1}h total, mostly {} ({:.1}h)",
+                "{} — {:.1}h total, largest category {} ({:.1}h)",
                 d["date"].as_str().unwrap_or(""),
                 d["total_hours"].as_f64().unwrap_or(0.0),
                 d["top_category"].as_str().unwrap_or("Work"),
@@ -1900,12 +1965,16 @@ fn build_lessons_learned(
 ) -> Vec<serde_json::Value> {
     let mut lessons = Vec::new();
 
+    if total_hours <= 0.0 {
+        return lessons;
+    }
+
     if total_hours > 0.0 {
         let focus_share = focus_hours / total_hours;
         lessons.push(serde_json::json!({
-            "title": "Protect focus blocks",
+            "title": "Review the recorded work mix",
             "body": format!(
-                "Only {:.0}% of tracked time was deep-focus work. Schedule 90-minute blocks for your top category and reduce reactive browsing between tasks.",
+                "Focus-category activity accounted for {:.0}% of tracked time. This is a category mix, not a measure of completed work or subjective focus.",
                 focus_share * 100.0
             ),
         }));
@@ -1914,34 +1983,47 @@ fn build_lessons_learned(
     if let Some(top) = local_data["category_breakdown"].as_array().and_then(|a| a.first()) {
         let cat = top["category"].as_str().unwrap_or("Work");
         lessons.push(serde_json::json!({
-            "title": format!("Double down on {}", cat),
+            "title": format!("Review the role of {}", cat),
             "body": format!(
-                "{} dominated your tracked hours. Align ticket selection and daily goals with this area to maximize visible progress.",
-                cat
+                "{} accounted for {:.1}h of tracked time. Check whether that allocation matched your intended work before changing priorities.",
+                cat,
+                top["total_seconds"].as_i64().unwrap_or(0) as f64 / 3600.0
             ),
         }));
     }
 
-    lessons.push(serde_json::json!({
-        "title": "Track consistently",
-        "body": "Status reports improve when monitoring runs throughout the day. Even short sessions build a clearer picture of workflow bottlenecks.",
-    }));
+    if let Some(consistency) = local_data["tracking_consistency_pct"].as_f64() {
+        if consistency < 100.0 {
+            lessons.push(serde_json::json!({
+                "title": "Coverage limits the conclusion",
+                "body": format!(
+                    "Activity was recorded on {:.0}% of days in this period. Treat untracked days as missing data, not as days without work.",
+                    consistency
+                ),
+            }));
+        }
+    }
 
     lessons
 }
 
 fn default_recommendations(local_data: &serde_json::Value) -> Vec<String> {
-    let mut recs = vec![
-        "Review top distraction categories and batch admin/browsing into fixed windows.".to_string(),
-        "Link tasks to Jira/Linear tickets when on a paid plan for clearer progress reporting.".to_string(),
-    ];
+    let mut recs = Vec::new();
+
+    if local_data["distraction_events"].as_i64().unwrap_or(0) > 0 {
+        recs.push("Review the recorded browsing/idle episodes and their timing separately from valuable coordination work.".to_string());
+    }
 
     if local_data["ticket_breakdown"]
         .as_array()
         .map(|a| a.is_empty())
         .unwrap_or(true)
     {
-        recs.push("Assign tickets or manual task labels to improve task_completed sections.".to_string());
+        recs.push("Use optional task labels if you need clearer attribution; a ticket system is not required.".to_string());
+    }
+
+    if recs.is_empty() {
+        recs.push("The current signal does not justify a specific workflow change; compare a future period first.".to_string());
     }
 
     recs
@@ -2080,5 +2162,39 @@ fn clamp_line(s: &str, max_chars: usize) -> String {
         return s.to_string();
     }
     s.chars().take(max_chars).collect::<String>() + "…"
+}
+
+#[cfg(test)]
+mod grounded_report_tests {
+    use super::*;
+
+    #[test]
+    fn model_can_only_select_existing_report_items() {
+        let fallback = serde_json::json!({
+            "observed_work": ["Analysis recorded.", "Research recorded."],
+            "summary": "2.0h of activity recorded."
+        });
+        let selected = serde_json::json!({"selected_indices":{"observed_work":[1]}});
+        let report = apply_grounded_selection(&fallback, &selected).unwrap();
+        assert_eq!(report["observed_work"][0], fallback["observed_work"][1]);
+        assert_eq!(report["summary"], fallback["summary"]);
+
+        for invalid in [
+            serde_json::json!({"observed_work":["Product launch completed."]}),
+            serde_json::json!({"selected_indices":{"observed_work":[2]}}),
+            serde_json::json!({"selected_indices":{"observed_work":[0,0]}}),
+            serde_json::json!({"selected_indices":{"observed_work":[0]}, "summary":"Product launch completed."}),
+        ] {
+            assert!(apply_grounded_selection(&fallback, &invalid).is_none());
+        }
+    }
+
+    #[test]
+    fn empty_activity_does_not_generate_a_lesson_or_completion_claim() {
+        let empty = serde_json::json!({"total_seconds":0, "total_hours":0.0, "focus_hours":0.0});
+        let report = build_rule_based_report(&empty);
+        assert!(report["lessons_learned"].as_array().unwrap().is_empty());
+        assert!(report.get("tasks_completed").is_none());
+    }
 }
 

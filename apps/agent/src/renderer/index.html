@@ -2530,6 +2530,11 @@
       color: hsl(0 65% 40%);
     }
 
+    .sr-health-neutral {
+      background: hsl(var(--muted) / 0.65);
+      color: hsl(var(--foreground));
+    }
+
     .sr-metrics {
       display: grid;
       grid-template-columns: repeat(4, 1fr);
@@ -2629,6 +2634,7 @@
     .sr-status-pill.sr-health-on-track { background: hsl(142 76% 36% / 0.15); color: hsl(142 70% 28%); }
     .sr-status-pill.sr-health-attention { background: hsl(38 92% 50% / 0.18); color: hsl(32 90% 32%); }
     .sr-status-pill.sr-health-at-risk { background: hsl(0 72% 51% / 0.14); color: hsl(0 65% 40%); }
+    .sr-status-pill.sr-health-neutral { background: hsl(var(--muted) / 0.65); color: hsl(var(--foreground)); }
 
     .sr-notes {
       color: hsl(var(--muted-foreground));
@@ -2959,6 +2965,7 @@
     .sr-tbi-health-badge.sr-health-on-track { background: #4db6ac; }
     .sr-tbi-health-badge.sr-health-attention { background: #ffd54f; color: #5d4037; }
     .sr-tbi-health-badge.sr-health-at-risk { background: #e57373; }
+    .sr-tbi-health-badge.sr-health-neutral { background: hsl(var(--muted)); color: hsl(var(--foreground)); }
 
     .sr-tbi-health-notes {
       font-size: 11px;
@@ -6505,7 +6512,7 @@
       'Section — timeline review',
       'Section — known issues',
       'Section — potential risks',
-      'Section — progress & tasks completed',
+      'Section — progress & observed work',
       'Section — lessons & recommendations',
     ];
 
@@ -6792,8 +6799,9 @@
     function healthStatusClass(status) {
       const s = String(status ?? '').toLowerCase();
       if (s.includes('risk')) return 'sr-health-at-risk';
-      if (s.includes('attention')) return 'sr-health-attention';
-      return 'sr-health-on-track';
+      if (s.includes('attention') || s.includes('review')) return 'sr-health-attention';
+      if (s.includes('on track')) return 'sr-health-on-track';
+      return 'sr-health-neutral';
     }
 
     function renderReportGeneratingUI() {
@@ -7002,9 +7010,9 @@
               </div>
             </div>
             <div class="sr-tbi-progress-block">
-              <h4 class="sr-tbi-block-title">Team progress</h4>
-              <p style="font-size:10px;font-weight:700;margin:0 0 6px;">Tasks completed</p>
-              <ul>${listItems(report.tasks_completed) || '<li>No tasks listed</li>'}</ul>
+              <h4 class="sr-tbi-block-title">Observed work</h4>
+              <p style="font-size:10px;font-weight:700;margin:0 0 6px;">Recorded activities</p>
+              <ul>${listItems(report.observed_work) || '<li>No activities listed</li>'}</ul>
               <p style="font-size:10px;font-weight:700;margin:12px 0 6px;">Highlights</p>
               <ul>${listItems(report.work_progress) || '<li>No highlights</li>'}</ul>
             </div>
