@@ -1,0 +1,31 @@
+name: Model smoke — macOS arm64
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'apps/agent/src-tauri/src/vision_model.rs'
+      - 'scripts/fetch-models.mjs'
+      - 'scripts/check-local-vision.mjs'
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: macos-14
+    timeout-minutes: 45
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      FLOWSIGHT_LLM_ARCH: macos-arm64
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Prepare pinned llama.cpp runtime
+        run: bash scripts/prepare-macos-llm.sh
+      - name: Fetch and verify Qwen3.5 weights
+        run: node scripts/fetch-models.mjs
+      - name: Prove local multimodal inference
+        run: node scripts/check-local-vision.mjs

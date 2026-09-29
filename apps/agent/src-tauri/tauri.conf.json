@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "FlowSight Agent",
-  "version": "3.6.11",
+  "version": "5.0.0",
   "identifier": "ai.flowsight.agent",
   "build": {
     "frontendDist": "../dist",
@@ -70,7 +70,9 @@
       "icons/icon.ico"
     ],
     "resources": {
-      "../../../local_llm/bin/*": "local_llm/bin/"
+      "../../../local_llm/bin/*": "local_llm/bin/",
+      "../../../local_llm/APACHE-2.0.md": "local_llm/APACHE-2.0.md",
+      "../../../local_llm/MODEL_NOTICE.md": "local_llm/MODEL_NOTICE.md"
     }
   },
   "plugins": {

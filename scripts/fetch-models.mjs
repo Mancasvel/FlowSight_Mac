@@ -18,20 +18,33 @@ import {
   statSync,
   unlinkSync,
   createWriteStream,
+  createReadStream,
 } from "node:fs";
+import { createHash } from "node:crypto";
+import { once } from "node:events";
 import { dirname, join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { finished } from "node:stream/promises";
 
 const DEFAULT_REPO = "Mancasvel/FlowSight.AI";
-const DEFAULT_TAG = "models-v0.1.0";
+const DEFAULT_TAG = "models-v0.2.0";
 const MIN_SIZE_BYTES = 1_000_000;
 
 /** @type {Record<string, string>} relative paths from repo root */
 const ASSETS = {
-  "Qwen3-VL-2B-Instruct-Q3_K_M.gguf": "local_llm/Qwen3-VL-2B-Instruct-Q3_K_M.gguf",
-  "mmproj-Qwen3VL-2B-Instruct-Q8_0.gguf": "local_llm/mmproj-Qwen3VL-2B-Instruct-Q8_0.gguf",
+  "Qwen3.5-2B-Q6_K.gguf": "local_llm/Qwen3.5-2B-Q6_K.gguf",
+  "mmproj-Qwen3.5-2B-Q8_0.gguf": "local_llm/mmproj-Qwen3.5-2B-Q8_0.gguf",
+};
+const EXPECTED = {
+  "Qwen3.5-2B-Q6_K.gguf": {
+    size: 1556390528,
+    sha256: "381a869147e725e9e0087990f72ac5f3d5025aa3e4d0bc04b457fd7b30b6f7e4",
+  },
+  "mmproj-Qwen3.5-2B-Q8_0.gguf": {
+    size: 364663936,
+    sha256: "351b26e2e94552a501d9b0d25455e34592d778def7e2e6d28cc9e7040f91c4ad",
+  },
 };
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -79,10 +92,13 @@ function assetUrl(repo, tag, name) {
   return `https://github.com/${repo}/releases/download/${tag}/${name}`;
 }
 
-/** @param {string} path */
-function fileOk(path) {
+/** @param {string} path @param {string} name */
+async function fileOk(path, name) {
   try {
-    return existsSync(path) && statSync(path).size >= MIN_SIZE_BYTES;
+    if (!existsSync(path) || statSync(path).size !== EXPECTED[name].size) return false;
+    const hash = createHash("sha256");
+    for await (const chunk of createReadStream(path)) hash.update(chunk);
+    return hash.digest("hex") === EXPECTED[name].sha256;
   } catch {
     return false;
   }
@@ -106,8 +122,9 @@ function finalizePart(tmp, dest) {
  * @param {string} url
  * @param {string} dest
  * @param {string | null} token
+ * @param {string} name
  */
-async function download(url, dest, token) {
+async function download(url, dest, token, name) {
   mkdirSync(dirname(dest), { recursive: true });
   const tmp = `${dest}.part`;
 
@@ -150,7 +167,7 @@ async function download(url, dest, token) {
       const { done, value } = await reader.read();
       if (done) break;
       if (!value?.length) continue;
-      fh.write(Buffer.from(value));
+      if (!fh.write(Buffer.from(value))) await once(fh, "drain");
       downloaded += value.length;
       if (total > 0) {
         const pct = (downloaded * 100) / total;
@@ -166,6 +183,9 @@ async function download(url, dest, token) {
     await finished(fh);
     process.stdout.write("\n");
 
+    if (!(await fileOk(tmp, name))) {
+      throw new Error(`Downloaded ${name} failed size/SHA-256 verification`);
+    }
     finalizePart(tmp, dest);
   } catch (e) {
     try {
@@ -190,7 +210,7 @@ async function main() {
   const missing = [];
   for (const [name, rel] of Object.entries(ASSETS)) {
     const dest = join(root, rel);
-    if (force || !fileOk(dest)) {
+    if (force || !(await fileOk(dest, name))) {
       missing.push({ name, dest });
     } else {
       console.log(`  OK    ${rel} (${humanSize(statSync(dest).size)})`);
@@ -218,7 +238,7 @@ async function main() {
     console.log(`  to   ${dest}`);
 
     try {
-      await download(url, dest, token);
+      await download(url, dest, token, name);
     } catch (e) {
       const code = /** @type {any} */ (e).httpCode ?? null;
       if (code === 404) {
