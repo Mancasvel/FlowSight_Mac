@@ -1,6 +1,6 @@
 [package]
 name = "app"
-version = "3.6.11"
+version = "5.0.0"
 description = "FlowSight Agent — Understand your own Workflows"
 authors = ["you"]
 license = ""

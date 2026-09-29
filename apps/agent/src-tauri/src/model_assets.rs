@@ -1,6 +1,6 @@
 //! First-run acquisition of the local vision weights.
 //!
-//! Los GGUF (~1.3 GB) ya no viajan dentro del bundle: el `.app` solo lleva el
+//! Los GGUF (~1.9 GB) ya no viajan dentro del bundle: el `.app` solo lleva el
 //! runtime de llama.cpp (`local_llm/bin/`), que es código y por tanto debe ir
 //! firmado y notarizado. Los pesos son datos: se descargan una vez al
 //! directorio de datos de la app (`app_data_dir()/models`, es decir
@@ -25,7 +25,7 @@ use crate::vision_model::{VISION_GGUF_FILENAME, VISION_MMPROJ_FILENAME};
 
 const MODELS_SUBDIR: &str = "models";
 const DEFAULT_MODELS_REPO: &str = "Mancasvel/FlowSight.AI";
-const DEFAULT_MODELS_TAG: &str = "models-v0.1.0";
+const DEFAULT_MODELS_TAG: &str = "models-v0.2.0";
 const DOWNLOAD_PROGRESS_EVENT: &str = "local-model-download";
 const CONNECT_TIMEOUT_SECS: u64 = 30;
 const TCP_KEEPALIVE_SECS: u64 = 30;
@@ -35,7 +35,7 @@ const PROGRESS_EMIT_INTERVAL: Duration = Duration::from_millis(400);
 /// Un peso descargable del release de modelos.
 ///
 /// `size_bytes` y `sha256` se obtuvieron de los assets publicados en
-/// `<repo>/releases/download/models-v0.1.0/` y coinciden byte a byte con los
+/// `<repo>/releases/download/models-v0.2.0/` y coinciden byte a byte con los
 /// ficheros que usa `scripts/fetch-models.mjs` en `local_llm/`.
 struct WeightAsset {
     filename: &'static str,
@@ -46,13 +46,13 @@ struct WeightAsset {
 const VISION_ASSETS: [WeightAsset; 2] = [
     WeightAsset {
         filename: VISION_GGUF_FILENAME,
-        size_bytes: 939_540_160,
-        sha256: "d4346b52a40d103ed6892b09fd3643e0a11b2dd26d3234f37ec68a94ec20ae24",
+        size_bytes: 1_556_390_528,
+        sha256: "381a869147e725e9e0087990f72ac5f3d5025aa3e4d0bc04b457fd7b30b6f7e4",
     },
     WeightAsset {
         filename: VISION_MMPROJ_FILENAME,
-        size_bytes: 445_053_216,
-        sha256: "f9a68fabba69c3b81e153367b2c7521030b0fa8bb0de400c9599c8e6725f9c82",
+        size_bytes: 364_663_936,
+        sha256: "351b26e2e94552a501d9b0d25455e34592d778def7e2e6d28cc9e7040f91c4ad",
     },
 ];
 
@@ -227,18 +227,15 @@ pub fn ensure_vision_weights(app: &AppHandle) -> Result<(PathBuf, PathBuf), Stri
             }
             FetchEvent::Verifying => emit_progress(
                 app,
-                asset_progress(
-                    asset,
-                    "verifying",
-                    asset.size_bytes,
-                    asset.size_bytes,
-                    None,
-                ),
+                asset_progress(asset, "verifying", asset.size_bytes, asset.size_bytes, None),
             ),
         };
 
         if let Err(e) = fetch_asset(&base_url, asset, &dest, &mut on_event) {
-            emit_progress(app, asset_progress(asset, "error", 0, asset.size_bytes, Some(&e)));
+            emit_progress(
+                app,
+                asset_progress(asset, "error", 0, asset.size_bytes, Some(&e)),
+            );
             return Err(e);
         }
     }
@@ -291,6 +288,12 @@ fn fetch_asset(
         return Err(e);
     }
 
+    // A prior interrupted install may have left a truncated destination.
+    // Only remove that exact, unusable asset after the replacement was verified.
+    if dest.exists() && !weight_complete(dest, asset) {
+        fs::remove_file(dest)
+            .map_err(|e| format!("Could not replace incomplete {}: {}", asset.filename, e))?;
+    }
     fs::rename(&part, dest).map_err(|e| {
         format!(
             "Downloaded {} but could not move it into place ({}).",
@@ -394,6 +397,7 @@ fn stream_to_part(
 
     let mut file = OpenOptions::new()
         .create(true)
+        .truncate(false)
         .write(true)
         .open(part)
         .map_err(|e| format!("Cannot write {:?}: {}", part, e))?;
@@ -406,19 +410,19 @@ fn stream_to_part(
     let mut buf = vec![0u8; STREAM_BUFFER_BYTES];
 
     loop {
-        let read = response
-            .read(&mut buf)
-            .map_err(|e| format!("Connection lost while downloading {}: {}", asset.filename, e))?;
+        let read = response.read(&mut buf).map_err(|e| {
+            format!(
+                "Connection lost while downloading {}: {}",
+                asset.filename, e
+            )
+        })?;
         if read == 0 {
             break;
         }
         file.write_all(&buf[..read])
             .map_err(|e| format!("Cannot write {:?} (disk full?): {}", part, e))?;
         downloaded += read as u64;
-        on_event(FetchEvent::Progress {
-            downloaded,
-            total,
-        });
+        on_event(FetchEvent::Progress { downloaded, total });
     }
 
     file.flush()
@@ -486,10 +490,10 @@ mod tests {
 
     #[test]
     fn part_path_appends_suffix_without_replacing_extension() {
-        let dest = PathBuf::from("/models/Qwen3-VL-2B-Instruct-Q3_K_M.gguf");
+        let dest = PathBuf::from("/models/Qwen3.5-2B-Q6_K.gguf");
         assert_eq!(
             part_path(&dest),
-            PathBuf::from("/models/Qwen3-VL-2B-Instruct-Q3_K_M.gguf.part")
+            PathBuf::from("/models/Qwen3.5-2B-Q6_K.gguf.part")
         );
     }
 
@@ -583,7 +587,15 @@ mod tests {
                         .headers()
                         .iter()
                         .find(|h| h.field.equiv("Range"))
-                        .and_then(|h| h.value.as_str().strip_prefix("bytes=")?.split('-').next()?.parse::<usize>().ok())
+                        .and_then(|h| {
+                            h.value
+                                .as_str()
+                                .strip_prefix("bytes=")?
+                                .split('-')
+                                .next()?
+                                .parse::<usize>()
+                                .ok()
+                        })
                         .filter(|_| honor_range);
 
                     let response = match range_start {
@@ -651,7 +663,9 @@ mod tests {
         let mut seen_verifying = false;
         let mut max_downloaded = 0u64;
         let mut on_event = |event: FetchEvent| match event {
-            FetchEvent::Progress { downloaded, .. } => max_downloaded = max_downloaded.max(downloaded),
+            FetchEvent::Progress { downloaded, .. } => {
+                max_downloaded = max_downloaded.max(downloaded)
+            }
             FetchEvent::Verifying => seen_verifying = true,
         };
 
@@ -661,6 +675,25 @@ mod tests {
         assert!(!part_path(&dest).exists());
         assert!(seen_verifying);
         assert_eq!(max_downloaded, body.len() as u64);
+    }
+
+    #[test]
+    fn fetch_asset_replaces_only_an_incomplete_destination() {
+        let body = test_body(120_000);
+        let asset = WeightAsset {
+            filename: "replace.gguf",
+            size_bytes: body.len() as u64,
+            sha256: Box::leak(sha256_bytes(&body).into_boxed_str()),
+        };
+        let server = AssetServer::start(asset.filename, body.clone(), true);
+        let dir = tempfile::tempdir().unwrap();
+        let dest = dir.path().join(asset.filename);
+        fs::write(&dest, b"interrupted download").unwrap();
+
+        fetch_asset(&server.base_url, &asset, &dest, &mut noop_events).unwrap();
+
+        assert_eq!(fs::read(&dest).unwrap(), body);
+        assert!(!part_path(&dest).exists());
     }
 
     #[test]
@@ -728,7 +761,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "hits the real models release (~445 MB)"]
+    #[ignore = "hits the real models release (~365 MB)"]
     fn fetch_real_mmproj_asset_from_the_models_release() {
         let asset = &VISION_ASSETS[1];
         let dir = tempfile::tempdir().unwrap();
