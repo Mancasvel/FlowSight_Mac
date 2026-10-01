@@ -7348,7 +7348,7 @@
         };
         document.getElementById('onboardingFocusCheck').onclick = async () => {
           const state = await totalFocusController.refresh();
-          setText(document.getElementById('onboardingFocusConnection'), () => state?.browser?.connected ? tr('Browser connected · ready to start') : tr('Connect Browser Controls to activate total focus.'));
+          setText(document.getElementById('onboardingFocusConnection'), () => state?.browser?.connected && !state.browser.totalFocusAvailable ? tr('Browser connected. Update Browser Controls to enable total focus. In Arc, open arc://extensions and update the extension; approve any requested site access.') : state?.browser?.connected ? tr('Browser connected · ready to start') : tr('Connect Browser Controls to activate total focus.'));
         };
       } else if (step === 4) {
         body.innerHTML = html`<h1 class="onboarding-title" tabindex="-1">See what your week contained</h1>
