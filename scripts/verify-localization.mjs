@@ -26,6 +26,12 @@ try{for(const [system,override,expected,nativeSystem,size]of[['es-ES',null,'es',
  await page.locator('#onboardingContinueBtn').click();await page.locator('#onboardingFocusReminders').check();await page.locator('#onboardingContextReminders').check();
  assert.match(await page.locator('#onboardingNotificationPreview').innerText(),expected==='es'?/Ejemplo.*Escribir propuesta/s:/Example.*Write proposal/s);
  await page.screenshot({path:resolve(output,`notification-${system}-${expected}.png`)});
+ await page.locator('#onboardingContinueBtn').click();
+ await page.getByRole('heading',{name:expected==='es'?'Haz espacio para la concentración total':'Make space for total focus'}).waitFor();
+ assert.match(await page.locator('#onboardingBody').innerText(),expected==='es'?/Próximamente/:/Coming later/);
+ await page.locator('#onboardingFocusSites').fill('youtube.com');await page.locator('#onboardingFocusExceptions').fill('youtube.com/watch');
+ await page.locator('#onboardingBody').evaluate(element=>{element.scrollTop=0;});
+ await page.screenshot({path:resolve(output,`total-focus-${system}-${expected}.png`)});
  await page.locator('#onboardingSkipCalendarBtn').click();await page.locator('#onboardingOverlay').waitFor({state:'hidden'});
  await page.locator('#sessionPlannerToggle').click();await page.locator('#sessionIntention').fill('Review and User custom task: Español & English');await page.locator('#sessionStart').fill('10:35');await page.locator('#sessionEnd').fill('16:35');await page.locator('#sessionGenerate').click();await page.locator('#sessionProposal').waitFor({state:'visible'});
  await page.locator('#sessionFeedback').fill('Keep this unsent draft');

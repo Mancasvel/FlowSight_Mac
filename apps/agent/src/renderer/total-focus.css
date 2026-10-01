@@ -1,0 +1,21 @@
+.total-focus-settings label,.onboarding-body .total-focus-fields label { display:block; margin:15px 0 6px; font-size:12px; font-weight:650; color:hsl(var(--foreground)); }
+.total-focus-fields .input { box-sizing:border-box; width:100%; min-width:0; font:inherit; font-size:12px; }
+.total-focus-fields textarea { resize:vertical; min-height:64px; line-height:1.5; }
+.total-focus-fields input { max-width:140px; }
+.total-focus-status { margin:14px 0 8px; color:hsl(var(--muted-foreground)); font-size:12px; line-height:1.5; }
+.total-focus-status[data-active="true"] { color:hsl(var(--primary)); font-weight:700; }
+.total-focus-task { margin:0; font-size:13px; overflow-wrap:anywhere; }
+.total-focus-actions { display:flex; flex-wrap:wrap; gap:8px; margin:16px 0 8px; }
+.total-focus-actions .button { min-height:40px; flex:1 1 120px; }
+.total-focus-settings [hidden] { display:none; }
+.total-focus-settings { min-width:0; }
+.total-focus-future { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:6px 12px; margin-top:20px; padding-top:16px; border-top:1px solid hsl(var(--border)); }
+.total-focus-future strong { font-size:12px; }
+.total-focus-future span { font-size:11px; color:hsl(var(--muted-foreground)); }
+.total-focus-future p { grid-column:1/-1; margin:0; font-size:11px; color:hsl(var(--muted-foreground)); line-height:1.6; }
+.total-focus-example { margin:18px 0; color:hsl(var(--foreground)); }
+.total-focus-example div { display:flex; flex-wrap:wrap; gap:6px 12px; justify-content:space-between; padding:9px 0; border-bottom:1px solid hsl(var(--border)); font-size:12px; }
+.total-focus-example span { overflow-wrap:anywhere; } .total-focus-example strong { font-weight:650; }
+.total-focus-example figcaption { margin-top:9px; font-size:11px; color:hsl(var(--muted-foreground)); line-height:1.5; }
+.total-focus-pairing { margin:18px 0; } .total-focus-pairing .button { min-height:40px; margin:4px 0; }
+.today-total-focus { display:flex; justify-content:space-between; align-items:center; min-height:42px; width:100%; margin:12px 0 0; font-size:12px; }

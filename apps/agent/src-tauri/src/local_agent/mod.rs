@@ -12,6 +12,7 @@ pub mod session_calendar;
 pub mod session_plan;
 pub mod state;
 mod system_quiet;
+pub mod total_focus;
 
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
@@ -66,6 +67,22 @@ fn parse_arguments(value: &Value) -> Result<Value, String> {
 }
 
 fn proposal_for(spec: &registry::ToolSpec, arguments: Value) -> Result<ActionProposal, String> {
+    let mut arguments = arguments;
+    if spec.name == "focus.total_start" {
+        let preferences = state::read()?.total_focus_preferences;
+        let fields = arguments
+            .as_object_mut()
+            .ok_or("Tool arguments must be an object.")?;
+        fields
+            .entry("duration_minutes")
+            .or_insert(json!(preferences.duration_minutes));
+        fields
+            .entry("patterns")
+            .or_insert(json!(preferences.patterns));
+        fields
+            .entry("exceptions")
+            .or_insert(json!(preferences.exceptions));
+    }
     registry::validate(spec, &arguments)?;
     let id = uuid::Uuid::new_v4().to_string();
     let (mut summary, mut summary_es) = actions::preview(spec.name, &arguments)?;
@@ -174,6 +191,13 @@ fn context_for_family(family: &str, data: &state::AgentData) -> Value {
             .map(|value| value.chars().take(160).collect::<String>()),
     });
     let fields = context.as_object_mut().expect("context is an object");
+    if matches!(family, "focus" | "browser") {
+        fields.insert(
+            "totalFocus".into(),
+            json!({"session":data.total_focus,"preferences":data.total_focus_preferences,
+            "browser":browser_bridge::focus_status(),"messagingAvailable":false}),
+        );
+    }
     if matches!(family, "focus" | "system" | "notifications" | "automation") {
         fields.insert(
             "focus".into(),

@@ -69,6 +69,26 @@ fn focus_patterns(args: &Value) -> Vec<String> {
         .collect()
 }
 
+fn total_preferences(args: &Value) -> Result<super::total_focus::Preferences, String> {
+    let mut preferences = state::read()?.total_focus_preferences;
+    if let Some(minutes) = args["duration_minutes"].as_u64() {
+        preferences.duration_minutes = minutes as u16;
+    }
+    if let Some(patterns) = args["patterns"].as_array() {
+        preferences.patterns = patterns
+            .iter()
+            .filter_map(|value| value.as_str().map(str::to_string))
+            .collect();
+    }
+    if let Some(exceptions) = args["exceptions"].as_array() {
+        preferences.exceptions = exceptions
+            .iter()
+            .filter_map(|value| value.as_str().map(str::to_string))
+            .collect();
+    }
+    super::total_focus::validate(preferences)
+}
+
 fn apply_focus_protection(
     protection: &str,
     patterns: &[String],
@@ -186,6 +206,17 @@ fn paired(english: String, spanish: String) -> Result<(String, String), String> 
 // Both copies use the same arguments and, where needed, one saved-state read.
 // User titles, bodies, URLs and identifiers are always inserted verbatim.
 pub fn preview(name: &str, args: &Value) -> Result<(String, String), String> {
+    if name == "focus.total_start" {
+        let prefs = total_preferences(args)?;
+        return paired(format!("Total focus: {} · {} minutes. Block: {}. Exceptions: {}. No automatic messages.", text_arg(args,"intention")?,prefs.duration_minutes,prefs.patterns.join(", "),prefs.exceptions.join(", ")),
+            format!("Concentración total: {} · {} minutos. Bloquear: {}. Excepciones: {}. Sin mensajes automáticos.", text_arg(args,"intention")?,prefs.duration_minutes,prefs.patterns.join(", "),prefs.exceptions.join(", ")));
+    }
+    if name == "focus.total_end" {
+        return paired(
+            "End total focus and release browser protection.".into(),
+            "Finalizar concentración total y liberar la protección del navegador.".into(),
+        );
+    }
     match name {
         "focus.start" => {
             let protection = text_arg(args, "protection")?;
@@ -568,6 +599,12 @@ pub fn execute(
         None
     };
     match name {
+        "focus.total_start" => super::total_focus::activate(
+            text_arg(args, "intention")?.into(),
+            total_preferences(args)?,
+        ),
+        "focus.total_end" => super::total_focus::end(),
+        "focus.total_status" => super::total_focus::get_total_focus(),
         "focus.start" => {
             if state::read()?
                 .focus
