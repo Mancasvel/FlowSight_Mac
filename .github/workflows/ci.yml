@@ -97,6 +97,7 @@ jobs:
             sleep 1
           done
           node scripts/verify-session-onboarding.mjs
+          node scripts/verify-recorded-time.mjs
           node scripts/verify-total-focus-extension.mjs
           node scripts/verify-adda-renderer.mjs
           node scripts/verify-dark-button-hovers.mjs

@@ -1509,6 +1509,14 @@
       margin-bottom: 2px;
     }
 
+    .timer-recording-note {
+      max-width: 22ch;
+      margin-top: 8px;
+      font-size: 11px;
+      line-height: 1.4;
+      color: hsl(var(--muted-foreground));
+    }
+
     .timer-display {
       font-size: 48px;
       font-weight: 700;
@@ -3573,7 +3581,7 @@
         <div class="today-timer-section">
           <div class="today-timer-ring">
             <div class="today-timer-meta">
-              <span>Tracking session</span>
+              <span>Recorded today</span>
               <span class="today-tracking-state" id="todayTrackingState">Ready</span>
             </div>
             <svg viewBox="0 0 200 200" aria-hidden="true">
@@ -3583,6 +3591,7 @@
             </svg>
             <div class="timer-inner">
               <div class="timer-display" id="timerDisplay">00:00:00</div>
+              <small class="timer-recording-note">Updates after each local analysis.</small>
             </div>
             <div class="today-calendar-status" aria-live="polite">
               <div class="today-calendar-context" id="todayCalendarContext" hidden>
@@ -3678,10 +3687,10 @@
               <input type="text" id="manualTask" class="input" placeholder="What are you working on?">
             </div>
             <div class="today-task-integration" id="todayIntegrationControls">
-              <label class="label" id="todayLinkedTaskLabel" for="jiraSelect">Linked task</label>
+              <label class="label" id="todayLinkedTaskLabel" for="jiraSelect">Task</label>
               <select id="jiraSelect" class="select" style="width: 100%;">
                 <option value="">Select Task...</option>
-                <option value="General">General / No Ticket</option>
+                <option value="General">General / No Ticket</option><option value="STUDY">Study</option>
               </select>
             </div>
           </div>
@@ -4261,6 +4270,7 @@
       loadTrackingCheckpoint,
       resolveTrackingRestore,
       saveTrackingCheckpoint,
+      recordedDailyTotal,
     } from './tracking-session.mjs';
     import {
       cleanReportText as extractEnglishText,
@@ -4270,6 +4280,7 @@
     import { renderStatusReportPdf } from './status-report-pdf.mjs';
     import { isWeeklyReportDue } from './weekly-report-schedule.mjs';
     import { resolveTaskContext, transitionTaskDetail } from './today-task-context.mjs';
+    import { captureReadingPosition, restoreReadingPosition, historyRenderKey } from './reading-position.mjs';
     import {
       buildTaskBreakdown,
       focusBarPercent,
@@ -4463,11 +4474,10 @@
 
     function syncTodayTaskFields() {
       const hasEvent = Boolean(activeCalendarTask());
-      const canIntegrate = Boolean(currentEntitlements?.can_integrations);
       const integration = document.getElementById('todayIntegrationControls');
       const manualLabel = document.getElementById('todayManualTaskLabel');
       const manualInput = document.getElementById('manualTask');
-      if (integration) integration.hidden = !canIntegrate;
+      if (integration) integration.hidden = false;
       if (manualLabel) setText(manualLabel, () => ((hasEvent ? tr('Add context to this event (optional)') : tr('Task description'))));
       if (manualInput) setAttributeText(manualInput, 'placeholder', () => ((hasEvent ? tr('What are you doing during this event?') : tr('What are you working on?'))));
     }
@@ -5301,9 +5311,9 @@
     }
 
     let todayTotalSeconds = 0;
-    let sessionSeconds = 0;
     let sessionTimerInterval = null;
     let todayRefreshInterval = null;
+    let dailyHistoryRequest = null;
     let trackingStateHydrated = false;
     let trackingTransitionInProgress = false;
     const TIMER_RING_CIRC = 2 * Math.PI * 82;
@@ -5322,8 +5332,24 @@
       if (ring) ring.setAttribute('stroke-dashoffset', String(TIMER_RING_CIRC * (1 - p)));
     }
 
+    function applyRecordedHistory(history) {
+      todayTotalSeconds = recordedDailyTotal(history);
+      currentHistoryData = history;
+      updateTimerDisplay();
+    }
+
+    function loadCurrentDayHistory() {
+      if (!dailyHistoryRequest) {
+        dailyHistoryRequest = invoke('get_today_history').then(history => {
+          applyRecordedHistory(history);
+          return history;
+        }).finally(() => { dailyHistoryRequest = null; });
+      }
+      return dailyHistoryRequest;
+    }
+
     function getDisplayTotalSeconds() {
-      return todayTotalSeconds + sessionSeconds;
+      return todayTotalSeconds;
     }
 
     function updateTimerControlsVisibility() {
@@ -5421,24 +5447,20 @@
         clearInterval(sessionTimerInterval);
         sessionTimerInterval = null;
       }
-      todayTotalSeconds += sessionSeconds;
-      sessionSeconds = 0;
       updateTimerDisplay();
     }
 
     function resumeSessionTimer() {
       if (sessionTimerInterval) clearInterval(sessionTimerInterval);
       sessionTimerInterval = setInterval(() => {
-        sessionSeconds++;
-        updateTimerDisplay();
-        if (sessionSeconds % TRACKING_CHECKPOINT_INTERVAL_SECONDS === 0) {
+        loadCurrentDayHistory().then(history => {
+          if (document.getElementById('tabSummary')?.classList.contains('active')) renderHistory(history, currentWeekData);
           persistTrackingState();
-        }
-      }, 1000);
+        }).catch(() => {});
+      }, TRACKING_CHECKPOINT_INTERVAL_SECONDS * 1000);
     }
 
     function startSessionTimer() {
-      sessionSeconds = 0;
       resumeSessionTimer();
     }
 
@@ -5485,7 +5507,7 @@
       try {
         const [nativeStatus, history, localAgent] = await Promise.all([
           invoke('get_status'),
-          invoke('get_today_history'),
+          loadCurrentDayHistory(),
           invoke('get_local_agent_data').catch(() => null),
         ]);
         const checkpoint = loadTrackingCheckpoint(localStorage);
@@ -5499,7 +5521,7 @@
         let restored = resolveTrackingRestore({
           nativeRunning: Boolean(nativeStatus?.isRunning),
           serverOnline,
-          historySeconds: history?.total_seconds,
+          historySeconds: recordedDailyTotal(history),
           checkpoint,
           agentFocusStatus: localAgent?.focus?.status,
         });
@@ -5514,7 +5536,6 @@
         }
 
         todayTotalSeconds = restored.totalSeconds;
-        sessionSeconds = 0;
         isMonitoring = restored.mode === 'running';
         isPaused = restored.mode === 'paused';
 
@@ -5635,12 +5656,10 @@
         const streak = computeStreak(week);
         const streakEl = document.getElementById('streakText');
         if (streakEl) setText(streakEl, () => (formatMessage`${streak} day${streak === 1 ? '' : 's'}`));
-        if (!isMonitoring && !isPaused) {
-          const history = await invoke('get_today_history');
-          todayTotalSeconds = history.total_seconds || 0;
-        } else if (isPaused) {
-          const history = await invoke('get_today_history');
-          todayTotalSeconds = Math.max(todayTotalSeconds, history.total_seconds || 0);
+        currentWeekData = week;
+        const history = await loadCurrentDayHistory();
+        if (document.getElementById('tabSummary')?.classList.contains('active')) {
+          renderHistory(history, week);
         }
       } catch (_) { /* agent may not be init yet */ }
       updateTimerDisplay();
@@ -6008,9 +6027,9 @@
         const tasks = await invoke('fetch_jira_tasks');
         console.log('[UI] Loaded', tasks?.length || 0, 'Jira task(s)');
 
-        // Clear existing options except first two
-        while (select.options.length > 2) {
-          select.remove(2);
+        // Keep the placeholder and built-in General / Study tasks.
+        while (select.options.length > 3) {
+          select.remove(3);
         }
 
         // Add tasks
@@ -6771,8 +6790,7 @@
         showToast(formatMessage`Local AI Server Ready${layerSuffix}`, 'success');
 
         try {
-          const history = await invoke('get_today_history');
-          todayTotalSeconds = Math.max(todayTotalSeconds, history.total_seconds || 0);
+          await loadCurrentDayHistory();
         } catch (_) { /* keep local total */ }
 
         await startNativeMonitoring();
@@ -7973,7 +7991,7 @@
         }
 
         sel.innerHTML = markup('<option value="">Select Task...</option>');
-        sel.insertAdjacentHTML('beforeend', markup('<option value="General">General / No Ticket</option>'));
+        sel.insertAdjacentHTML('beforeend', markup('<option value="General">General / No Ticket</option><option value="STUDY">Study</option>'));
 
         if (tasks.length > 0) {
           const groups = {};
@@ -8015,7 +8033,7 @@
       } catch (e) {
         console.error('[UI] Refresh tasks failed:', e);
         sel.innerHTML = markup('<option value="">Not connected</option>');
-        sel.insertAdjacentHTML('beforeend', markup('<option value="General">General / No Ticket</option>'));
+        sel.insertAdjacentHTML('beforeend', markup('<option value="General">General / No Ticket</option><option value="STUDY">Study</option>'));
         const manual = document.createElement('option');
         manual.value = "MANUAL";
         setText(manual, () => (tr("Manual Task")));
@@ -8047,6 +8065,8 @@
 
     // ===== TAB NAVIGATION =====
     const summaryBody = document.getElementById('summaryBody');
+    let lastHistoryRenderKey = null;
+    let historyLoadRequest = null;
     let currentHistoryData = null;
     let currentWeekData = null;
     let lastStatusReportPayload = null;
@@ -8672,7 +8692,7 @@
             const category = (e.category && String(e.category).trim()) ? String(e.category).trim() : tr('General');
             const ticket = e.ticket ? html`<span class="badge badge-success" style="font-size:10px;margin-left:6px;">${escapeHtml(e.ticket)}</span>` : '';
             return html`
-              <div class="timeline-item">
+              <div class="timeline-item" data-reading-key="${escapeHtml(JSON.stringify([e.time, e.category, e.ticket, e.description]))}">
                 <div style="flex:1;">
                   <div style="font-size:11px;color:hsl(var(--muted-foreground));display:flex;justify-content:space-between;">
                     <span>${time}</span><span>${dur}</span>
@@ -8688,6 +8708,19 @@
     }
 
     function renderHistory(data, week) {
+      applyRecordedHistory(data);
+      const key = historyRenderKey(data, week, getLanguage(), getDailyGoalHours());
+      if (key === lastHistoryRenderKey) return;
+      const position = captureReadingPosition(summaryBody);
+      try {
+        renderHistoryContent(data, week);
+        lastHistoryRenderKey = key;
+      } finally {
+        restoreReadingPosition(summaryBody, position);
+      }
+    }
+
+    function renderHistoryContent(data, week) {
       const activeDays = week?.days?.filter(day => day.has_activity).length || 0;
       const weekActivityLabel = formatMessage`${activeDays} active day${activeDays === 1 ? '' : 's'}`;
       if (data.entries.length === 0) {
@@ -8754,7 +8787,7 @@
           <div class="week-row">${renderWeekRow(week)}</div>
         </section>
 
-        <div class="summary-main-card">
+        <div class="summary-main-card" data-reading-key="daily-summary">
           <div class="summary-time-row">
             ${renderProgressRing(progress)}
             <div>
@@ -8776,13 +8809,13 @@
 
         <div class="highlights-title">Highlights</div>
 
-        <div class="highlight-card highlight-focus">
+        <div class="highlight-card highlight-focus" data-reading-key="sustained-focus">
           <div class="highlight-card-header">${renderIcon('target', 15)} Deep Focus</div>
           <div class="highlight-insight">${focusInsight}</div>
           ${renderFocusChart(data)}
         </div>
 
-        <div class="highlight-card highlight-distraction">
+        <div class="highlight-card highlight-distraction" data-reading-key="distractions">
           <div class="distraction-row">
             <div>
               <div class="highlight-card-header" title="${escapeHtml(distractionDefinition)}">${renderIcon('smartphone', 15)} Sustained non-work browsing</div>
@@ -9027,17 +9060,28 @@
       showPdfDownloadModal(savedPath, filename);
     }
 
-    async function loadHistory() {
-      summaryBody.innerHTML = markup('<div class="empty-state"><span class="loading"></span> Loading summary...</div>');
+    function loadHistory() {
+      if (!historyLoadRequest) {
+        historyLoadRequest = fetchHistory().finally(() => { historyLoadRequest = null; });
+      }
+      return historyLoadRequest;
+    }
+
+    async function fetchHistory() {
+      if (!currentHistoryData) summaryBody.innerHTML = markup('<div class="empty-state"><span class="loading"></span> Loading summary...</div>');
       try {
         const [history, week] = await Promise.all([
-          invoke('get_today_history'),
+          loadCurrentDayHistory(),
           invoke('get_week_summary').catch(() => null),
         ]);
         currentHistoryData = history;
         currentWeekData = week;
-        renderHistory(history, week);
+        if (document.getElementById('tabSummary')?.classList.contains('active')) renderHistory(history, week);
       } catch (e) {
+        if (currentHistoryData) {
+          console.warn('[Insights] Refresh failed; keeping the current report.', e);
+          return;
+        }
         const errorState = document.createElement('div');
         errorState.className = 'empty-state';
         errorState.style.color = 'hsl(var(--destructive))';

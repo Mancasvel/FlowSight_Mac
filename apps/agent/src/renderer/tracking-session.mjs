@@ -10,6 +10,10 @@ function normalizeSeconds(value) {
   return Number.isFinite(seconds) ? Math.max(0, Math.floor(seconds)) : 0;
 }
 
+export function recordedDailyTotal(history, now = Date.now()) {
+  return history?.date === localDayKey(now) ? normalizeSeconds(history.total_seconds) : 0;
+}
+
 export function localDayKey(now = Date.now()) {
   const date = new Date(now);
   const year = date.getFullYear();
@@ -85,8 +89,8 @@ export function loadTrackingCheckpoint(
 }
 
 /**
- * Reconciles durable SQLite history, the native agent state, and the renderer
- * checkpoint without ever counting time spent during a native-process outage.
+ * Restore tracking intent from the checkpoint. Displayed time comes exclusively
+ * from durable SQLite history; older wall-clock checkpoints must not inflate it.
  */
 export function resolveTrackingRestore({
   nativeRunning,
@@ -96,15 +100,11 @@ export function resolveTrackingRestore({
   agentFocusStatus,
 }) {
   const historyTotal = normalizeSeconds(historySeconds);
-  const checkpointTotal = checkpoint ? normalizeSeconds(checkpoint.totalSeconds) : 0;
 
   if (nativeRunning) {
-    const liveCheckpointTotal = checkpoint?.mode === 'running'
-      ? checkpointTotal + normalizeSeconds(checkpoint.ageSeconds)
-      : checkpointTotal;
     return {
       mode: 'running',
-      totalSeconds: Math.max(historyTotal, liveCheckpointTotal),
+      totalSeconds: historyTotal,
       shouldResumeNative: false,
     };
   }
@@ -112,7 +112,7 @@ export function resolveTrackingRestore({
   if (agentFocusStatus === 'paused') {
     return {
       mode: 'paused',
-      totalSeconds: Math.max(historyTotal, checkpointTotal),
+      totalSeconds: historyTotal,
       shouldResumeNative: false,
     };
   }
@@ -120,7 +120,7 @@ export function resolveTrackingRestore({
   if (checkpoint?.mode === 'running') {
     return {
       mode: serverOnline ? 'running' : 'paused',
-      totalSeconds: Math.max(historyTotal, checkpointTotal),
+      totalSeconds: historyTotal,
       shouldResumeNative: Boolean(serverOnline),
     };
   }
@@ -128,7 +128,7 @@ export function resolveTrackingRestore({
   if (checkpoint?.mode === 'paused') {
     return {
       mode: 'paused',
-      totalSeconds: Math.max(historyTotal, checkpointTotal),
+      totalSeconds: historyTotal,
       shouldResumeNative: false,
     };
   }

@@ -53,12 +53,15 @@ jobs:
     runs-on: macos-14
     env:
       TAURI_GOOGLE_CALENDAR_CLIENT_ID: ${{ vars.TAURI_GOOGLE_CALENDAR_CLIENT_ID }}
+      TAURI_MICROSOFT_CALENDAR_CLIENT_ID: ${{ vars.TAURI_MICROSOFT_CALENDAR_CLIENT_ID }}
+      FLOWSIGHT_CHROME_EXTENSION_STORE_URL: ${{ vars.FLOWSIGHT_CHROME_EXTENSION_STORE_URL }}
+      FLOWSIGHT_EDGE_EXTENSION_STORE_URL: ${{ vars.FLOWSIGHT_EDGE_EXTENSION_STORE_URL }}
       TAURI_JIRA_CLIENT_ID: ${{ secrets.TAURI_JIRA_CLIENT_ID }}
       TAURI_JIRA_CLIENT_SECRET: ${{ secrets.TAURI_JIRA_CLIENT_SECRET }}
       TAURI_LINEAR_CLIENT_ID: ${{ secrets.TAURI_LINEAR_CLIENT_ID }}
       TAURI_LINEAR_CLIENT_SECRET: ${{ secrets.TAURI_LINEAR_CLIENT_SECRET }}
-      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL || secrets.VITE_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY || secrets.VITE_SUPABASE_PUBLIC_KEY }}
       TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
       TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
       APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
@@ -136,6 +139,11 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Verify release versions, extension resources, and task options
+        run: |
+          node scripts/verify-release-assets.mjs
+          pnpm --filter @flowsight/agent test:renderer
 
       - name: Enable updater artifacts when signing key is present
         shell: bash
@@ -348,6 +356,7 @@ jobs:
 
           APP="apps/agent/src-tauri/target/${RUST_TARGET}/release/bundle/macos/FlowSight Agent.app"
           test -d "$APP"
+          node scripts/verify-release-assets.mjs "$APP/Contents/Resources"
 
           # The Intel slice is cross-compiled and not run under Rosetta here.
           if [[ "$RUST_TARGET" == "aarch64-apple-darwin" ]]; then
@@ -647,7 +656,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tag_name: ${{ github.event.release.tag_name || inputs.tag }}
-          draft: true
+          draft: ${{ github.event_name != 'release' }}
           fail_on_unmatched_files: false
           # Publishing a verified draft reruns this workflow; keep its existing assets available.
           overwrite_files: false

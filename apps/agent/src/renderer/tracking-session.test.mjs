@@ -7,6 +7,7 @@ import {
   createTrackingCheckpoint,
   loadTrackingCheckpoint,
   resolveTrackingRestore,
+  recordedDailyTotal,
   saveTrackingCheckpoint,
 } from './tracking-session.mjs';
 
@@ -47,7 +48,7 @@ test('discards stale, cross-day, and malformed checkpoints', () => {
   assert.equal(storage.getItem(TRACKING_CHECKPOINT_KEY), null);
 });
 
-test('continues elapsed time only while the native agent remained alive', () => {
+test('restores tracking intent while taking displayed time from recorded history', () => {
   const checkpoint = {
     ...createTrackingCheckpoint('running', 100, Date.now()),
     ageSeconds: 12,
@@ -60,7 +61,7 @@ test('continues elapsed time only while the native agent remained alive', () => 
     checkpoint,
   }), {
     mode: 'running',
-    totalSeconds: 112,
+    totalSeconds: 80,
     shouldResumeNative: false,
   });
 
@@ -71,9 +72,25 @@ test('continues elapsed time only while the native agent remained alive', () => 
     checkpoint,
   }), {
     mode: 'running',
-    totalSeconds: 100,
+    totalSeconds: 80,
     shouldResumeNative: true,
   });
+});
+
+test('the reported 05:59:31 checkpoint cannot inflate 5 h 45 min of recorded time', () => {
+  const checkpoint = { ...createTrackingCheckpoint('running', 21571), ageSeconds: 15 };
+  for (const nativeRunning of [false, true]) {
+    assert.equal(resolveTrackingRestore({ nativeRunning, serverOnline: true, historySeconds: 20700, checkpoint }).totalSeconds, 20700);
+  }
+  assert.equal(resolveTrackingRestore({ nativeRunning: false, serverOnline: false, historySeconds: 20700, checkpoint }).totalSeconds, 20700);
+});
+
+test('daily totals use the current local date and accept durable corrections', () => {
+  const now = new Date(2026, 9, 1, 12).getTime();
+  assert.equal(recordedDailyTotal({ date: '2026-10-01', total_seconds: 20700 }, now), 20700);
+  assert.equal(recordedDailyTotal({ date: '2026-09-30', total_seconds: 21571 }, now), 0);
+  assert.equal(recordedDailyTotal({ date: '2026-10-01', total_seconds: -1 }, now), 0);
+  assert.equal(recordedDailyTotal({ date: '2026-10-01', total_seconds: NaN }, now), 0);
 });
 
 test('preserves intent as paused when the local server did not survive a restart', () => {
