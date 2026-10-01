@@ -5,15 +5,15 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 
-const runtime = process.env.FLOWSIGHT_LLAMA_RUNTIME;
-if (!runtime) throw new Error('Set FLOWSIGHT_LLAMA_RUNTIME.');
+const runtime = resolve(process.env.FLOWSIGHT_LLAMA_RUNTIME || 'local_llm');
+const binarySuffix = process.platform === 'win32' ? '.exe' : '';
 const output = resolve('.impeccable/review');
 await mkdir(output, { recursive: true });
 const port = await new Promise(resolvePort => {
   const listener = createServer();
   listener.listen(0, '127.0.0.1', () => { const value = listener.address().port; listener.close(() => resolvePort(value)); });
 });
-const server = spawn(join(runtime, 'bin/llama-server.exe'), [
+const server = spawn(join(runtime, `bin/llama-server${binarySuffix}`), [
   '-m', join(runtime, 'Qwen3VL-2B-Instruct-Q4_K_M.gguf'), '--mmproj', join(runtime, 'mmproj-Qwen3VL-2B-Instruct-Q8_0.gguf'),
   '--alias', 'flowsight-qwen3vl-2b-instruct', '--reasoning-budget', '0', '--chat-template-kwargs', '{"enable_thinking":false}',
   '--host', '127.0.0.1', '--port', String(port), '--ctx-size', '8192', '--parallel', '2', '--threads', '2', '--n-gpu-layers', '0',
@@ -22,7 +22,7 @@ let tail = '';
 for (const stream of [server.stdout, server.stderr]) stream.on('data', data => { tail = (tail + data).slice(-6000); });
 const request = { intention: 'I want to do 4 exercises of ADDA related with virtual graphs, genetic algorithms, recursive types and PLE', startAt: '2026-10-01T10:35:00+02:00', endAt: '2026-10-01T16:35:00+02:00' };
 const run = input => new Promise((resolveResult, reject) => {
-  const test = spawn(resolve('.impeccable/review/suggestions-harness/target/release/flowsight-suggestions-harness.exe'), [], {
+  const test = spawn(resolve(`.impeccable/review/suggestions-harness/target/release/flowsight-suggestions-harness${binarySuffix}`), [], {
     windowsHide: true, env: { ...process.env, FLOWSIGHT_PLAN_SMOKE_URL: `http://127.0.0.1:${port}/v1/chat/completions` }, stdio: ['pipe', 'pipe', 'pipe'],
   });
   let stdout = '', stderr = '';
