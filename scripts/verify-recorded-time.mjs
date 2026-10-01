@@ -22,6 +22,12 @@ try {
         category_breakdown: [{ category: 'Research', total_seconds: 20700 }], ticket_breakdown: [],
         focus: { deep_focus_seconds: 13380, distraction_events: 0, hourly_deep_focus: [], sensor_grace_seconds: 120, browsing_distraction_min_seconds: 120, themes: [] },
       };
+      window.recordedHistory.entries.push(...Array.from({ length: 30 }, (_, index) => ({
+        time: `2026-10-01 ${String(16 - Math.floor(index / 6)).padStart(2, '0')}:${String(55 - index % 6 * 5).padStart(2, '0')}:00`,
+        duration_seconds: 0, category: 'Research', ticket: null,
+        description: `Synthetic study resource ${index}: reviewing virtual graphs, recursive types and genetic algorithms. Keep this explanation visible while a new observation arrives.`,
+      })));
+      window.historyFailure = false;
       // Reproduce the user's inflated checkpoint from the older renderer.
       localStorage.setItem('flowsight_tracking_checkpoint_v1', JSON.stringify({ version: 1, mode: 'running', totalSeconds: 21571, updatedAt: Date.now(), day: '2026-10-01' }));
       let running = true, counter = 1;
@@ -50,7 +56,10 @@ try {
         async invoke(command, args = {}) {
           window.testCalls.push({ command, args });
           if (command === 'get_status') return { isRunning: running };
-          if (command === 'get_today_history') return structuredClone(window.recordedHistory);
+          if (command === 'get_today_history') {
+            if (window.historyFailure) throw new Error('Synthetic history unavailable');
+            return structuredClone(window.recordedHistory);
+          }
           if (command === 'start_monitoring' || command === 'stop_monitoring') { running = command === 'start_monitoring'; return true; }
           if (command === 'plugin:event|listen') { listeners.set(args.event, [...(listeners.get(args.event) || []), args.handler]); return args.handler; }
           if (command.startsWith('plugin:window|')) return command.endsWith('is_maximized') ? false : null;
@@ -70,6 +79,32 @@ try {
     await page.locator('.summary-total-time').filter({ hasText: '5 h 45 min' }).waitFor();
     assert.match(await page.locator('.summary-focus-ratio').innerText(), /65%/);
     await page.screenshot({ path: resolve(output, `insights-${locale}.png`) });
+    const resource = page.locator('.timeline-item').filter({ hasText: 'Synthetic study resource 18:' });
+    await resource.evaluate(element => {
+      const scroller = element.closest('.tab-content');
+      scroller.scrollTop += element.getBoundingClientRect().top - scroller.getBoundingClientRect().top - 40;
+    });
+    const topBefore = await resource.evaluate(element => element.getBoundingClientRect().top);
+    const oldHandle = await resource.elementHandle();
+    await page.clock.runFor(30000);
+    assert.equal(await oldHandle.evaluate(element => element.isConnected), true, 'Unchanged polling must preserve the existing report DOM.');
+    await page.screenshot({ path: resolve(output, `reading-before-${locale}.png`) });
+    await page.evaluate(() => {
+      window.recordedHistory.entries.unshift({
+        time: '2026-10-01 17:00:00', duration_seconds: 0, category: 'Research', ticket: null,
+        description: 'New synthetic resource above the item currently being read.',
+      });
+      window.testEmit('activity-report', { id: 100 });
+    });
+    await page.getByText('New synthetic resource above the item currently being read.', { exact: true }).waitFor({ state: 'attached' });
+    const topAfter = await resource.evaluate(element => element.getBoundingClientRect().top);
+    assert.ok(Math.abs(topAfter - topBefore) <= 2, `New resources must preserve reading offset: ${topBefore} → ${topAfter}`);
+    await page.screenshot({ path: resolve(output, `reading-after-${locale}.png`) });
+    await page.evaluate(() => { window.historyFailure = true; window.testEmit('activity-report'); });
+    await page.clock.runFor(16000);
+    assert.equal(await resource.count(), 1, 'Transient refresh failure must keep the report being read.');
+    assert.ok(Math.abs(await resource.evaluate(element => element.getBoundingClientRect().top) - topAfter) <= 2);
+    await page.evaluate(() => { window.historyFailure = false; });
     await page.evaluate(() => {
       window.recordedHistory.total_seconds = 20760;
       window.recordedHistory.entries[0].duration_seconds = 20760;
@@ -91,7 +126,7 @@ try {
     await page.evaluate(() => window.testEmit('activity-report'));
     await page.locator('#timerDisplay').filter({ hasText: '00:00:00' }).waitFor();
     assert.deepEqual(errors, []);
-    evidence.push({ locale, inflatedCheckpointIgnored: true, wallTimeNotAdded: true, sharedTotals: true, savedObservationRefresh: true, pausePreserved: true, localMidnightReset: true });
+    evidence.push({ locale, inflatedCheckpointIgnored: true, wallTimeNotAdded: true, sharedTotals: true, savedObservationRefresh: true, pausePreserved: true, localMidnightReset: true, unchangedDomPreserved: true, insertedResourceReadingOffset: { before: topBefore, after: topAfter }, refreshFailureKeepsReport: true });
     console.log(`${locale}: 05:59:31 checkpoint → 05:45:00 recorded, summary 5 h 45 min / 65%, save refresh, pause and midnight passed.`);
     await page.close();
   }
