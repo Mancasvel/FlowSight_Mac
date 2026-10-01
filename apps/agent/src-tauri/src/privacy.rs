@@ -282,6 +282,9 @@ pub fn enforce_local_retention(db_path: &Path) -> Result<usize, String> {
             params![modifier],
         )
         .map_err(|error| error.to_string())?;
+    if conn.query_row::<bool, _, _>("SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='tracking_daily_time')", [], |row| row.get(0)).map_err(|e| e.to_string())? {
+        conn.execute("DELETE FROM tracking_daily_time WHERE date < date('now', 'localtime', ?1)", params![modifier]).map_err(|e| e.to_string())?;
+    }
     Ok(deleted)
 }
 
@@ -500,6 +503,11 @@ pub fn export_personal_data(include_cloud: bool) -> Result<String, String> {
         .map_err(|error| error.to_string())?;
     drop(event_stmt);
 
+    let tracked_days = if conn.query_row::<bool, _, _>("SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='tracking_daily_time')", [], |row| row.get(0)).map_err(|e| e.to_string())? {
+        let mut stmt = conn.prepare("SELECT date, elapsed_milliseconds FROM tracking_daily_time ORDER BY date").map_err(|e| e.to_string())?;
+        let days = stmt.query_map([], |row| Ok(json!({"date": row.get::<_, String>(0)?, "elapsed_milliseconds": row.get::<_, i64>(1)?}))).map_err(|e| e.to_string())?.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?;
+        days
+    } else { Vec::new() };
     let privacy_settings = load_privacy_settings(&db_path)?;
     let analytics =
         crate::anonymous_analytics::load_analytics_consent(&db_path).unwrap_or_default();
@@ -547,6 +555,7 @@ pub fn export_personal_data(include_cloud: bool) -> Result<String, String> {
         "local_agent_data": local_agent_data,
         "application_settings": application_settings,
         "local_activity_reports": reports,
+        "local_tracking_days": tracked_days,
         "local_coach_messages": coach_messages,
         "privacy_choice_history": privacy_events,
         "cloud_data": cloud,
@@ -616,6 +625,9 @@ fn erase_local_database(conn: &Connection) -> Result<(), String> {
     transaction
         .execute("DELETE FROM config", [])
         .map_err(|error| error.to_string())?;
+    transaction
+        .execute_batch("DROP TABLE IF EXISTS tracking_daily_time;")
+        .map_err(|error| error.to_string())?;
     transaction.commit().map_err(|error| error.to_string())?;
     conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE); VACUUM;")
         .map_err(|error| error.to_string())?;
@@ -636,14 +648,17 @@ pub fn delete_local_data(
     crate::local_agent::browser_bridge::queue_unblock_all();
     crate::report_schedule::clear_weekly_report_schedule()?;
     crate::telemetry::set_running(false);
-    if let Some(agent) = state.lock().unwrap().as_mut() {
+    let mut agent_guard = state.lock().map_err(|e| e.to_string())?;
+    if let Some(agent) = agent_guard.as_mut() {
         agent.is_running = false;
+        agent.tracking_clock = None;
         agent.reports_sent = 0;
     }
     let db_path = crate::paths::db_path()?;
     let conn = Connection::open(&db_path).map_err(|error| error.to_string())?;
     ensure_schema(&conn)?;
     erase_local_database(&conn)?;
+    drop(agent_guard);
     let warnings = remove_runtime_artifacts(&app);
     Ok(json!({ "deleted": true, "warnings": warnings }))
 }

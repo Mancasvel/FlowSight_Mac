@@ -200,6 +200,7 @@ pub fn setup_tray(app: &mut tauri::App) -> tauri::Result<()> {
             "quit" => {
                 QUITTING.store(true, Ordering::Relaxed);
                 crate::local_agent::restore_on_exit();
+                let _ = crate::agent::get_tracking_clock(app.state::<crate::agent::AgentState>());
                 app.exit(0);
             }
             _ => {}

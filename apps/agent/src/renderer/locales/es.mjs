@@ -121,6 +121,28 @@ Select Task...|Seleccionar tarea…
 General / No Ticket|General / Sin incidencia
 Study|Estudio
 Recorded today|Registrado hoy
+Timer mode|Modo del temporizador
+Normal|Normal
+Pomodoro|Pomodoro
+Tracked today|Tiempo de seguimiento hoy
+Live timer · pauses when tracking is paused.|Temporizador en directo · se detiene al pausar el seguimiento.
+Focus interval|Intervalo de concentración
+Ready for the next interval|Listo para el siguiente intervalo
+Long break|Descanso largo
+Intervals|Intervalos
+Work (min)|Trabajo (min)
+Break (min)|Descanso (min)
+Long break (min)|Descanso largo (min)
+Long break after four focus intervals. Breaks pause tracking; start the next interval when ready.|Descanso largo tras cuatro intervalos de concentración. El seguimiento se pausa durante los descansos; inicia el siguiente intervalo cuando estés listo.
+Time for a break. Tracking is paused.|Es hora de descansar. El seguimiento está en pausa.
+Break finished. Start the next focus interval when you are ready.|El descanso ha terminado. Inicia el siguiente intervalo de concentración cuando estés listo.
+Could not pause tracking. Pause it before taking a break.|No se pudo pausar el seguimiento. Páusalo antes de descansar.
+Taking a break|En descanso
+Start focus interval|Iniciar intervalo de concentración
+End break|Terminar descanso
+Start the next focus interval when you are ready.|Inicia el siguiente intervalo de concentración cuando estés listo.
+{p0} completed intervals · {p1} tracked today|{p0} intervalos completados · {p1} de seguimiento hoy
+{p0} in sustained blocks · {p1} analyzed|{p0} en bloques sostenidos · {p1} analizados
 Updates after each local analysis.|Se actualiza tras cada análisis local.
 Task|Tarea
 Sync time to Jira|Sincronizar tiempo con Jira
