@@ -8,7 +8,7 @@ mod crash_guard;
 mod desktop_presence;
 mod entitlements;
 mod focus_alerts;
-mod focus_semantics;
+pub mod focus_semantics;
 mod insights_local;
 mod jira;
 mod linear;
@@ -29,8 +29,6 @@ mod sync_pure;
 mod telemetry;
 mod user_preferences;
 mod vision_model;
-
-use tauri::Manager;
 
 use agent::{
     capture_screen_command, check_local_server, check_ollama, get_activity_log, get_config,
@@ -136,6 +134,7 @@ pub fn run() {
                 app.handle()
                     .plugin(tauri_plugin_updater::Builder::new().build())?;
             }
+            report_schedule::start_check_loop(app.handle().clone());
 
             // Log a archivo en TODOS los builds. En release el usuario no ve stderr,
             // así que sin esto no hay forma de diagnosticar crashes post-login.

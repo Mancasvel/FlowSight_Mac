@@ -127,7 +127,8 @@ pub fn build_local_insights_report(
         )
         .map_err(|e| e.to_string())?;
 
-    let rows: Vec<(String, String, u8, String, String, Option<String>, i32, i32)> = stmt
+    type LocalActivityRow = (String, String, u8, String, String, Option<String>, i32, i32);
+    let rows: Vec<LocalActivityRow> = stmt
         .query_map(params![start_str, end_str], |row| {
             Ok((
                 row.get(0)?,
@@ -286,10 +287,8 @@ pub fn build_local_insights_report(
             unsynced_count += 1;
         }
 
-        if prev_day == Some(date.as_str()) {
-            if prev_category != Some(category.as_str()) {
-                context_switches += 1;
-            }
+        if prev_day == Some(date.as_str()) && prev_category != Some(category.as_str()) {
+            context_switches += 1;
         }
         prev_day = Some(date.as_str());
         prev_category = Some(category.as_str());
@@ -734,6 +733,7 @@ fn section_detail(result: &serde_json::Value, pass_id: &str) -> String {
     extract_english_text(raw.unwrap_or("Section complete."))
 }
 
+#[allow(clippy::too_many_arguments)]
 fn llm_section(
     app: &tauri::AppHandle,
     step: u32,
@@ -1081,6 +1081,7 @@ Return JSON: {\"lessons_learned\":[{\"title\":\"\",\"body\":\"2-3 sentences\"}],
     Ok((report, passes))
 }
 
+#[allow(dead_code)]
 fn build_analysis_from_stats(local_data: &serde_json::Value) -> serde_json::Value {
     let mut focus_patterns = Vec::new();
     let mut distraction_patterns = Vec::new();
@@ -1132,6 +1133,7 @@ fn build_analysis_from_stats(local_data: &serde_json::Value) -> serde_json::Valu
     })
 }
 
+#[allow(dead_code)]
 fn build_diagnosis_from_stats(
     local_data: &serde_json::Value,
     _analysis: &serde_json::Value,
@@ -1212,7 +1214,7 @@ fn build_section_stats_snapshot(
             append_daily_detail(&mut lines, local_data);
             append_activity_samples(&mut lines, local_data, 14, 140);
         }
-        "lessons_recommendations" | _ => {
+        _ => {
             append_health_metrics(&mut lines, local_data);
             append_top_categories(&mut lines, local_data, 6);
             append_top_tickets(&mut lines, local_data, 6);
@@ -1501,6 +1503,7 @@ fn truncate_stats_text(text: String, max_chars: usize) -> String {
     text.chars().take(max_chars).collect::<String>() + "…"
 }
 
+#[allow(dead_code)]
 fn truncate_json_compact(value: &serde_json::Value, max_chars: usize) -> String {
     let s = serde_json::to_string(value).unwrap_or_else(|_| "{}".to_string());
     if s.chars().count() <= max_chars {
@@ -1509,6 +1512,7 @@ fn truncate_json_compact(value: &serde_json::Value, max_chars: usize) -> String 
     s.chars().take(max_chars).collect::<String>() + "…"
 }
 
+#[allow(dead_code)]
 fn merge_diagnosis_into_draft(draft: &mut serde_json::Value, diagnosis: &serde_json::Value) {
     if draft
         .get("overall_health")
@@ -1654,7 +1658,7 @@ fn extract_english_text(s: &str) -> String {
         .collect();
 
     let segments: Vec<String> = cleaned
-        .split(|c| c == '.' || c == '!' || c == '?' || c == '\n')
+        .split(['.', '!', '?', '\n'])
         .map(str::trim)
         .filter(|seg| !seg.is_empty() && latin_ratio(seg) >= 0.55)
         .map(|seg| seg.split_whitespace().collect::<Vec<_>>().join(" "))

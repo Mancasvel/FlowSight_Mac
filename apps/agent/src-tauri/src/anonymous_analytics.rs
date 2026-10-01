@@ -3,7 +3,7 @@
 //! Collects only aggregate usage: daily minutes and weekly primary activity category.
 //! No account, email, or other personally identifiable information is sent.
 
-use chrono::{Datelike, Local, NaiveDate};
+use chrono::{Datelike, Local};
 use reqwest::blocking::Client;
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
@@ -67,7 +67,7 @@ pub fn save_analytics_consent(
     Ok(consent)
 }
 
-pub fn compute_daily_usage(conn: &Connection, days: i32) -> Result<Vec<DailyUsageEntry>, String> {
+fn compute_daily_usage(conn: &Connection, days: i32) -> Result<Vec<DailyUsageEntry>, String> {
     if days <= 0 {
         return Ok(Vec::new());
     }

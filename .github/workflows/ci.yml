@@ -18,6 +18,7 @@ jobs:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       FLOWSIGHT_LLM_ARCH: macos-arm64
       FLOWSIGHT_SKIP_LLM_RUN: "1"
+      FLOWSIGHT_RENDERER_URL: http://127.0.0.1:1420
     steps:
       - uses: actions/checkout@v4
 
@@ -55,6 +56,31 @@ jobs:
 
       - name: Production renderer
         run: pnpm --filter @flowsight/agent exec vite build
+
+      - name: Install browser for renderer integration checks
+        run: pnpm exec playwright install chromium
+
+      - name: Onboarding and ADDA renderer checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm --filter @flowsight/agent exec vite --host 127.0.0.1 --port 1420 > /tmp/flowsight-renderer.log 2>&1 &
+          renderer_pid=$!
+          trap 'kill "$renderer_pid" 2>/dev/null || true' EXIT
+          for attempt in {1..60}; do
+            if curl -fsS http://127.0.0.1:1420/ >/dev/null; then break; fi
+            sleep 1
+          done
+          node scripts/verify-session-onboarding.mjs
+          node scripts/verify-adda-renderer.mjs
+
+      - name: Upload renderer evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-renderer-previews
+          path: .impeccable/review/*.png
+          if-no-files-found: ignore
 
       - name: Formatting
         run: cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --check

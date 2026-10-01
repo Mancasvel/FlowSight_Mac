@@ -117,6 +117,13 @@ impl FlowSightAgent {
                     "ALTER TABLE reports ADD COLUMN duration_seconds INTEGER DEFAULT 30",
                     [],
                 );
+                // Older macOS databases predate the local reminder context.
+                // Keep raw window titles absent; an explicit selected task is
+                // sufficient for grouping the recorded work.
+                for column in ["active_app", "window_title", "theme_hint"] {
+                    let _ =
+                        conn.execute(&format!("ALTER TABLE reports ADD COLUMN {column} TEXT"), []);
+                }
             }
             Err(e) => log::error!(
                 "[Agent] SQLite open failed {:?} (init_db): {}",
@@ -248,10 +255,8 @@ impl FlowSightAgent {
                         timestamp: row.get(4)?,
                     })
                 }) {
-                    for row_result in rows {
-                        if let Ok(report) = row_result {
-                            reports.push(report);
-                        }
+                    for report in rows.flatten() {
+                        reports.push(report);
                     }
                 }
             }
@@ -891,7 +896,7 @@ const MISSING_WEIGHTS_MESSAGE: &str =
     "Local AI model weights are not downloaded yet. Run the first-run model download and retry.";
 
 fn clamp_llama_gpu_layers(n: i32) -> i32 {
-    n.max(0).min(16_384)
+    n.clamp(0, 16_384)
 }
 
 /// Descending CUDA/Vulkan offload steps for vision GGUF (+ mmproj): try the highest that
@@ -1033,6 +1038,7 @@ pub fn llama_server_log_tail(max_chars: Option<usize>) -> Result<String, String>
     Ok(read_server_log_tail_chars(n))
 }
 
+#[allow(clippy::too_many_arguments)]
 fn configure_llama_command(
     bin_path: &Path,
     model_path: &Path,
@@ -1158,10 +1164,7 @@ fn try_spawn_llama_process(
             (None, false),
         ];
 
-        let mut last_err = IoError::new(
-            std::io::ErrorKind::Other,
-            "llama-server spawn failed (no attempts)",
-        );
+        let mut last_err = IoError::other("llama-server spawn failed (no attempts)");
         let mut spawned: Option<std::process::Child> = None;
         for &(flags, redirect_log) in &attempts {
             let mut cmd = configure_llama_command(
@@ -1175,7 +1178,7 @@ fn try_spawn_llama_process(
                 redirect_log,
                 flags,
             )
-            .map_err(|msg| IoError::new(std::io::ErrorKind::Other, msg))?;
+            .map_err(IoError::other)?;
 
             match cmd.spawn() {
                 Ok(child) => {
@@ -1725,9 +1728,14 @@ pub(crate) fn insert_report(
 ) -> Option<i64> {
     let activity_type = resolve_persisted_category(activity_type);
     let conn = Connection::open(db_path).ok()?;
+    let foreground = crate::context::get_system_context();
+    let active_app = foreground
+        .app_name
+        .filter(|app| !crate::privacy::application_is_excluded(db_path, Some(app)));
+    let theme = crate::telemetry::selected_task_for_reminder();
     conn.execute(
-        "INSERT INTO reports (description, activity_type, jira_ticket_id, duration_seconds) VALUES (?, ?, ?, ?)",
-        params![description, activity_type, jira_ticket, duration_seconds],
+        "INSERT INTO reports (description, activity_type, jira_ticket_id, duration_seconds, active_app, theme_hint) VALUES (?, ?, ?, ?, ?, ?)",
+        params![description, activity_type, jira_ticket, duration_seconds, active_app, theme],
     )
     .ok()?;
     Some(conn.last_insert_rowid())

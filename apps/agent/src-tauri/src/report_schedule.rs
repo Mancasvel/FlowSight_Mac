@@ -138,6 +138,7 @@ pub fn get_weekly_report_schedule() -> Result<WeeklyReportSchedule, String> {
     read_schedule(&schedule_path()?)
 }
 
+#[allow(dead_code)]
 pub fn clear_weekly_report_schedule() -> Result<(), String> {
     let _guard = SCHEDULE_LOCK.lock().map_err(|error| error.to_string())?;
     let path = schedule_path()?;

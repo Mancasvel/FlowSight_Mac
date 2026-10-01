@@ -186,6 +186,7 @@ pub fn selected_task_for_reminder() -> Option<String> {
     task.jira_ticket.clone().or_else(|| task.user_task.clone())
 }
 
+#[cfg(target_os = "macos")]
 pub fn record_foreground_for_reminder(app_name: &str) {
     let Some(app) = APP_HANDLE.get() else {
         return;

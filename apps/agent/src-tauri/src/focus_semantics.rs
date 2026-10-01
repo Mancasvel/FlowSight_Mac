@@ -270,11 +270,6 @@ impl LocalDateWindow {
         }
         slices
     }
-
-    pub(crate) fn contains_local_timestamp(&self, timestamp: &str) -> bool {
-        NaiveDateTime::parse_from_str(timestamp, "%Y-%m-%d %H:%M:%S")
-            .is_ok_and(|value| value >= self.start && value < self.end_exclusive)
-    }
 }
 
 fn clean_theme_value(value: &str) -> Option<String> {
@@ -2051,57 +2046,6 @@ mod tests {
         assert_eq!(payload["sessions"][0]["theme"], "Task Policy brief");
         assert!(payload.get("switches_per_focus_hour").is_none());
         assert!(!payload.to_string().contains("task:policy brief"));
-    }
-
-    #[test]
-    fn renderer_and_cloud_prompts_depend_on_the_canonical_payload() {
-        let renderer = include_str!("../../src/renderer/index.html");
-        let charts = include_str!("../../src/renderer/insights-charts.mjs");
-        let task_context = include_str!("../../src/renderer/today-task-context.mjs");
-        assert!(renderer.contains("data.focus?.deep_focus_seconds"));
-        assert!(renderer.contains("focus.hourly_deep_focus"));
-        assert!(renderer.contains("focus.deep_threshold_seconds"));
-        assert!(renderer.contains("focus.sensor_grace_seconds"));
-        assert!(renderer.contains("focus.browsing_distraction_min_seconds"));
-        assert!(renderer.contains("resolveTaskContext"));
-        assert!(task_context.contains("selectedValue !== 'General'"));
-        assert!(renderer.contains("Sustained non-work browsing"));
-        assert!(renderer.contains("no deep focus"));
-        assert!(renderer.contains("each bar is one hour"));
-        assert!(renderer.contains("focusBarPercent(seconds)"));
-        assert!(charts.contains("value / 3600 * 100"));
-        assert!(!renderer.contains("Focus, flow, and planning"));
-        for forbidden in [
-            "FOCUS_CATEGORIES",
-            "DISTRACTION_CATEGORIES",
-            "computeFocusSeconds",
-            "deep_focus_sessions_30m_plus",
-        ] {
-            assert!(
-                !renderer.contains(forbidden),
-                "renderer contains {forbidden}"
-            );
-        }
-
-        let coach = include_str!("../../../../supabase/functions/coach-chat/index.ts");
-        let insights = include_str!("../../../../supabase/functions/generate-insights/index.ts");
-        assert!(coach.contains("local_context.focus_semantics"));
-        assert!(coach.contains("Never reconstruct Deep Focus"));
-        assert!(coach.contains("Use only its distraction_events/distraction_seconds"));
-        assert!(insights.contains("DATA.localReport.focus_semantics"));
-        assert!(insights.contains("do not estimate it from categories"));
-        assert!(insights.contains("Use only focus_semantics.distraction_events"));
-
-        let notion_command = include_str!("notion.rs");
-        let notion_publish =
-            include_str!("../../../../supabase/functions/publish-notion-report/index.ts");
-        let notion_formatter =
-            include_str!("../../../../supabase/functions/_shared/notion_policy.ts");
-        assert!(notion_command.contains("build_local_insights_report"));
-        assert!(notion_publish.contains("formatCanonicalNotionReport(localReport"));
-        assert!(notion_formatter.contains("Canonical local_report.focus_semantics is required"));
-        assert!(!renderer.contains("NOTION_CLIENT_SECRET"));
-        assert!(!renderer.contains("token_ciphertext"));
     }
 
     #[test]

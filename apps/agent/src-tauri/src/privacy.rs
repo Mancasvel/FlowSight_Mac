@@ -2,14 +2,15 @@
 use std::path::Path;
 
 pub fn normalized_application(value: &str) -> String {
-    value
+    let name = value
         .trim()
         .rsplit(['/', '\\'])
         .next()
         .unwrap_or(value)
-        .trim_end_matches(".exe")
+        .to_ascii_lowercase();
+    name.trim_end_matches(".exe")
         .trim_end_matches(".app")
-        .to_ascii_lowercase()
+        .to_string()
 }
 
 pub fn application_is_excluded(db_path: &Path, application: Option<&str>) -> bool {

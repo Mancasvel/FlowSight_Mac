@@ -196,6 +196,7 @@ pub fn update<T>(change: impl FnOnce(&mut AgentData) -> Result<T, String>) -> Re
     Ok(result)
 }
 
+#[allow(dead_code)]
 pub fn append_conversation(role: &str, content: &str) -> Result<(), String> {
     update(|data| {
         data.conversation.push(ConversationMessage {

@@ -18,7 +18,7 @@
 //! `sync::start_sync_thread` for the 10-minute rollup.
 
 use super::{ActionEvent, SharedFlag, SharedRing, TaskContext};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -105,7 +105,7 @@ pub fn spawn(
 
 fn persist_and_emit(
     app_handle: &tauri::AppHandle,
-    db_path: &PathBuf,
+    db_path: &Path,
     description: &str,
     category: &str,
     jira_ticket: Option<String>,

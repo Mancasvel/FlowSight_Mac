@@ -920,6 +920,7 @@ pub fn cancel_session_plan(id: String) -> Result<(), String> {
     Ok(())
 }
 
+#[allow(dead_code)]
 pub fn clear_pending() {
     if let Ok(mut queue) = PENDING.lock() {
         queue.clear();
