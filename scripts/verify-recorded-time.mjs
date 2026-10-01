@@ -12,6 +12,7 @@ try {
   for (const locale of ['es-ES', 'en-GB']) {
     const page = await browser.newPage({ locale, timezoneId: 'Europe/Madrid', viewport: { width: 370, height: 700 }, colorScheme: 'dark', reducedMotion: 'reduce' });
     await page.clock.install({ time: new Date('2026-10-01T17:00:00+02:00') });
+    await page.clock.pauseAt(new Date('2026-10-01T17:00:00+02:00'));
     const errors = [];
     page.on('pageerror', error => errors.push(error.message));
     await page.addInitScript(({ locale }) => {
@@ -29,9 +30,10 @@ try {
       })));
       window.historyFailure = false;
       // Reproduce the user's inflated checkpoint from the older renderer.
-      localStorage.setItem('flowsight_tracking_checkpoint_v1', JSON.stringify({ version: 1, mode: 'running', totalSeconds: 21571, updatedAt: Date.now(), day: '2026-10-01' }));
-      let running = true, counter = 1;
-      let trackedMs = 20700000, lastTrackingTick = performance.now();
+      if (!sessionStorage.getItem('synthetic_native_clock')) localStorage.setItem('flowsight_tracking_checkpoint_v1', JSON.stringify({ version: 1, mode: 'running', totalSeconds: 21571, updatedAt: Date.now(), day: '2026-10-01' }));
+      const savedClock = JSON.parse(sessionStorage.getItem('synthetic_native_clock') || 'null');
+      let running = savedClock?.is_running ?? true, counter = 1;
+      let trackedMs = savedClock?.total_milliseconds ?? 20700000, lastTrackingTick = performance.now();
       const trackingSnapshot = () => {
         const tick = performance.now();
         if (running) trackedMs += Math.max(0, tick - lastTrackingTick);
@@ -39,7 +41,9 @@ try {
         const d = new Date();
         const day = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
         if (day !== '2026-10-01') trackedMs = 0;
-        return { date: day, total_seconds: Math.floor(trackedMs / 1000), total_milliseconds: trackedMs, is_running: running };
+        const snapshot = { date: day, total_seconds: Math.floor(trackedMs / 1000), total_milliseconds: trackedMs, is_running: running };
+        sessionStorage.setItem('synthetic_native_clock', JSON.stringify(snapshot));
+        return snapshot;
       };
       const callbacks = new Map(), listeners = new Map();
       const responses = {
@@ -71,7 +75,7 @@ try {
             if (window.historyFailure) throw new Error('Synthetic history unavailable');
             return { ...structuredClone(window.recordedHistory), tracking: trackingSnapshot() };
           }
-          if (command === 'start_monitoring' || command === 'stop_monitoring') { trackingSnapshot(); running = command === 'start_monitoring'; lastTrackingTick = performance.now(); return true; }
+          if (command === 'start_monitoring' || command === 'stop_monitoring') { trackingSnapshot(); running = command === 'start_monitoring'; lastTrackingTick = performance.now(); trackingSnapshot(); return true; }
           if (command === 'plugin:event|listen') { listeners.set(args.event, [...(listeners.get(args.event) || []), args.handler]); return args.handler; }
           if (command.startsWith('plugin:window|')) return command.endsWith('is_maximized') ? false : null;
           if (command.startsWith('plugin:')) return null;
@@ -166,13 +170,17 @@ try {
     await page.locator('#timerModeSelect').selectOption('normal');
     await page.screenshot({ path: resolve(output, `normal-selector-${locale}.png`) });
     assert.equal(await page.locator('#timerModeSelect').evaluate(element => element.getBoundingClientRect().right <= document.documentElement.clientWidth), true);
+    await page.clock.runFor(7000);
     for (const colorScheme of ['light', 'dark']) {
       await page.emulateMedia({ colorScheme });
       await page.locator('#timerModeSelect').selectOption('pomodoro');
       await page.locator('#pomodoroPanel summary').click();
       for (const viewport of [{width:320,height:600}, {width:370,height:700}, {width:900,height:760}]) {
         await page.setViewportSize(viewport);
-        await page.locator('.today-timer-section').scrollIntoViewIfNeeded();
+        await page.locator('.today-timer-ring').evaluate(card => {
+          const scroller=card.closest('.tab-content');
+          scroller.scrollTop += card.getBoundingClientRect().top - scroller.getBoundingClientRect().top - 10;
+        });
         const layout = await page.locator('.today-timer-ring').evaluate(card => {
           const rect=card.getBoundingClientRect();
           const items=[...card.querySelectorAll('select')].map(node=>node.getBoundingClientRect());
@@ -186,9 +194,10 @@ try {
       await page.locator('#pomodoroPanel summary').click();
       await page.locator('#timerModeSelect').selectOption('normal');
     }
+    const beforeReload = (await page.locator('#timerDisplay').innerText()).trim();
     await page.reload({ waitUntil: 'networkidle' });
-    // The isolated native fixture restarts at its seeded daily total; old renderer checkpoints are ignored.
-    await page.locator('#timerDisplay').filter({ hasText: '05:45:00' }).waitFor();
+    // Native fixture persistence is independent of renderer checkpoints, like SQLite.
+    await page.locator('#timerDisplay').filter({ hasText: beforeReload }).waitFor();
     assert.equal(await page.locator('#timerModeSelect').inputValue(), 'normal');
     await page.evaluate(() => {
       window.recordedHistory = { ...window.recordedHistory, date: '2026-10-02', total_seconds: 0, entries: [], category_breakdown: [], focus: { ...window.recordedHistory.focus, deep_focus_seconds: 0 } };

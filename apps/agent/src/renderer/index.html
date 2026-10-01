@@ -1517,6 +1517,8 @@
     .pomodoro-settings summary { font-size: 12px; cursor: pointer; color: hsl(var(--foreground)); padding: 8px 0; }
     .pomodoro-fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 10px; }
     .pomodoro-fields label { font-size: 11px; color: hsl(var(--foreground)); display: flex; flex-direction: column; gap: 6px; }
+    .pomodoro-panel [hidden] { display: none !important; }
+    .pomodoro-fields label > span { min-height: 2.8em; line-height: 1.4; }
     .pomodoro-fields select { width: 100%; min-width: 0; min-height: 42px; }
     .pomodoro-panel p { margin: 10px 0 0; font-size: 11px; line-height: 1.5; color: hsl(var(--muted-foreground)); }
     .pomodoro-panel .pomodoro-status:empty { display: none; }
@@ -3612,9 +3614,9 @@
             <div class="pomodoro-panel" id="pomodoroPanel" hidden>
               <details class="pomodoro-settings"><summary>Intervals</summary>
                 <div class="pomodoro-fields">
-                  <label for="pomodoroWork">Work (min)<select class="input" id="pomodoroWork"><option>15</option><option selected>25</option><option>30</option><option>45</option><option>50</option><option>60</option></select></label>
-                  <label for="pomodoroShortBreak">Break (min)<select class="input" id="pomodoroShortBreak"><option selected>5</option><option>10</option><option>15</option></select></label>
-                  <label for="pomodoroLongBreak">Long break (min)<select class="input" id="pomodoroLongBreak"><option selected>15</option><option>20</option><option>30</option></select></label>
+                  <label for="pomodoroWork"><span>Work (min)</span><select class="input" id="pomodoroWork"><option>15</option><option selected>25</option><option>30</option><option>45</option><option>50</option><option>60</option></select></label>
+                  <label for="pomodoroShortBreak"><span>Break (min)</span><select class="input" id="pomodoroShortBreak"><option selected>5</option><option>10</option><option>15</option></select></label>
+                  <label for="pomodoroLongBreak"><span>Long break (min)</span><select class="input" id="pomodoroLongBreak"><option selected>15</option><option>20</option><option>30</option></select></label>
                 </div>
                 <p>Long break after four focus intervals. Breaks pause tracking; start the next interval when ready.</p>
               </details>
