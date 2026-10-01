@@ -90,7 +90,15 @@ try {
     await inspectButton(page,'#onboardingChooseFolder',`onboarding-secondary-${viewport.name}`);
     if(stage==='after')await inspectButton(page,'#onboardingContinueBtn',`onboarding-primary-${viewport.name}`);
     await page.locator('#onboardingSkipCalendarBtn').click();await page.locator('#onboardingOverlay').waitFor({state:'hidden'});
-    await inspectButton(page,'.titlebar-btn.maximize',`maximize-${viewport.name}`,{minimumContrast:3});
+    const usesNativeWindowControls=await page.locator('html').evaluate(root=>root.classList.contains('platform-macos'));
+    if(usesNativeWindowControls) {
+      for(const selector of ['#winMinimizeBtn','#winMaximizeBtn','#winCloseBtn']) {
+        assert.equal(await page.locator(selector).isVisible(),false,`${selector} is replaced by native macOS window controls.`);
+      }
+      await inspectButton(page,'.titlebar-btn.theme-toggle',`theme-toggle-${viewport.name}`,{minimumContrast:3});
+    } else {
+      await inspectButton(page,'.titlebar-btn.maximize',`maximize-${viewport.name}`,{minimumContrast:3});
+    }
     await inspectButton(page,'#stopTimerBtn',`stop-${viewport.name}`);
     await page.locator('#navSummary').click();await page.locator('#generateReportBtn').waitFor();
     await inspectButton(page,'#generateReportBtn',`work-report-${viewport.name}`);
