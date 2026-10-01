@@ -1,8 +1,13 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import {
+  createClient,
+  type SupabaseClient,
+} from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { CURRENT_PRIVACY_NOTICE_VERSION } from "../_shared/privacy_policy.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
 };
 
 const DEFAULT_AZURE_ENDPOINT =
@@ -11,8 +16,10 @@ const DEFAULT_AZURE_DEPLOYMENT = "Mistral-Large-3";
 const MAX_MESSAGE_LEN = 500;
 const MAX_HISTORY = 12;
 
-const COACH_SYSTEM_PROMPT = `You are FlowSight, a senior team productivity and cognitive-health advisor (engineering-manager + agile-coach level). Privacy-first.
-Answer ONLY about focus, flow state, meetings, context switching, sprint planning, team activity, and uploaded documents when provided.
+const COACH_SYSTEM_PROMPT =
+  `You are FlowSight, a privacy-first work-pattern coach for knowledge workers and teams across research, design, writing, analysis, operations, planning, and software work.
+Answer ONLY about sustained work, meetings, context switching, planning, team activity, and uploaded documents when provided. Valuable activities outside Deep Focus remain evidence for workload, collaboration, transitions, and resumption; never call them unproductive merely because they are excluded from the Deep Focus construct.
+When local_context.focus_semantics is present, it is the canonical definition: Deep Focus means observed sustained focus-eligible activity without an observed theme change, not subjective flow or a diagnosis. Theme continuity is only known from explicit manual labels or tickets; use its explicit_theme_coverage_pct and say that unlabelled task switches may be missed. Use its deep_focus_seconds, sessions, fragmentation_pct, theme_switches, context_category_mix and proxy_disclaimer. Use only its distraction_events/distraction_seconds for distraction claims; raw Browsing rows can include sub-threshold observations. Context work such as planning, meetings, communication, administration and sales can explain workload and transitions; never call it distraction merely because it is outside Deep Focus. Never reconstruct Deep Focus by summing Coding rows, never claim universal recovery times or ultradian blocks, and describe its deep_threshold_seconds as a transparent product reference rather than a biological threshold. Tie recommendations to a supplied metric or say that the available signal is insufficient.
 Use ONLY the team stats and documents in the user message — never invent metrics, names, or policies.
 
 Before your visible answer, reason inside <thinking>...</thinking> tags (3–6 bullet notes: which metrics you checked, what patterns you see, what you will recommend and why).
@@ -59,12 +66,15 @@ const PLAN_LIMITS: Record<string, number> = {
 
 function periodStart(): string {
   const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
+  return `${now.getFullYear()}-${
+    String(now.getMonth() + 1).padStart(2, "0")
+  }-01`;
 }
 
 function resolvePromptLimit(plan: string | null | undefined): number {
   if (!plan) return 0;
-  return PLAN_LIMITS[plan] ?? (plan === "individual" ? 150 : plan === "team" ? 250 : 0);
+  return PLAN_LIMITS[plan] ??
+    (plan === "individual" ? 150 : plan === "team" ? 250 : 0);
 }
 
 function stripThinkingTags(text: string): string {
@@ -91,7 +101,7 @@ function parseCoachResponse(raw: string): ParsedCoachResponse {
 }
 
 async function getPromptUsed(
-  serviceClient: ReturnType<typeof createClient>,
+  serviceClient: SupabaseClient,
   userId: string,
   teamId: string | null,
 ): Promise<number | null> {
@@ -106,14 +116,17 @@ async function getPromptUsed(
     .maybeSingle();
 
   if (error) {
-    if (error.code === "42P01" || error.message?.includes("does not exist")) return null;
+    if (error.code === "42P01" || error.message?.includes("does not exist")) {
+      return null;
+    }
     throw error;
   }
-  return data?.user_prompt_count ?? 0;
+  const row = data as { user_prompt_count?: number } | null;
+  return Number(row?.user_prompt_count ?? 0);
 }
 
 async function incrementPromptUsed(
-  serviceClient: ReturnType<typeof createClient>,
+  serviceClient: SupabaseClient,
   userId: string,
   teamId: string | null,
   used: number,
@@ -129,7 +142,10 @@ async function incrementPromptUsed(
     },
     { onConflict: "user_id,team_id,period_start" },
   );
-  if (error && error.code !== "42P01" && !error.message?.includes("does not exist")) {
+  if (
+    error && error.code !== "42P01" &&
+    !error.message?.includes("does not exist")
+  ) {
     throw error;
   }
 }
@@ -146,15 +162,18 @@ async function callAzureCoach(
     );
   }
 
-  const base = (Deno.env.get("AZURE_OPENAI_ENDPOINT") ?? DEFAULT_AZURE_ENDPOINT).replace(/\/$/, "");
-  const deployment =
-    Deno.env.get("AZURE_OPENAI_DEPLOYMENT") ??
+  const base = (Deno.env.get("AZURE_OPENAI_ENDPOINT") ?? DEFAULT_AZURE_ENDPOINT)
+    .replace(/\/$/, "");
+  const deployment = Deno.env.get("AZURE_OPENAI_DEPLOYMENT") ??
     Deno.env.get("AZURE_OPENAI_MODEL") ??
     DEFAULT_AZURE_DEPLOYMENT;
 
   const messages = [
     { role: "system", content: system },
-    ...history.slice(-MAX_HISTORY).map((m) => ({ role: m.role, content: m.content })),
+    ...history.slice(-MAX_HISTORY).map((m) => ({
+      role: m.role,
+      content: m.content,
+    })),
     { role: "user", content: userContent },
   ];
 
@@ -173,8 +192,7 @@ async function callAzureCoach(
   });
 
   if (!response.ok) {
-    const errText = await response.text();
-    throw new Error(`Azure OpenAI error (${response.status}): ${errText.slice(0, 300)}`);
+    throw new Error(`Azure OpenAI request failed (${response.status}).`);
   }
 
   const json = await response.json();
@@ -206,10 +224,13 @@ Deno.serve(async (req) => {
   const authHeader = req.headers.get("Authorization");
 
   if (!authHeader) {
-    return new Response(JSON.stringify({ error: "Missing Authorization header" }), {
-      status: 401,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return new Response(
+      JSON.stringify({ error: "Missing Authorization header" }),
+      {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
+    );
   }
 
   const userClient = createClient(supabaseUrl, supabaseAnonKey, {
@@ -227,17 +248,24 @@ Deno.serve(async (req) => {
   const userId = userData.user.id;
 
   try {
-    const { data: entitlements, error: entError } = await userClient.rpc("get_user_entitlements");
+    const { data: entitlements, error: entError } = await userClient.rpc(
+      "get_user_entitlements",
+    );
     if (entError) {
-      return new Response(JSON.stringify({ error: entError.message }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({ error: "Could not verify your plan." }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
     }
 
     const plan = (entitlements?.plan as string | undefined) ?? null;
     const limit = resolvePromptLimit(plan);
-    const teamIds = Array.isArray(entitlements?.team_ids) ? entitlements.team_ids : [];
+    const teamIds = Array.isArray(entitlements?.team_ids)
+      ? entitlements.team_ids
+      : [];
     const defaultTeamId = teamIds[0] ?? null;
 
     const serviceClient = serviceKey
@@ -280,16 +308,59 @@ Deno.serve(async (req) => {
       return new Response(
         JSON.stringify({
           error: "Upgrade to Pro to unlock your AI coach.",
-          usage: { used: 0, limit: 0, remaining: 0, planId: plan ?? "free", allowed: false },
+          usage: {
+            used: 0,
+            limit: 0,
+            remaining: 0,
+            planId: plan ?? "free",
+            allowed: false,
+          },
         }),
-        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
+    }
+
+    if (!serviceClient) {
+      return new Response(
+        JSON.stringify({
+          error: "Cloud AI privacy enforcement is unavailable.",
+        }),
+        {
+          status: 503,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
+    }
+    const { data: privacyPreference, error: privacyError } = await serviceClient
+      .from("privacy_preferences")
+      .select("notice_version,cloud_ai_enabled")
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (
+      privacyError ||
+      privacyPreference?.notice_version !== CURRENT_PRIVACY_NOTICE_VERSION ||
+      privacyPreference?.cloud_ai_enabled !== true
+    ) {
+      return new Response(
+        JSON.stringify({
+          error:
+            "Enable cloud AI sharing in FlowSight's Privacy & data settings first.",
+        }),
+        {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
       );
     }
 
     const body = await req.json().catch(() => ({}));
     const message = String(body.message ?? "").trim();
     const teamId = (body.team_id as string | undefined) ?? defaultTeamId;
-    const history = (Array.isArray(body.history) ? body.history : []) as HistoryMessage[];
+    const history =
+      (Array.isArray(body.history) ? body.history : []) as HistoryMessage[];
     const localContext = body.local_context ?? null;
 
     if (!message || message.length > MAX_MESSAGE_LEN) {
@@ -308,27 +379,46 @@ Deno.serve(async (req) => {
           return new Response(
             JSON.stringify({
               error: "Monthly coach limit reached. Resets on the 1st.",
-              usage: { used, limit, remaining: 0, planId: plan ?? "free", allowed: false },
+              usage: {
+                used,
+                limit,
+                remaining: 0,
+                planId: plan ?? "free",
+                allowed: false,
+              },
             }),
-            { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+            {
+              status: 429,
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            },
           );
         }
       }
     }
 
     const contextBlock = localContext
-      ? `Activity context (last 7 days):\n${JSON.stringify(localContext, null, 2)}`
+      ? `Activity context (last 7 days):\n${
+        JSON.stringify(localContext, null, 2)
+      }`
       : "Activity context: no local stats provided.";
     const historyBlock = buildHistoryBlock(history);
-    const userPrompt = [contextBlock, historyBlock, `Question: ${message}`].filter(Boolean).join("\n\n");
+    const userPrompt = [contextBlock, historyBlock, `Question: ${message}`]
+      .filter(Boolean).join("\n\n");
 
-    const coachResult = await callAzureCoach(COACH_SYSTEM_PROMPT, userPrompt, history);
+    const coachResult = await callAzureCoach(
+      COACH_SYSTEM_PROMPT,
+      userPrompt,
+      history,
+    );
     const reply = coachResult.answer.trim();
     if (!reply) {
-      return new Response(JSON.stringify({ error: "AI coach returned an empty response." }), {
-        status: 503,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({ error: "AI coach returned an empty response." }),
+        {
+          status: 503,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
     }
 
     if (serviceClient && teamId) {
@@ -351,9 +441,15 @@ Deno.serve(async (req) => {
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (error) {
-    return new Response(JSON.stringify({ error: String(error) }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    const status = error instanceof Error && /\([45]\d\d\)/.test(error.message)
+      ? 502
+      : 500;
+    return new Response(
+      JSON.stringify({ error: "The AI coach request could not be completed." }),
+      {
+        status,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
+    );
   }
 });

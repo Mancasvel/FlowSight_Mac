@@ -721,10 +721,12 @@ mod tests {
         assert!(!settings.store_window_titles);
         assert_eq!(settings.retention_days, 30);
         assert_eq!(settings.notice_version, PRIVACY_NOTICE_VERSION);
-        assert_eq!(settings.excluded_applications.len(), 5);
-        assert!(settings
-            .excluded_applications
-            .contains(&"Bitwarden".to_string()));
+        assert_eq!(settings.excluded_applications.len(), 8);
+        for application in ["Bitwarden", "Keychain Access", "SecurityAgent", "loginwindow"] {
+            assert!(settings
+                .excluded_applications
+                .contains(&application.to_string()));
+        }
     }
 
     #[test]
