@@ -128,6 +128,12 @@ pub fn activate(intention: String, preferences: Preferences) -> Result<Value, St
             "Total focus is already active. End it before starting another session.".into(),
         );
     }
+    if browser_bridge::focus_status()["totalFocusAvailable"] != true {
+        return Err(
+            "Update Browser Controls in your browser and reconnect it before starting total focus."
+                .into(),
+        );
+    }
     let session = Session {
         id: uuid::Uuid::new_v4().to_string(),
         intention: intention.trim().into(),

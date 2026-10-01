@@ -4,6 +4,7 @@ const POLL_ALARM = 'flowsight-poll';
 const FOCUS_ALARM = 'flowsight-focus-expiry';
 const FOCUS_RULE_IDS = Array.from({ length: 40 }, (_, index) => 1000 + index);
 let polling = false;
+let pendingPoll = null;
 let focusQueue = Promise.resolve();
 const focusMutation = run => {
   const result = focusQueue.then(run);
@@ -122,7 +123,8 @@ async function focusStatus() {
   await expireBlocks();
   const { focus, cancelledFocusId } = await chrome.storage.local.get(['focus', 'cancelledFocusId']);
   const installed = await chrome.declarativeNetRequest.getDynamicRules();
-  return { sessionId: focus?.id || null, applied: Boolean(focus && installed.some(rule => rule.id === 1000)),
+  return { extensionVersion: chrome.runtime.getManifest().version, capabilities: ['total-focus'],
+    sessionId: focus?.id || null, applied: Boolean(focus && installed.some(rule => rule.id === 1000)),
     cancelledSessionId: cancelledFocusId || null };
 }
 
@@ -234,23 +236,31 @@ async function flushResults(port, token) {
   if (remaining.length !== pendingResults.length) await chrome.storage.local.set({ pendingResults: remaining });
 }
 
-async function poll() {
+function poll() {
+  if (!pendingPoll) pendingPoll = pollOnce().finally(() => { pendingPoll = null; });
+  return pendingPoll;
+}
+
+async function pollOnce() {
   if (polling) return;
   polling = true;
   try {
     await expireBlocks();
     const { port, token } = await chrome.storage.local.get(['port', 'token']);
-    if (!port || !token) { await releaseBlocksAfterDisconnect(); return; }
+    if (!port || !token) { await releaseBlocksAfterDisconnect(); return { connected: false, error: 'Enter the port and pairing key shown in FlowSight.' }; }
     await flushResults(port, token);
     const response = await fetch(`http://127.0.0.1:${port}/next`, {
       headers: { 'X-FlowSight-Token': token }, signal: AbortSignal.timeout(8000),
     });
-    if (!response.ok) { await releaseBlocksAfterDisconnect(); return; }
+    if (!response.ok) {
+      await releaseBlocksAfterDisconnect();
+      return { connected: false, error: response.status === 401 ? 'The pairing key was rejected. Copy the current key from FlowSight.' : 'FlowSight is unavailable. Open the app and try again.' };
+    }
     await chrome.storage.local.set({ lastConnectedAt: Date.now() });
     const { command, focus = null } = await response.json();
     await reconcileFocus(focus);
     await publishFocusStatus(port, token);
-    if (!command) return;
+    if (!command) return { connected: true };
     let result;
     try {
       result = { id: command.id, ok: true, result: await runCommand(command.name, command.arguments) };
@@ -260,9 +270,11 @@ async function poll() {
     const { pendingResults = [] } = await chrome.storage.local.get('pendingResults');
     await chrome.storage.local.set({ pendingResults: [...pendingResults, result].slice(-20) });
     await flushResults(port, token);
+    return { connected: true };
   } catch (_) {
     // FlowSight may be closed. Never keep a site blocked indefinitely.
     await releaseBlocksAfterDisconnect().catch(() => {});
+    return { connected: false, error: 'Could not reach FlowSight on this computer. Open the app, check the port and allow local connections in your browser.' };
   } finally {
     polling = false;
   }
@@ -281,7 +293,10 @@ chrome.tabs.onUpdated.addListener((tabId, change) => {
 });
 chrome.alarms.onAlarm.addListener((alarm) => { if (alarm.name === POLL_ALARM || alarm.name === FOCUS_ALARM) poll(); });
 chrome.runtime.onMessage.addListener((message, sender, reply) => {
-  if (message?.type === 'poll-now') poll();
+  if (message?.type === 'poll-now' && sender.url?.startsWith(chrome.runtime.getURL(''))) {
+    poll().then(reply, () => reply({ connected: false, error: 'Could not connect to FlowSight.' }));
+    return true;
+  }
   if (message?.type === 'end-focus' && sender.url?.startsWith(chrome.runtime.getURL(''))) {
     cancelFocus().then(result => { reply(result); poll(); }, error => reply({ error: error.message }));
     return true;
