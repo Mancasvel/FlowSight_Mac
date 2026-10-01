@@ -19,6 +19,8 @@ pub struct AgentData {
     pub preferences: BTreeMap<String, SavedPreference>,
     pub focus: Option<FocusBlock>,
     pub quiet: Option<SystemQuiet>,
+    pub total_focus_preferences: super::total_focus::Preferences,
+    pub total_focus: Option<super::total_focus::Session>,
     pub calendar_provider: Option<String>,
     pub email_provider: Option<String>,
     pub notification_digest: Vec<DigestItem>,

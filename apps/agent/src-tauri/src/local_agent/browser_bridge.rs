@@ -28,6 +28,8 @@ struct Queue {
     commands: VecDeque<BrowserCommand>,
     waiters: HashMap<String, mpsc::Sender<Result<Value, String>>>,
     last_seen: Option<Instant>,
+    focus_status: Value,
+    focus_seen: Option<Instant>,
 }
 
 struct Bridge {
@@ -115,16 +117,34 @@ pub fn start() -> Result<(), String> {
             let path = request.url().to_string();
             let result = match (method, path.as_str()) {
                 (Method::Get, "/next") => {
+                    let focus = super::total_focus::policy().ok().flatten();
                     let mut queue = bridge.queue.lock().unwrap();
                     queue.last_seen = Some(Instant::now());
                     let command = queue.commands.pop_front();
                     json_response(
                         command.map_or_else(
-                            || json!({"command":null}),
-                            |item| json!({"command":{"id":item.id,"name":item.name,"arguments":item.arguments}}),
+                            || json!({"command":null,"focus":focus}),
+                            |item| json!({"command":{"id":item.id,"name":item.name,"arguments":item.arguments},"focus":focus}),
                         ),
                         200,
                     )
+                }
+                (Method::Post, "/focus_status") => {
+                    let mut body = Vec::new();
+                    let read = request.as_reader().take(4097).read_to_end(&mut body);
+                    if read.is_err() || body.len() > 4096 {
+                        json_response(json!({"error":"Status too large"}), 413)
+                    } else if let Ok(value) = serde_json::from_slice::<Value>(&body) {
+                        if let Some(id) = value["cancelledSessionId"].as_str() {
+                            let _ = super::total_focus::cancel_from_extension(id);
+                        }
+                        let mut queue = bridge.queue.lock().unwrap();
+                        queue.focus_status = json!({"sessionId":value["sessionId"],"applied":value["applied"] == true});
+                        queue.focus_seen = Some(Instant::now());
+                        json_response(json!({"received":true}), 200)
+                    } else {
+                        json_response(json!({"error":"Invalid JSON"}), 400)
+                    }
                 }
                 (Method::Post, "/result") => {
                     let mut body = Vec::new();
@@ -161,6 +181,14 @@ pub fn start() -> Result<(), String> {
         }
     });
     Ok(())
+}
+
+pub fn focus_status() -> Value {
+    BRIDGE.get().and_then(|bridge| bridge.queue.lock().ok().map(|queue| {
+        json!({"connected":queue.last_seen.is_some_and(|seen| seen.elapsed() < PAIRING_TIMEOUT),
+            "fresh":queue.focus_seen.is_some_and(|seen| seen.elapsed() < PAIRING_TIMEOUT),
+            "sessionId":queue.focus_status["sessionId"],"applied":queue.focus_status["applied"] == true})
+    })).unwrap_or_else(|| json!({"connected":false,"fresh":false,"applied":false}))
 }
 
 #[tauri::command]

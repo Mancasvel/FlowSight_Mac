@@ -3246,6 +3246,7 @@
   <link rel="stylesheet" href="/theme-dark-mobile.css" id="themeDarkMobile" media="(prefers-color-scheme: dark)">
   <link rel="stylesheet" href="./profile-redesign.css">
   <link rel="stylesheet" href="./local-agent.css">
+  <link rel="stylesheet" href="./total-focus.css">
   <link rel="stylesheet" href="./calendar-companion.css">
   <link rel="stylesheet" href="./coach.css">
   <style>
@@ -3311,9 +3312,9 @@
     <div class="onboarding-top">
       <div class="onboarding-top-row">
         <button type="button" class="onboarding-back" id="onboardingBackBtn" aria-label="Back">‹</button>
-        <span class="onboarding-step-label" id="onboardingStepLabel">1 of 5</span>
+        <span class="onboarding-step-label" id="onboardingStepLabel">1 of 6</span>
         <div class="onboarding-progress-track">
-          <div class="onboarding-progress-fill" id="onboardingProgressFill" style="width:20%"></div>
+          <div class="onboarding-progress-fill" id="onboardingProgressFill" style="width:16.67%"></div>
         </div>
       </div>
     </div>
@@ -3689,6 +3690,7 @@
             <span class="checkbox-label">Sync time to Jira</span>
           </label>
         </div>
+        <button type="button" class="button button-secondary today-total-focus" id="todayTotalFocus"><span id="todayTotalFocusLabel">Total focus</span><span aria-hidden="true">→</span></button>
         <div class="today-goal-row">
           <div class="form-group" style="margin-bottom: 0;">
             <label class="label" for="dailyGoalSelect">Daily goal</label>
@@ -3884,6 +3886,7 @@
           </details>
         </div>
 
+        <div class="card total-focus-settings" id="totalFocusSettings"></div>
         <div class="card local-agent-settings" id="localAgentSettingsCard">
           <div class="card-header"><div class="card-title">Local automations</div></div>
           <p class="profile-card-intro">The local agent works in the background. It can suggest focus reminders while tracking; actions that change your work still need your confirmation.</p>
@@ -4233,6 +4236,8 @@
     import { invoke } from '@tauri-apps/api/core';
     import { createInstallationRepairController } from './installation-repair.mjs';
     import { mountSessionPlanner } from './session-planner.mjs';
+    import { mountTotalFocus, focusFields, readFocusFields, focusExample, messagingFuture } from './total-focus.mjs';
+    const totalFocusController = mountTotalFocus({ invoke });
     import { renderCoachMarkdown } from './coach-markdown.mjs';
     import './session-planner.css';
     import { listen } from '@tauri-apps/api/event';
@@ -7024,7 +7029,7 @@
     }
 
     function onboardingCanContinue() {
-      return onboardingState.step !== 3 || !onboardingState.reportsEnabled || Boolean(onboardingState.reportFolder);
+      return onboardingState.step !== 4 || !onboardingState.reportsEnabled || Boolean(onboardingState.reportFolder);
     }
 
     function onboardingDemo(kind) {
@@ -7068,14 +7073,14 @@
       const fill = document.getElementById('onboardingProgressFill');
       if (!body || !continueBtn) return;
       const step = onboardingState.step;
-      fill.style.width = `${((step + 1) / 5) * 100}%`;
-      setText(document.getElementById('onboardingStepLabel'), () => (formatMessage`${step + 1} of 5`));
+      fill.style.width = `${((step + 1) / 6) * 100}%`;
+      setText(document.getElementById('onboardingStepLabel'), () => (formatMessage`${step + 1} of 6`));
       backBtn.style.visibility = step === 0 ? 'hidden' : 'visible';
       backBtn.disabled = step === 0;
       setText(document.getElementById('onboardingSetupStatus'), () => (''));
       document.getElementById('onboardingSkipCalendarBtn').hidden = false;
       setText(document.getElementById('onboardingSkipCalendarBtn'), () => (tr('Skip setup')));
-      setText(continueBtn, () => (((step === 4) ? tr('Finish setup') : tr('Continue'))));
+      setText(continueBtn, () => (((step === 5) ? tr('Finish setup') : tr('Continue'))));
       if (step === 0) {
         body.innerHTML = html`<h1 class="onboarding-title" tabindex="-1">Make room for your work</h1>
           <p class="onboarding-subtitle">Start tracking when you choose. FlowSight helps you review your time and work patterns on this computer.</p>
@@ -7119,6 +7124,30 @@
           refreshOnboardingFocusNotificationPreview();
         };
       } else if (step === 3) {
+        body.innerHTML = html`<h1 class="onboarding-title" tabindex="-1">Make space for total focus</h1>
+          <p class="onboarding-subtitle">Choose the websites to block during a focus session. Browser Controls works with Chrome on Windows, macOS, and Linux.</p>
+          ${focusExample()}${focusFields('onboardingFocus', onboardingState.totalFocusPreferences || totalFocusController.preferences())}
+          <div class="total-focus-pairing"><strong>Connect Browser Controls</strong>
+          <p class="session-help">Install the extension, copy the pairing key, and choose Save and connect in its options.</p>
+          <button type="button" class="button button-secondary" id="onboardingFocusInstall">Install Browser Controls</button>
+          <button type="button" class="button button-secondary" id="onboardingFocusCopy">Copy pairing key</button>
+          <button type="button" class="button button-secondary" id="onboardingFocusCheck">Check connection</button>
+          <p class="session-help" id="onboardingFocusConnection" role="status" aria-live="polite"></p></div>
+          <p class="session-help">This step saves your settings. Start total focus from Today when you are ready. Tracking remains a separate choice.</p>${messagingFuture()}`;
+        body.querySelector('.total-focus-fields').addEventListener('input', () => { onboardingState.totalFocusPreferences = readFocusFields('onboardingFocus'); });
+        document.getElementById('onboardingFocusInstall').onclick = async () => {
+          try { await invoke('open_browser_extension_store', { browser:'chrome' }); }
+          catch { setText(document.getElementById('onboardingFocusConnection'), () => tr('The official store listing is not available in this build yet. Other local tools still work.')); }
+        };
+        document.getElementById('onboardingFocusCopy').onclick = async () => {
+          try { const pairing = await invoke('get_browser_pairing'); await navigator.clipboard.writeText(pairing.token); setText(document.getElementById('onboardingFocusConnection'), () => tr('Pairing key copied. Local port: 38547. Paste the key in the extension options.')); }
+          catch { setText(document.getElementById('onboardingFocusConnection'), () => tr('Could not copy the pairing key. Try again in Settings.')); }
+        };
+        document.getElementById('onboardingFocusCheck').onclick = async () => {
+          const state = await totalFocusController.refresh();
+          setText(document.getElementById('onboardingFocusConnection'), () => state?.browser?.connected ? tr('Browser connected · ready to start') : tr('Connect Browser Controls to activate total focus.'));
+        };
+      } else if (step === 4) {
         body.innerHTML = html`<h1 class="onboarding-title" tabindex="-1">See what your week contained</h1>
           <p class="onboarding-subtitle">Generate a work report from recorded activity in Insights. You can also save a weekly PDF automatically while FlowSight is running.</p>
           ${onboardingDemo('report')}
@@ -7137,7 +7166,7 @@
             if (typeof selected === 'string' && selected) { onboardingState.reportFolder = selected; setText(document.getElementById('onboardingReportFolder'), () => (selected)); continueBtn.disabled = !onboardingCanContinue(); }
           } catch (error) { showToast(('Could not choose a folder: ' + error), 'error'); }
         };
-      } else if (step === 4) {
+      } else if (step === 5) {
         body.innerHTML = html`
           <h1 class="onboarding-title">Bring your calendar into focus</h1>
           <p class="onboarding-subtitle">Optional for cloud plans. See your current event and, if you choose, add a short work recap after it ends.</p>
@@ -7170,6 +7199,7 @@
     }
 
     function showOnboardingWizard(fromProfile = false) {
+      onboardingState.totalFocusPreferences = totalFocusController.preferences();
       onboardingState.reopening = fromProfile;
       onboardingState.step = 0;
       onboardingState.previousFocus = document.activeElement;
@@ -7222,7 +7252,7 @@
       const back = document.getElementById('onboardingBackBtn');
       const skip = document.getElementById('onboardingSkipCalendarBtn');
       btn.disabled = back.disabled = skip.disabled = true; setText(btn, () => (tr('Saving…')));
-      const fields = [...document.getElementById('onboardingBody').querySelectorAll('input, select, button')];
+      const fields = [...document.getElementById('onboardingBody').querySelectorAll('input, select, textarea, button')];
       const disabledStates = fields.map((field) => field.disabled);
       fields.forEach((field) => { field.disabled = true; });
       try {
@@ -7232,13 +7262,18 @@
           await loadDesktopPreferences();
         }
         if (onboardingState.step === 3) {
+          onboardingState.totalFocusPreferences = readFocusFields('onboardingFocus');
+          await invoke('save_total_focus_preferences', { preferences:onboardingState.totalFocusPreferences });
+          await totalFocusController.refresh(true);
+        }
+        if (onboardingState.step === 4) {
           weeklyReportSchedule = await invoke('save_weekly_report_schedule', { schedule: {
             enabled: onboardingState.reportsEnabled, weekday: onboardingState.reportDay,
             time: onboardingState.reportTime, folder: onboardingState.reportFolder,
           }});
           renderWeeklyReportForm(weeklyReportSchedule);
         }
-        if (onboardingState.step === 4) await finishOnboarding();
+        if (onboardingState.step === 5) await finishOnboarding();
         else {
           await persistUserPreferences({}, Boolean(userPreferences?.onboardingCompleted));
           onboardingState.step++; renderOnboardingStep();
@@ -7249,7 +7284,7 @@
       } finally {
         fields.forEach((field, index) => { if (field.isConnected) field.disabled = disabledStates[index]; });
         onboardingState.saving = false; back.disabled = onboardingState.step === 0; skip.disabled = false;
-        btn.disabled = !onboardingCanContinue(); setText(btn, () => (((onboardingState.step === 4) ? tr('Finish setup') : tr('Continue'))));
+        btn.disabled = !onboardingCanContinue(); setText(btn, () => (((onboardingState.step === 5) ? tr('Finish setup') : tr('Continue'))));
       }
     }
 

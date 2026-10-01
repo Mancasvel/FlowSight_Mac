@@ -1,0 +1,9 @@
+:root { color-scheme: light dark; --canvas:#fbfcfb; --text:#303c50; --secondary:#526977; --action:#087f78; }
+@media(prefers-color-scheme:dark) { :root { --canvas:#101d25; --text:#e5f0f1; --secondary:#b1c5cb; --action:#086c65; } }
+body { margin:0; background:var(--canvas); color:var(--text); font:16px/1.6 system-ui,sans-serif; }
+main { max-width:480px; margin:12vh auto; padding:24px; }
+h1 { font-size:clamp(26px,5vw,36px); line-height:1.2; letter-spacing:-.02em; }
+p { color:var(--secondary); } strong { display:block; overflow-wrap:anywhere; }
+button { background:var(--action); color:white; border:0; border-radius:10px; min-height:44px; padding:10px 18px; font:inherit; cursor:pointer; }
+button:hover { filter:brightness(1.08); } button:disabled { opacity:.6; cursor:default; }
+button:focus-visible { outline:3px solid var(--text); outline-offset:3px; } [hidden] { display:none; }
