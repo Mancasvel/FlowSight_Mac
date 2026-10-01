@@ -41,6 +41,9 @@ try{
   await page.locator('#task').filter({hasText:'Synthetic ADDA exercise'}).waitFor();
   await page.screenshot({path:join(output,'total-focus-extension-blocked.png')});
   await page.goto('https://distraction.example.com/work/docs');await page.locator('h1').filter({hasText:'Synthetic work site'}).waitFor();
+  await page.evaluate(()=>history.pushState({},'', '/feed'));
+  await page.waitForURL(`chrome-extension://${extensionId}/blocked.html`);
+  await page.goto('https://distraction.example.com/work/docs');
   const next=await context.newPage();await next.goto('https://distraction.example.com/feed').catch(()=>{});
   await next.waitForURL(`chrome-extension://${extensionId}/blocked.html`);
   connected=false;await pollNow();
@@ -53,7 +56,7 @@ try{
   await pollNow();
   await worker.evaluate(async()=>{const {focus}=await chrome.storage.local.get('focus');focus.expiresAt=new Date(Date.now()-1).toISOString();await chrome.storage.local.set({focus});await expireBlocks();});
   assert.equal((await worker.evaluate(()=>focusStatus())).applied,false);
-  console.log('Actual MV3 extension: open-tab blocking, navigation redirect, path exception, disconnect, emergency end, and expiry passed.');
+  console.log('Actual MV3 extension: open-tab blocking, navigation redirect, SPA route blocking, path exception, disconnect, emergency end, and expiry passed.');
 }finally{
   if(context)await context.close();await new Promise(resolve=>server.close(resolve));await rm(folder,{recursive:true,force:true});
 }

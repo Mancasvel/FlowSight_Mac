@@ -54,12 +54,24 @@ async function expireBlocks() {
 }
 
 function focusPattern(pattern) {
+  pattern = pattern.replace(/^(https?:\/\/)?www\./i, '$1');
   const rule = ruleFor(pattern, 1);
   const url = new URL(/^https?:\/\//i.test(pattern) ? pattern : `https://${pattern}`);
   if (url.port || !url.hostname.includes('.') || url.hostname.endsWith('.') || /^\d+\.\d+\.\d+\.\d+$/.test(url.hostname)) {
     throw new Error('Use a public domain or HTTP(S) path without a port.');
   }
   return rule.condition;
+}
+
+function matchesFocus(url, policy) {
+  if (!policy || Date.parse(policy.expiresAt) <= Date.now() || !/^https?:\/\//i.test(url || '')) return false;
+  const matches = pattern => new RegExp(focusPattern(pattern).regexFilter, 'i').test(url);
+  return policy.patterns.some(matches) && !policy.exceptions.some(matches);
+}
+
+async function protectTab(tabId, url) {
+  const { focus } = await chrome.storage.local.get('focus');
+  if (matchesFocus(url, focus)) await chrome.tabs.update(tabId, { url: chrome.runtime.getURL('blocked.html') });
 }
 
 async function clearFocus() {
@@ -101,10 +113,7 @@ async function applyFocusPolicy(policy) {
     // Replace already open distractions with a local page. No URLs or tab titles leave the browser.
     const tabs = await chrome.tabs.query({});
     for (const tab of tabs) {
-      if (!/^https?:\/\//i.test(tab.url || '')) continue;
-      const blocked = rules.some(rule => rule.action.type === 'redirect' && new RegExp(rule.condition.regexFilter, 'i').test(tab.url));
-      const allowed = rules.some(rule => rule.action.type === 'allow' && new RegExp(rule.condition.regexFilter, 'i').test(tab.url));
-      if (blocked && !allowed) await chrome.tabs.update(tab.id, { url: chrome.runtime.getURL('blocked.html') }).catch(() => {});
+      if (matchesFocus(tab.url, policy)) await chrome.tabs.update(tab.id, { url: chrome.runtime.getURL('blocked.html') }).catch(() => {});
     }
   }
 }
@@ -266,6 +275,10 @@ chrome.runtime.onInstalled.addListener(({ reason }) => {
 });
 chrome.runtime.onStartup.addListener(() => { chrome.alarms.create(POLL_ALARM, { periodInMinutes: 0.5 }); poll(); });
 chrome.action.onClicked.addListener(() => chrome.runtime.openOptionsPage());
+// Single-page apps can change routes without a network main_frame request.
+chrome.tabs.onUpdated.addListener((tabId, change) => {
+  if (change.url) protectTab(tabId, change.url).catch(() => {});
+});
 chrome.alarms.onAlarm.addListener((alarm) => { if (alarm.name === POLL_ALARM || alarm.name === FOCUS_ALARM) poll(); });
 chrome.runtime.onMessage.addListener((message, sender, reply) => {
   if (message?.type === 'poll-now') poll();

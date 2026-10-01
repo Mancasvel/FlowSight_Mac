@@ -17,6 +17,10 @@ session protects HTTP(S) top-level navigation and replaces already open matched
 tabs with a local page. Exceptions have higher DNR priority. No native application
 processes are terminated or prevented from launching.
 
+URL changes within single-page websites are checked as well as network navigation.
+Common `www.` prefixes are normalized so blocking a site covers its main domain
+and subdomains consistently.
+
 While a session is active, FlowSight's own focus reminders are held in the local
 notification digest. This applies on all three platforms and does not change OS
 notification permissions or claim to silence other applications.

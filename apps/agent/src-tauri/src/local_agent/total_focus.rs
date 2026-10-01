@@ -67,7 +67,7 @@ fn normalize(pattern: &str) -> Result<String, String> {
     }
     Ok(format!(
         "{}{}",
-        host,
+        host.strip_prefix("www.").unwrap_or(host),
         if url.path() == "/" { "" } else { url.path() }
     ))
 }
@@ -208,7 +208,7 @@ mod tests {
     #[test]
     fn validates_public_sites_and_preserves_path_exceptions() {
         let preferences = validate(Preferences {
-            patterns: vec!["HTTPS://YouTube.com".into(), "youtube.com".into()],
+            patterns: vec!["HTTPS://YouTube.com".into(), "www.youtube.com".into()],
             exceptions: vec!["youtube.com/watch".into()],
             duration_minutes: 50,
         })

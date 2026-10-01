@@ -21,7 +21,7 @@ function harness() {
       },
       async set(value) { Object.assign(stored, value); },
     } },
-    tabs: { async query() { return []; }, async update() {} },
+    tabs: { onUpdated:listeners, async query() { return []; }, async update() {} },
     declarativeNetRequest: {
       async getDynamicRules() { return changes.reduce((rules, change) => [...rules.filter(rule => !change.removeRuleIds?.includes(rule.id)), ...(change.addRules || [])], []); },
       async updateDynamicRules(change) { changes.push(change); }
@@ -29,7 +29,7 @@ function harness() {
   };
   const context = { chrome, URL, crypto: webcrypto, fetch: async () => { throw new Error('offline'); },
     AbortSignal, console, setTimeout, clearTimeout };
-  runInNewContext(`${source}\nglobalThis.__test = { ruleFor, runCommand, expireBlocks, reconcileFocus, focusStatus, cancelFocus, releaseBlocksAfterDisconnect };`, context);
+  runInNewContext(`${source}\nglobalThis.__test = { ruleFor, runCommand, expireBlocks, reconcileFocus, focusStatus, cancelFocus, releaseBlocksAfterDisconnect, matchesFocus };`, context);
   return { ...context.__test, stored, changes };
 }
 
@@ -101,4 +101,12 @@ test('invalid focus policy changes no rules and does not send messages',async()=
   }
   assert.equal(h.changes.length,0);
   await assert.rejects(()=>h.runCommand('messages.auto_reply',{}),/Unsupported/);
+});
+
+test('total focus normalizes common www input and catches internal route changes',()=>{
+  const h=harness();const p=policy({patterns:['www.youtube.com/shorts'],exceptions:['youtube.com/shorts/lesson']});
+  assert.equal(h.matchesFocus('https://m.youtube.com/shorts/1',p),true);
+  assert.equal(h.matchesFocus('https://youtube.com/shorts/lesson/1',p),false);
+  assert.equal(h.matchesFocus('https://www.youtube.com/watch?v=1',p),false);
+  assert.equal(h.matchesFocus('https://notyoutube.com/shorts/1',p),false);
 });
