@@ -51,6 +51,23 @@ test('the event is inside the main timer, with editable context before daily-goa
   assert.doesNotMatch(markup, /id="calendarCurrent"/);
 });
 
+test('Study is a local task with or without integrations and never becomes a Jira ticket', () => {
+  for (const canIntegrate of [false, true]) {
+    assert.deepEqual(resolveTaskContext({ canIntegrate, selectedValue: 'STUDY', selectedLabel: 'Study' }), {
+      task: 'Study', jiraTicket: null,
+    });
+    assert.deepEqual(resolveTaskContext({ canIntegrate, selectedValue: 'STUDY', selectedLabel: 'Estudio' }), {
+      task: 'Estudio', jiraTicket: null,
+    });
+    assert.deepEqual(resolveTaskContext({ canIntegrate, selectedValue: 'STUDY', manualTask: 'Four ADDA exercises' }), {
+      task: 'Four ADDA exercises', jiraTicket: null,
+    });
+    assert.deepEqual(resolveTaskContext({
+      calendarEvent: { title: 'ADDA exercises' }, canIntegrate, selectedValue: 'STUDY', selectedLabel: 'Study',
+    }), { task: 'ADDA exercises', jiraTicket: null });
+  }
+});
+
 test('manual detail stays with its calendar event and does not leak between accounts', () => {
   const cache = new Map();
   assert.equal(transitionTaskDetail(cache, null, 'owner-a:manual', ''), '');

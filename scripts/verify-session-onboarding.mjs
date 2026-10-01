@@ -170,6 +170,18 @@ try {
     await page.locator('#onboardingContinueBtn').click();
     await page.locator('#onboardingOverlay').waitFor({state:'hidden'});
     await page.locator('#sessionPlanForm').waitFor({state:'visible'});
+    await page.locator('#jiraSelect').selectOption('STUDY');
+    assert.equal(await page.locator('#jiraSelect').isVisible(), true, 'Local task options must be visible on free and Pro plans.');
+    assert.equal(await page.locator('#jiraSelect option:checked').innerText(), 'Study');
+    await page.screenshot({path:fileURLToPath(new URL(`study-task-${viewport.name}.png`,output))});
+    await page.locator('#navProfile').click();
+    await page.locator('#languageSelect').selectOption('es');
+    await page.locator('#jiraSelect option:checked').filter({hasText:'Estudio'}).waitFor();
+    await page.locator('#navProfile').click();
+    await page.locator('#languageSelect').selectOption('en');
+    await page.locator('#navToday').click();
+    assert.equal(await page.locator('#jiraSelect').inputValue(), 'STUDY', 'Language changes must preserve the selected task.');
+    await page.locator('#jiraSelect').selectOption('General');
     const nativeInvoke = await page.evaluate(()=>{window.testOriginalInvoke=window.__TAURI_INTERNALS__.invoke; return true;});
     assert.equal(nativeInvoke,true);
     await page.locator('#sessionIntention').fill('Write proposal, 60 min; review proposal, 40 min.');

@@ -119,6 +119,8 @@ Task description|Descripción de la tarea
 Linked task|Tarea vinculada
 Select Task...|Seleccionar tarea…
 General / No Ticket|General / Sin incidencia
+Study|Estudio
+Task|Tarea
 Sync time to Jira|Sincronizar tiempo con Jira
 Off|Desactivado
 Loading summary...|Cargando resumen…

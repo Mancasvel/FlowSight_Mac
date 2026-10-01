@@ -1,6 +1,6 @@
 export function resolveTaskContext({ calendarEvent, canIntegrate, selectedValue, selectedLabel, manualTask }) {
   const detail = String(manualTask || '').trim();
-  const linked = Boolean(canIntegrate && selectedValue && selectedValue !== 'MANUAL' && selectedValue !== 'General');
+  const linked = Boolean(canIntegrate && selectedValue && selectedValue !== 'MANUAL' && selectedValue !== 'General' && selectedValue !== 'STUDY');
   const jiraTicket = linked ? String(selectedValue) : null;
   const eventTitle = String(calendarEvent?.title || '').trim();
 
@@ -14,6 +14,9 @@ export function resolveTaskContext({ calendarEvent, canIntegrate, selectedValue,
   }
   if (linked) {
     return { task: String(selectedLabel || selectedValue).trim(), jiraTicket };
+  }
+  if (selectedValue === 'STUDY') {
+    return { task: String(selectedLabel || 'Study').trim(), jiraTicket: null };
   }
   return { task: 'General', jiraTicket: null };
 }

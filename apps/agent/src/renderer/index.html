@@ -3678,10 +3678,10 @@
               <input type="text" id="manualTask" class="input" placeholder="What are you working on?">
             </div>
             <div class="today-task-integration" id="todayIntegrationControls">
-              <label class="label" id="todayLinkedTaskLabel" for="jiraSelect">Linked task</label>
+              <label class="label" id="todayLinkedTaskLabel" for="jiraSelect">Task</label>
               <select id="jiraSelect" class="select" style="width: 100%;">
                 <option value="">Select Task...</option>
-                <option value="General">General / No Ticket</option>
+                <option value="General">General / No Ticket</option><option value="STUDY">Study</option>
               </select>
             </div>
           </div>
@@ -4463,11 +4463,10 @@
 
     function syncTodayTaskFields() {
       const hasEvent = Boolean(activeCalendarTask());
-      const canIntegrate = Boolean(currentEntitlements?.can_integrations);
       const integration = document.getElementById('todayIntegrationControls');
       const manualLabel = document.getElementById('todayManualTaskLabel');
       const manualInput = document.getElementById('manualTask');
-      if (integration) integration.hidden = !canIntegrate;
+      if (integration) integration.hidden = false;
       if (manualLabel) setText(manualLabel, () => ((hasEvent ? tr('Add context to this event (optional)') : tr('Task description'))));
       if (manualInput) setAttributeText(manualInput, 'placeholder', () => ((hasEvent ? tr('What are you doing during this event?') : tr('What are you working on?'))));
     }
@@ -6008,9 +6007,9 @@
         const tasks = await invoke('fetch_jira_tasks');
         console.log('[UI] Loaded', tasks?.length || 0, 'Jira task(s)');
 
-        // Clear existing options except first two
-        while (select.options.length > 2) {
-          select.remove(2);
+        // Keep the placeholder and built-in General / Study tasks.
+        while (select.options.length > 3) {
+          select.remove(3);
         }
 
         // Add tasks
@@ -7973,7 +7972,7 @@
         }
 
         sel.innerHTML = markup('<option value="">Select Task...</option>');
-        sel.insertAdjacentHTML('beforeend', markup('<option value="General">General / No Ticket</option>'));
+        sel.insertAdjacentHTML('beforeend', markup('<option value="General">General / No Ticket</option><option value="STUDY">Study</option>'));
 
         if (tasks.length > 0) {
           const groups = {};
@@ -8015,7 +8014,7 @@
       } catch (e) {
         console.error('[UI] Refresh tasks failed:', e);
         sel.innerHTML = markup('<option value="">Not connected</option>');
-        sel.insertAdjacentHTML('beforeend', markup('<option value="General">General / No Ticket</option>'));
+        sel.insertAdjacentHTML('beforeend', markup('<option value="General">General / No Ticket</option><option value="STUDY">Study</option>'));
         const manual = document.createElement('option');
         manual.value = "MANUAL";
         setText(manual, () => (tr("Manual Task")));
