@@ -7,7 +7,9 @@ use serde_json::{json, Value};
 
 use super::state::{self, SystemQuiet};
 
+#[cfg(target_os = "windows")]
 const KEY: &str = r"HKCU\Software\Microsoft\Windows\CurrentVersion\Notifications\Settings";
+#[cfg(target_os = "windows")]
 const VALUE: &str = "NOC_GLOBAL_SETTING_TOASTS_ENABLED";
 
 #[cfg(windows)]
