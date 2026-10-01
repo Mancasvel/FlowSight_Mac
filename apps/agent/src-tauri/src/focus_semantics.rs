@@ -2092,14 +2092,13 @@ mod tests {
         assert!(insights.contains("do not estimate it from categories"));
         assert!(insights.contains("Use only focus_semantics.distraction_events"));
 
-        let notion_command = include_str!("notion.rs");
-        let notion_publish =
-            include_str!("../../../../supabase/functions/publish-notion-report/index.ts");
-        let notion_formatter =
-            include_str!("../../../../supabase/functions/_shared/notion_policy.ts");
-        assert!(notion_command.contains("build_local_insights_report"));
-        assert!(notion_publish.contains("formatCanonicalNotionReport(localReport"));
-        assert!(notion_formatter.contains("Canonical local_report.focus_semantics is required"));
+        // Notion is temporarily unavailable in this macOS release. Verify the
+        // guard and unregistered native command rather than requiring backend
+        // publishing sources that are not shipped by this platform.
+        assert!(renderer.contains("const NOTION_INTEGRATION_ENABLED = false;"));
+        let native_commands = include_str!("lib.rs");
+        assert!(!native_commands.contains("mod notion;"));
+        assert!(!native_commands.contains("notion::publish_notion_report"));
         assert!(!renderer.contains("NOTION_CLIENT_SECRET"));
         assert!(!renderer.contains("token_ciphertext"));
     }
