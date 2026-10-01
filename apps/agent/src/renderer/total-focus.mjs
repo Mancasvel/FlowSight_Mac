@@ -1,4 +1,4 @@
-import { html, t, setText, getLocale } from './i18n.mjs';
+import { html, t, setText, getLocale, localizeStatus } from './i18n.mjs';
 
 const escape = value => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
 const defaults = {patterns:['instagram.com','tiktok.com','x.com'],exceptions:[],durationMinutes:50};
@@ -88,7 +88,7 @@ export function mountTotalFocus({invoke}) {
     if (busy) return;
     busy = true; render();feedback(() => t('Applying browser protection…'));
     try { await run();await refresh(); }
-    catch(error) { feedback(() => `${t('Could not update total focus:')} ${error}`); }
+    catch(error) { feedback(() => `${t('Could not update total focus:')} ${localizeStatus(error)}`); }
     finally { busy = false;render(); }
   }
   document.getElementById('totalFocusConfig').addEventListener('input',()=>{dirty=true;});
