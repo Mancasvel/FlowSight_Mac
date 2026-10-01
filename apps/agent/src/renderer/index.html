@@ -5367,7 +5367,7 @@
     }
 
     function applyRecordedHistory(history) {
-      if (history?.tracking) liveTrackingClock.sample(history.tracking);
+      if (history?.tracking) liveTrackingClock.sample({ ...history.tracking, is_running: trackingStateHydrated ? isMonitoring : history.tracking.is_running });
       else if (!trackingStateHydrated) liveTrackingClock.seed(history);
       currentHistoryData = history;
       updateTimerDisplay();
@@ -5376,7 +5376,7 @@
     function syncTrackingClock() {
       if (!clockRequest) {
         clockRequest = invoke('get_tracking_clock').then(snapshot => {
-          if (liveTrackingClock.sample(snapshot)) {
+          if (liveTrackingClock.sample({ ...snapshot, is_running: trackingStateHydrated ? isMonitoring : snapshot.is_running })) {
             updateTimerDisplay();
           }
         }).finally(() => { clockRequest = null; });
@@ -5424,9 +5424,10 @@
         if (playIcon) playIcon.style.display = 'block';
         if (pauseIcon) pauseIcon.style.display = 'none';
       }
+      btn.disabled = trackingTransitionInProgress || pomodoroTransition;
       if (timerPreferences.mode === 'pomodoro' && !isMonitoring) {
         const waitingForBreak = pomodoro.phase !== 'work' && !pomodoro.ready;
-        btn.disabled = waitingForBreak || pomodoroTransition;
+        btn.disabled = btn.disabled || waitingForBreak;
         const text = waitingForBreak ? tr('Taking a break') : tr('Start focus interval');
         if (label) setText(label, () => text);
         btn.setAttribute('aria-label', text);
