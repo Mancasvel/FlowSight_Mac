@@ -19,6 +19,9 @@ tests = session[session.index('#[cfg(test)]\nmod tests'):]
 abandon = session[session.index('#[derive(Serialize)]\n#[serde(rename_all = "camelCase")]\npub struct SessionAbandonment'):session.index('\n#[tauri::command]\npub async fn abandon_session_plan')]
 structs = state[state.index('#[derive(Clone, Debug, Default'):state.index('\nfn connection()')]
 structs = structs.replace('super::session_calendar::CalendarTarget', 'crate::local_agent::session_calendar::CalendarTarget')
+structs = structs.replace('super::total_focus::', 'crate::total_focus::')
+focus_source = (root / 'apps/agent/src-tauri/src/local_agent/total_focus.rs').read_text(encoding='utf8')
+focus_types = focus_source[focus_source.index('#[derive(Clone, Debug, Serialize, Deserialize)]'):focus_source.index('\nfn normalize(')]
 calendar = (root / 'apps/agent/src-tauri/src/local_agent/session_calendar.rs').read_text(encoding='utf8')
 target = calendar[calendar.index('#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]'):calendar.index('\npub struct CalendarClient')]
 output.joinpath('Cargo.toml').write_text('''[package]
@@ -33,6 +36,7 @@ uuid = { version = "1", features = ["v4"] }
 reqwest = { version = "0.12", features = ["json", "blocking"] }
 ''', encoding='utf8')
 output.joinpath('src/state.rs').write_text('use std::collections::BTreeMap;\nuse serde::{Deserialize, Serialize};\n' + structs, encoding='utf8')
+output.joinpath('src/total_focus.rs').write_text('use serde::{Deserialize, Serialize};\n' + focus_types, encoding='utf8')
 output.joinpath('src/planner.rs').write_text('''use std::sync::Mutex;
 use std::time::{Duration, Instant};
 use chrono::{DateTime, Duration as TimeDelta, FixedOffset, Utc};
@@ -74,6 +78,7 @@ pub fn evaluate(input: &Value) -> Value {
 ''' + '\n' + tests, encoding='utf8')
 output.joinpath('src/main.rs').write_text('''#![allow(dead_code, unused_imports)]
 mod state;
+mod total_focus;
 mod language {
  pub fn copy<'a>(english:&'a str,spanish:&'a str)->&'a str { if std::env::var("FLOWSIGHT_TEST_LANGUAGE").as_deref()==Ok("es") {spanish} else {english} }
 }

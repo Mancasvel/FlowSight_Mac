@@ -341,7 +341,7 @@ mod tests {
             assert!(model.insert(spec.model_name));
             assert!(!spec.model_name.contains('.'));
         }
-        assert_eq!(public.len(), 33);
+        assert_eq!(public.len(), 36);
     }
 
     #[test]
