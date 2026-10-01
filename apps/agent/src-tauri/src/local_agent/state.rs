@@ -227,11 +227,18 @@ pub fn append_conversation(role: &str, content: &str) -> Result<(), String> {
 }
 
 pub fn hold_notification(title: &str, body: &str) -> Result<bool, String> {
-    if read()?.quiet.is_none() {
+    fn holding(data: &AgentData) -> bool {
+        data.quiet.is_some()
+            || data.total_focus.as_ref().is_some_and(|session| {
+                chrono::DateTime::parse_from_rfc3339(&session.expires_at)
+                    .is_ok_and(|until| until > chrono::Utc::now())
+            })
+    }
+    if !holding(&read()?) {
         return Ok(false);
     }
     update(|data| {
-        if data.quiet.is_none() {
+        if !holding(data) {
             return Ok(false);
         }
         data.notification_digest.push(DigestItem {

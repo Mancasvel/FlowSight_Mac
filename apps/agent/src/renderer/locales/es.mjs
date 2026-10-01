@@ -952,6 +952,7 @@ spanish['{p0}\n\n{p1}\n\nDraft only; copy and review before publishing.']='{p0}\
 Object.assign(spanish, {
   '1 of 6':'1 de 6','{p0} of 6':'{p0} de 6',
   'Total focus':'Concentración total','Total focus active':'Concentración total activa',
+  'FlowSight focus reminders are held in your local digest during this session.':'Los recordatorios de FlowSight se guardan en tu resumen local durante esta sesión.',
   'Pages to block':'Páginas a bloquear','Allowed exceptions':'Excepciones permitidas',
   'One domain or path per line. Subdomains are included.':'Un dominio o ruta por línea. Se incluyen los subdominios.',
   'Exceptions take priority. Keep the pages you need for your work.':'Las excepciones tienen prioridad. Conserva las páginas que necesitas para trabajar.',

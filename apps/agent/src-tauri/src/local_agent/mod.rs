@@ -191,6 +191,13 @@ fn context_for_family(family: &str, data: &state::AgentData) -> Value {
             .map(|value| value.chars().take(160).collect::<String>()),
     });
     let fields = context.as_object_mut().expect("context is an object");
+    if matches!(family, "focus" | "browser") {
+        fields.insert(
+            "totalFocus".into(),
+            json!({"session":data.total_focus,"preferences":data.total_focus_preferences,
+            "browser":browser_bridge::focus_status(),"messagingAvailable":false}),
+        );
+    }
     if matches!(family, "focus" | "system" | "notifications" | "automation") {
         fields.insert(
             "focus".into(),

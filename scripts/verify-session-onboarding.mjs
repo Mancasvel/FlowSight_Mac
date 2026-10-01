@@ -140,12 +140,16 @@ try {
     await page.locator('#onboardingFocusReminders').check();
     await page.locator('#onboardingContinueBtn').click();
     await page.getByRole('heading',{name:'Make space for total focus'}).waitFor();
+    await page.screenshot({path:fileURLToPath(new URL(`onboarding-total-focus-intro-${viewport.name}.png`,output))});
     assert.match(await page.locator('#onboardingBody').innerText(),/Windows, macOS, and Linux/);
     assert.match(await page.locator('#onboardingBody').innerText(),/Coming later/);
     await page.locator('#onboardingFocusSites').fill('youtube.com\ninstagram.com');
     await page.locator('#onboardingFocusExceptions').fill('youtube.com/watch');
     await page.locator('#onboardingFocusMinutes').fill('50');
+    await page.locator('#onboardingBody').evaluate(element=>{element.scrollTop=0;});
     await page.screenshot({path:fileURLToPath(new URL(`onboarding-total-focus-${viewport.name}.png`,output))});
+    await page.locator('#onboardingBody .total-focus-future').scrollIntoViewIfNeeded();
+    await page.screenshot({path:fileURLToPath(new URL(`onboarding-total-focus-future-${viewport.name}.png`,output))});
     await page.evaluate(()=>{window.testFailures.save_total_focus_preferences='Storage unavailable';});
     await page.locator('#onboardingContinueBtn').click();
     await page.locator('#onboardingSetupStatus').filter({hasText:'Storage unavailable'}).waitFor();
@@ -199,6 +203,7 @@ try {
     await page.locator('#totalFocusTask').fill('ADDA · exercise 1');
     await page.locator('#totalFocusStart').click();
     await page.locator('#totalFocusStatus').filter({hasText:'browser block confirmed'}).waitFor();
+    await page.locator('#totalFocusSettings').evaluate(element=>element.scrollIntoView({block:'start'}));
     await page.screenshot({path:fileURLToPath(new URL(`total-focus-active-${viewport.name}.png`,output))});
     await page.locator('#totalFocusEnd').click();
     await page.locator('#totalFocusFeedback').filter({hasText:'Total focus ended'}).waitFor();

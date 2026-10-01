@@ -17,6 +17,10 @@ session protects HTTP(S) top-level navigation and replaces already open matched
 tabs with a local page. Exceptions have higher DNR priority. No native application
 processes are terminated or prevented from launching.
 
+While a session is active, FlowSight's own focus reminders are held in the local
+notification digest. This applies on all three platforms and does not change OS
+notification permissions or claim to silence other applications.
+
 Windows, macOS and Linux share the same loopback protocol and MV3 extension. The
 feature requires neither a cloud plan nor a running model. Activity tracking is a
 separate choice. No messages are sent by this mode; messaging status and automatic

@@ -40,6 +40,7 @@ export function mountTotalFocus({invoke}) {
   const host = document.getElementById('totalFocusSettings');
   host.innerHTML = html`<div class="card-header"><div class="card-title">Total focus</div></div>
     <p class="profile-card-intro">Block distracting websites in your paired Chrome extension on Windows, macOS, or Linux.</p>
+    <p class="session-help">FlowSight focus reminders are held in your local digest during this session.</p>
     <p id="totalFocusStatus" class="total-focus-status" role="status" aria-live="polite">Checking browser protection…</p>
     <p id="totalFocusActiveTask" class="total-focus-task" data-user-content></p>
     <label for="totalFocusTask">Your focus task</label><input id="totalFocusTask" class="input" type="text" maxlength="160" placeholder="What are you working on?">

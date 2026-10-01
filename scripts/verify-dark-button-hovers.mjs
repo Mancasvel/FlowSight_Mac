@@ -87,6 +87,9 @@ try {
     await page.goto(process.env.FLOWSIGHT_RENDERER_URL||'http://127.0.0.1:1432',{waitUntil:'networkidle'});
     await page.locator('#onboardingOverlay.visible').waitFor();await page.evaluate(()=>document.fonts.ready);
     await page.locator('#onboardingContinueBtn').click();await page.locator('#onboardingContinueBtn').click();await page.locator('#onboardingContinueBtn').click();
+    await page.getByRole('heading',{name:'Make space for total focus'}).waitFor();
+    await inspectButton(page,'#onboardingFocusCheck',`focus-connection-${viewport.name}`);
+    await page.locator('#onboardingContinueBtn').click();
     await inspectButton(page,'#onboardingChooseFolder',`onboarding-secondary-${viewport.name}`);
     if(stage==='after')await inspectButton(page,'#onboardingContinueBtn',`onboarding-primary-${viewport.name}`);
     await page.locator('#onboardingSkipCalendarBtn').click();await page.locator('#onboardingOverlay').waitFor({state:'hidden'});

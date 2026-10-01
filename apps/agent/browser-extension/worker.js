@@ -94,10 +94,10 @@ async function applyFocusPolicy(policy) {
     || installed.length !== rules.length || !rules.every(rule => installed.some(item => item.id === rule.id
       && item.priority === rule.priority && item.action.type === rule.action.type
       && item.condition.regexFilter === rule.condition.regexFilter));
+  await chrome.alarms.create(FOCUS_ALARM, { when: expiresAt });
   if (changed) {
     await chrome.declarativeNetRequest.updateDynamicRules({ removeRuleIds: FOCUS_RULE_IDS, addRules: rules });
     await chrome.storage.local.set({ focus: policy });
-    await chrome.alarms.create(FOCUS_ALARM, { when: expiresAt });
     // Replace already open distractions with a local page. No URLs or tab titles leave the browser.
     const tabs = await chrome.tabs.query({});
     for (const tab of tabs) {
