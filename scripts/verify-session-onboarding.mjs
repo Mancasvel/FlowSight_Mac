@@ -176,7 +176,7 @@ try {
     await page.screenshot({path:fileURLToPath(new URL(`study-task-${viewport.name}.png`,output))});
     await page.locator('#navProfile').click();
     await page.locator('#languageSelect').selectOption('es');
-    await page.locator('#jiraSelect option:checked').filter({hasText:'Estudio'}).waitFor();
+    await page.waitForFunction(() => document.querySelector('#jiraSelect option:checked')?.textContent.trim() === 'Estudio');
     await page.locator('#navProfile').click();
     await page.locator('#languageSelect').selectOption('en');
     await page.locator('#navToday').click();
