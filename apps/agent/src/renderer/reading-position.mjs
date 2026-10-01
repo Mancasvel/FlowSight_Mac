@@ -32,5 +32,6 @@ export function restoreReadingPosition(root, position) {
 }
 
 export function historyRenderKey(history, week, language, goalHours) {
-  return JSON.stringify([history, week, language, goalHours]);
+  const { tracking, ...observations } = history || {};
+  return JSON.stringify([observations, week, language, goalHours]);
 }

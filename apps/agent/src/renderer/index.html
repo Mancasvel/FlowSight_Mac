@@ -1509,6 +1509,20 @@
       margin-bottom: 2px;
     }
 
+    .timer-mode-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
+    .timer-mode-row label { font-size: 12px; font-weight: 650; color: hsl(var(--foreground)); }
+    .timer-mode-row select { width: auto; min-width: 112px; max-width: 50%; min-height: 42px; }
+    .timer-mode-row select:focus-visible, .pomodoro-panel :is(select, summary, button):focus-visible { outline: 3px solid hsl(var(--primary)); outline-offset: 3px; }
+    .pomodoro-panel { margin: 12px 0 18px; }
+    .pomodoro-settings summary { font-size: 12px; cursor: pointer; color: hsl(var(--foreground)); padding: 8px 0; }
+    .pomodoro-fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 10px; }
+    .pomodoro-fields label { font-size: 11px; color: hsl(var(--foreground)); display: flex; flex-direction: column; gap: 6px; }
+    .pomodoro-panel [hidden] { display: none !important; }
+    .pomodoro-fields label > span { min-height: 2.8em; line-height: 1.4; }
+    .pomodoro-fields select { width: 100%; min-width: 0; min-height: 42px; }
+    .pomodoro-panel p { margin: 10px 0 0; font-size: 11px; line-height: 1.5; color: hsl(var(--muted-foreground)); }
+    .pomodoro-panel .pomodoro-status:empty { display: none; }
+
     .timer-recording-note {
       max-width: 22ch;
       margin-top: 8px;
@@ -3580,8 +3594,12 @@
 
         <div class="today-timer-section">
           <div class="today-timer-ring">
+            <div class="timer-mode-row">
+              <label for="timerModeSelect">Timer mode</label>
+              <select id="timerModeSelect" class="input"><option value="normal">Normal</option><option value="pomodoro">Pomodoro</option></select>
+            </div>
             <div class="today-timer-meta">
-              <span>Recorded today</span>
+              <span id="timerKindLabel">Recorded today</span>
               <span class="today-tracking-state" id="todayTrackingState">Ready</span>
             </div>
             <svg viewBox="0 0 200 200" aria-hidden="true">
@@ -3591,7 +3609,19 @@
             </svg>
             <div class="timer-inner">
               <div class="timer-display" id="timerDisplay">00:00:00</div>
-              <small class="timer-recording-note">Updates after each local analysis.</small>
+              <small class="timer-recording-note" id="timerRecordingNote">Live timer · pauses when tracking is paused.</small>
+            </div>
+            <div class="pomodoro-panel" id="pomodoroPanel" hidden>
+              <details class="pomodoro-settings"><summary>Intervals</summary>
+                <div class="pomodoro-fields">
+                  <label for="pomodoroWork"><span>Work (min)</span><select class="input" id="pomodoroWork"><option>15</option><option selected>25</option><option>30</option><option>45</option><option>50</option><option>60</option></select></label>
+                  <label for="pomodoroShortBreak"><span>Break (min)</span><select class="input" id="pomodoroShortBreak"><option selected>5</option><option>10</option><option>15</option></select></label>
+                  <label for="pomodoroLongBreak"><span>Long break (min)</span><select class="input" id="pomodoroLongBreak"><option selected>15</option><option>20</option><option>30</option></select></label>
+                </div>
+                <p>Long break after four focus intervals. Breaks pause tracking; start the next interval when ready.</p>
+              </details>
+              <p class="pomodoro-status" id="pomodoroStatus" role="status" aria-live="polite"></p>
+              <button type="button" class="button button-ghost" id="pomodoroSkipBreak" hidden>End break</button>
             </div>
             <div class="today-calendar-status" aria-live="polite">
               <div class="today-calendar-context" id="todayCalendarContext" hidden>
@@ -4271,7 +4301,9 @@
       resolveTrackingRestore,
       saveTrackingCheckpoint,
       recordedDailyTotal,
+      LiveTrackingClock,
     } from './tracking-session.mjs';
+    import { loadTimerPreferences, saveTimerPreferences, PomodoroTimer } from './timer-modes.mjs';
     import {
       cleanReportText as extractEnglishText,
       createStatusReportViewModel,
@@ -5310,7 +5342,11 @@
       return streak;
     }
 
-    let todayTotalSeconds = 0;
+    const liveTrackingClock = new LiveTrackingClock();
+    let timerPreferences = loadTimerPreferences(localStorage);
+    const pomodoro = new PomodoroTimer(timerPreferences);
+    let clockRequest = null;
+    let pomodoroTransition = false;
     let sessionTimerInterval = null;
     let todayRefreshInterval = null;
     let dailyHistoryRequest = null;
@@ -5333,9 +5369,21 @@
     }
 
     function applyRecordedHistory(history) {
-      todayTotalSeconds = recordedDailyTotal(history);
+      if (history?.tracking) liveTrackingClock.sample({ ...history.tracking, is_running: trackingStateHydrated ? isMonitoring : history.tracking.is_running });
+      else if (!trackingStateHydrated) liveTrackingClock.seed(history);
       currentHistoryData = history;
       updateTimerDisplay();
+    }
+
+    function syncTrackingClock() {
+      if (!clockRequest) {
+        clockRequest = invoke('get_tracking_clock').then(snapshot => {
+          if (liveTrackingClock.sample({ ...snapshot, is_running: trackingStateHydrated ? isMonitoring : snapshot.is_running })) {
+            updateTimerDisplay();
+          }
+        }).finally(() => { clockRequest = null; });
+      }
+      return clockRequest;
     }
 
     function loadCurrentDayHistory() {
@@ -5349,7 +5397,7 @@
     }
 
     function getDisplayTotalSeconds() {
-      return todayTotalSeconds;
+      return liveTrackingClock.seconds();
     }
 
     function updateTimerControlsVisibility() {
@@ -5377,6 +5425,19 @@
         if (label) setText(label, () => (btn.title));
         if (playIcon) playIcon.style.display = 'block';
         if (pauseIcon) pauseIcon.style.display = 'none';
+      }
+      btn.disabled = trackingTransitionInProgress || pomodoroTransition;
+      if (timerPreferences.mode === 'pomodoro' && !isMonitoring) {
+        const waitingForBreak = pomodoro.phase !== 'work' && !pomodoro.ready;
+        btn.disabled = btn.disabled || waitingForBreak;
+        const text = waitingForBreak ? tr('Taking a break') : tr('Start focus interval');
+        if (label) setText(label, () => text);
+        btn.setAttribute('aria-label', text);
+        btn.title = text;
+      }
+      document.getElementById('timerModeSelect').disabled = trackingTransitionInProgress || pomodoroTransition;
+      for (const id of ['pomodoroWork','pomodoroShortBreak','pomodoroLongBreak']) {
+        document.getElementById(id).disabled = isMonitoring || (pomodoro.phase !== 'work' && !pomodoro.ready);
       }
       updateTimerControlsVisibility();
     }
@@ -5427,9 +5488,18 @@
       const display = document.getElementById('timerDisplay');
       if (!display) return;
       const total = getDisplayTotalSeconds();
-      setText(display, () => (formatTimerDisplay(total)));
+      const isPomodoro = timerPreferences.mode === 'pomodoro';
+      const shown = isPomodoro ? Math.ceil(pomodoro.remaining() / 1000) : total;
+      setText(display, () => isPomodoro ? `${String(Math.floor(shown / 60)).padStart(2, '0')}:${String(shown % 60).padStart(2, '0')}` : formatTimerDisplay(shown));
+      const timerLabel = document.getElementById('timerKindLabel');
+      if (timerLabel) setText(timerLabel, () => !isPomodoro ? tr('Recorded today') : tr(pomodoro.ready ? 'Ready for the next interval' : pomodoro.phase === 'work' ? 'Focus interval' : pomodoro.phase === 'long-break' ? 'Long break' : 'Break'));
+      const note = document.getElementById('timerRecordingNote');
+      if (note) setText(note, () => isPomodoro ? formatMessage`${pomodoro.completed} completed intervals · ${formatTimerDisplay(total)} tracked today` : tr('Live timer · pauses when tracking is paused.'));
+      const skip = document.getElementById('pomodoroSkipBreak');
+      if (skip) skip.hidden = !isPomodoro || pomodoro.phase === 'work' || pomodoro.ready;
       const goalSec = getDailyGoalHours() * 3600;
       updateTimerRing(goalSec > 0 ? total / goalSec : 0);
+      updateLiveSummary(total);
     }
 
     function persistTrackingState() {
@@ -5443,6 +5513,9 @@
     }
 
     function commitSessionTime() {
+      liveTrackingClock.setRunning(false);
+      if (timerPreferences.mode === 'pomodoro' && pomodoro.phase === 'work') pomodoro.pause();
+      syncTrackingClock().catch(() => {});
       if (sessionTimerInterval) {
         clearInterval(sessionTimerInterval);
         sessionTimerInterval = null;
@@ -5451,14 +5524,115 @@
     }
 
     function resumeSessionTimer() {
-      if (sessionTimerInterval) clearInterval(sessionTimerInterval);
-      sessionTimerInterval = setInterval(() => {
-        loadCurrentDayHistory().then(history => {
-          if (document.getElementById('tabSummary')?.classList.contains('active')) renderHistory(history, currentWeekData);
-          persistTrackingState();
-        }).catch(() => {});
-      }, TRACKING_CHECKPOINT_INTERVAL_SECONDS * 1000);
+      liveTrackingClock.setRunning(true);
+      if (timerPreferences.mode === 'pomodoro' && (pomodoro.phase === 'work' || pomodoro.ready)) pomodoro.start();
+      syncTrackingClock().catch(() => {});
+      beginTimerTicks();
+      updateTimerDisplay();
     }
+
+    function beginTimerTicks() {
+      if (sessionTimerInterval) clearInterval(sessionTimerInterval);
+      let ticks = 0;
+      sessionTimerInterval = setInterval(() => {
+        updateTimerDisplay();
+        advancePomodoro();
+        if (++ticks % TRACKING_CHECKPOINT_INTERVAL_SECONDS === 0) {
+          syncTrackingClock().catch(() => {});
+          loadCurrentDayHistory().then(history => {
+            if (document.getElementById('tabSummary')?.classList.contains('active')) renderHistory(history, currentWeekData);
+          }).catch(() => {});
+          persistTrackingState();
+        }
+      }, 1000);
+    }
+
+    async function advancePomodoro() {
+      if (timerPreferences.mode !== 'pomodoro' || pomodoroTransition || trackingTransitionInProgress) return;
+      const transition = pomodoro.update();
+      if (!transition) return;
+      if (transition === 'break-complete') {
+        if (sessionTimerInterval) clearInterval(sessionTimerInterval);
+        sessionTimerInterval = null;
+        document.getElementById('pomodoroStatus').textContent = tr('Break finished. Start the next focus interval when you are ready.');
+        updateTimerDisplay();
+        updatePlayButtonState();
+        showToast(tr('Break finished. Start the next focus interval when you are ready.'), 'success', 6000);
+        return;
+      }
+      pomodoroTransition = true;
+      try {
+        await pauseMonitoring();
+        if (isMonitoring) {
+          pomodoro.pause();
+          document.getElementById('pomodoroStatus').textContent = tr('Could not pause tracking. Pause it before taking a break.');
+          return;
+        }
+        pomodoro.finishWork();
+        pomodoro.start();
+        beginTimerTicks();
+        document.getElementById('pomodoroStatus').textContent = tr('Time for a break. Tracking is paused.');
+        showToast(tr('Time for a break. Tracking is paused.'), 'success', 6000);
+        updateTimerDisplay();
+        updatePlayButtonState();
+      } finally { pomodoroTransition = false; updatePlayButtonState(); }
+    }
+
+    function updateLiveSummary(total = getDisplayTotalSeconds()) {
+      if (!document.getElementById('tabSummary')?.classList.contains('active')) return;
+      const card = document.querySelector('.summary-main-card');
+      if (!card) return;
+      const goal = getDailyGoalHours() * 3600;
+      const progress = goal > 0 ? Math.min(1, total / goal) : 0;
+      setText(card.querySelector('.summary-total-time'), () => formatDuration(total));
+      const ring = card.querySelector('.progress-ring-fill');
+      ring?.setAttribute('stroke-dashoffset', String(2 * Math.PI * 30 * (1 - progress)));
+      const goalTrack = card.querySelector('.summary-goal-track');
+      goalTrack?.setAttribute('aria-valuenow', String(Math.round(progress * 100)));
+      goalTrack?.querySelector('rect')?.setAttribute('width', String(progress * 100));
+      card.querySelector('.goal-dot')?.classList.toggle('behind', goal > 0 && total < goal);
+      const focusSeconds = canonicalDeepFocusSeconds(currentHistoryData || {});
+      const observed = recordedDailyTotal(currentHistoryData);
+      const share = observed > 0 ? Math.min(100, Math.round(focusSeconds / observed * 100)) : 0;
+      const paragraph = card.querySelector('.summary-focus-ratio p');
+      if (paragraph) setText(paragraph, () => formatMessage`${formatShortDuration(focusSeconds)} in sustained blocks · ${formatShortDuration(observed)} analyzed`);
+      const focusShare = card.querySelector('.summary-focus-head strong');
+      if (focusShare) focusShare.textContent = `${share}%`;
+    }
+
+    document.getElementById('timerModeSelect').value = timerPreferences.mode;
+    for (const [id, key] of [['pomodoroWork','work'], ['pomodoroShortBreak','shortBreak'], ['pomodoroLongBreak','longBreak']]) {
+      document.getElementById(id).value = String(timerPreferences[key]);
+      document.getElementById(id).addEventListener('change', event => {
+        timerPreferences[key] = Number(event.target.value);
+        saveTimerPreferences(localStorage, timerPreferences);
+        pomodoro.configure(timerPreferences);
+        pomodoro.reset();
+        updateTimerDisplay();
+      });
+    }
+    document.getElementById('timerModeSelect').addEventListener('change', event => {
+      timerPreferences.mode = event.target.value;
+      saveTimerPreferences(localStorage, timerPreferences);
+      pomodoro.reset();
+      document.getElementById('pomodoroPanel').hidden = timerPreferences.mode !== 'pomodoro';
+      document.getElementById('pomodoroStatus').textContent = '';
+      if (isMonitoring) { pomodoro.start(); beginTimerTicks(); }
+      else if (sessionTimerInterval) { clearInterval(sessionTimerInterval); sessionTimerInterval = null; }
+      updateTimerDisplay();
+      updatePlayButtonState();
+    });
+    document.getElementById('pomodoroSkipBreak').addEventListener('click', () => {
+      if (sessionTimerInterval) clearInterval(sessionTimerInterval);
+      sessionTimerInterval = null;
+      pomodoro.pause();
+      pomodoro.ready = true;
+      pomodoro.remainingMs = 0;
+      document.getElementById('pomodoroStatus').textContent = tr('Start the next focus interval when you are ready.');
+      updateTimerDisplay();
+      updatePlayButtonState();
+    });
+    document.getElementById('pomodoroPanel').hidden = timerPreferences.mode !== 'pomodoro';
 
     function startSessionTimer() {
       resumeSessionTimer();
@@ -5499,6 +5673,7 @@
       const stopBtn = document.getElementById('stopTimerBtn');
       if (playBtn) playBtn.disabled = busy;
       if (stopBtn) stopBtn.disabled = busy;
+      if (!busy) updatePlayButtonState();
     }
 
     async function restoreTrackingSession() {
@@ -5535,7 +5710,7 @@
           }
         }
 
-        todayTotalSeconds = restored.totalSeconds;
+        await syncTrackingClock().catch(() => {});
         isMonitoring = restored.mode === 'running';
         isPaused = restored.mode === 'paused';
 
@@ -5590,6 +5765,9 @@
         isMonitoring = false;
         isPaused = false;
         commitSessionTime();
+        pomodoro.reset();
+        document.getElementById('pomodoroStatus').textContent = '';
+        updateTimerDisplay();
         renderTrackingStatus();
         persistTrackingState();
         try {
@@ -5610,6 +5788,7 @@
     }
 
     async function resumeMonitoring() {
+      document.getElementById('pomodoroStatus').textContent = '';
       const btn = document.getElementById('playTimerBtn');
       btn.disabled = true;
       btn.classList.add('loading-state');
@@ -5677,6 +5856,7 @@
     });
 
     document.getElementById('playTimerBtn')?.addEventListener('click', () => {
+      if (trackingTransitionInProgress || pomodoroTransition || (timerPreferences.mode === 'pomodoro' && pomodoro.phase !== 'work' && !pomodoro.ready)) return;
       if (isMonitoring) {
         document.getElementById('pauseBtn')?.click();
       } else if (isPaused) {
@@ -8708,12 +8888,13 @@
     }
 
     function renderHistory(data, week) {
-      applyRecordedHistory(data);
+      // Rendering cached history must never re-anchor the live tracking clock.
       const key = historyRenderKey(data, week, getLanguage(), getDailyGoalHours());
       if (key === lastHistoryRenderKey) return;
       const position = captureReadingPosition(summaryBody);
       try {
         renderHistoryContent(data, week);
+        updateLiveSummary();
         lastHistoryRenderKey = key;
       } finally {
         restoreReadingPosition(summaryBody, position);
@@ -8723,7 +8904,7 @@
     function renderHistoryContent(data, week) {
       const activeDays = week?.days?.filter(day => day.has_activity).length || 0;
       const weekActivityLabel = formatMessage`${activeDays} active day${activeDays === 1 ? '' : 's'}`;
-      if (data.entries.length === 0) {
+      if (data.entries.length === 0 && getDisplayTotalSeconds() === 0) {
         summaryBody.innerHTML = html`
           <div class="summary-header">
             <h1 class="summary-title">Insights</h1>

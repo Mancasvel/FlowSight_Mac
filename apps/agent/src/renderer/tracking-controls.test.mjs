@@ -16,12 +16,16 @@ function createHarness({ monitoring = true, paused = false, invoke } = {}) {
   const buttons = {
     playTimerBtn: { disabled: false },
     stopTimerBtn: { disabled: false },
+    pomodoroStatus: { textContent: '' },
   };
   const context = {
     tr, formatMessage, html, markup, setText, setAttributeText, localizeStatus,
     isMonitoring: monitoring,
     isPaused: paused,
     trackingTransitionInProgress: false,
+    pomodoro: { reset() {} },
+    updateTimerDisplay() {},
+    updatePlayButtonState() {},
     document: { getElementById: id => buttons[id] ?? null },
     invoke: invoke ?? (async command => { calls.push(command); }),
     commitSessionTime: () => calls.push('commitSessionTime'),
