@@ -33,6 +33,9 @@ try {
     transformCallback(){return counter++;},unregisterCallback(){},convertFileSrc(path){return path;},
     async invoke(command,args={}){
      window.testCalls.push({command,args});
+     if(['start_auth','start_calendar_oauth','start_notion_oauth','fetch_jira_tasks','fetch_linear_tasks'].includes(command)) {
+      throw new Error('Provider authorization is unavailable in this isolated local-planner check.');
+     }
      if(command.startsWith('plugin:window|'))return command.endsWith('is_maximized')?false:null;
      if(command==='plugin:event|listen')return args.handler;
      if(command.startsWith('plugin:event|')||command.startsWith('plugin:updater|'))return null;
@@ -76,8 +79,9 @@ try {
   await page.screenshot({path:resolve(output,`adda-overflow-layout-preview-${viewport.width}x${viewport.height}.png`)});
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
   assert.equal(await page.evaluate(()=>window.testCalls.some(call=>['confirm_session_plan','start_monitoring'].includes(call.command))),false);
+  assert.equal(await page.evaluate(()=>window.testCalls.some(call=>['start_auth','start_calendar_oauth','start_notion_oauth','fetch_jira_tasks','fetch_linear_tasks'].includes(call.command))),false);
   assert.deepEqual(errors,[]);
-  console.log(`${viewport.width}x${viewport.height}: replayed local Qwen draft/revision, 7 blocks, 3 rests, overflow copy, no horizontal overflow or native writes.`);
+  console.log(`${viewport.width}x${viewport.height}: local planner without OAuth, replayed Qwen draft/revision, 7 blocks, 3 rests, no overflow or native writes.`);
   await page.close();
  }
 }finally{await browser.close();}

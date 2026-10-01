@@ -33,6 +33,13 @@ pub struct UserSession {
     pub email: String,
 }
 
+#[derive(Debug, Clone, Serialize)]
+pub struct PublicUserSession {
+    pub user_id: String,
+    pub team_id: Option<String>,
+    pub email: String,
+}
+
 pub fn start_sync_thread(db_path: std::path::PathBuf) {
     let path_clone = db_path.clone();
     thread::spawn(move || {
@@ -70,9 +77,10 @@ pub(crate) fn refresh_session_if_expiring(db_path: &std::path::PathBuf) {
                 "[Sync] Proactive JWT refresh OK (previous access exp: {})",
                 exp
             );
-            if let Ok(entitlements) =
-                crate::entitlements::refresh_entitlements_from_supabase(&new_session.access_token)
-            {
+            if let Ok(entitlements) = crate::entitlements::refresh_entitlements_from_supabase(
+                &new_session.access_token,
+                &new_session.user_id,
+            ) {
                 let _ = crate::entitlements::save_entitlements(&conn, &entitlements);
             }
         }
@@ -90,53 +98,28 @@ pub fn start_token_refresh_thread(db_path: std::path::PathBuf) {
     });
 }
 
-// Async so Tauri dispatches it off the main/UI thread: `perform_sync` makes
-// several blocking `reqwest` calls, each of which opens a real socket — the
-// mechanism Windows uses to inject a broken Winsock LSP into this process
-// (see crash_guard.rs module docs).
-#[tauri::command]
-pub async fn force_sync_now() -> Result<String, String> {
-    tauri::async_runtime::spawn_blocking(force_sync_now_blocking)
-        .await
-        .map_err(|e| format!("Task join error: {}", e))?
-}
-
-fn force_sync_now_blocking() -> Result<String, String> {
-    let db_path = crate::paths::db_path()?;
-    crate::entitlements::require_feature(&db_path, "sync")?;
-    match perform_sync(&db_path) {
-        Ok(summary) => Ok(format!("Sync Report:\n\n{}", summary)),
-        Err(e) => Err(format!("Sync failed: {}", e)),
-    }
-}
-
 // Get user session from local config
 pub(crate) fn get_user_session_from_conn(conn: &Connection) -> Option<UserSession> {
     // 1. Try 'user_session' (Internal sync session - has team_id)
-    let user_session: Option<UserSession> = conn
-        .query_row(
-            "SELECT value FROM config WHERE key = 'user_session'",
-            [],
-            |row| row.get::<_, String>(0),
-        )
+    let user_session: Option<UserSession> = crate::secure_config::load_secret(conn, "user_session")
         .ok()
+        .flatten()
         .and_then(|json_str| serde_json::from_str(&json_str).ok());
 
     // 2. Try 'auth_session' (OAuth session from auth.rs)
-    let auth_session: Option<serde_json::Value> = conn
-        .query_row(
-            "SELECT value FROM config WHERE key = 'auth_session'",
-            [],
-            |row| row.get::<_, String>(0),
-        )
-        .ok()
-        .and_then(|json_str| serde_json::from_str(&json_str).ok());
+    let auth_session: Option<serde_json::Value> =
+        crate::secure_config::load_secret(conn, "auth_session")
+            .ok()
+            .flatten()
+            .and_then(|json_str| serde_json::from_str(&json_str).ok());
 
     match (user_session, auth_session) {
-        // Both exist: only merge if auth_session is from Supabase (google), NOT jira/linear
+        // Both exist: merge only the same Supabase identity. A stale auth_session
+        // from another FlowSight account must never donate its JWT to this user.
         (Some(mut us), Some(auth)) => {
             let provider = auth["provider"].as_str().unwrap_or("");
-            if provider == "google" || provider == "manual" {
+            let same_user = auth["user"]["id"].as_str() == Some(us.user_id.as_str());
+            if same_user && (provider == "google" || provider == "manual") {
                 if let Some(auth_token) = auth["access_token"].as_str() {
                     if auth_token != us.access_token {
                         // Only merge if auth_session token is actually newer (decode JWT exp)
@@ -149,16 +132,13 @@ pub(crate) fn get_user_session_from_conn(conn: &Connection) -> Option<UserSessio
                                 us.refresh_token = Some(rt.to_string());
                             }
                             let json = serde_json::to_string(&us).unwrap_or_default();
-                            let _ = conn.execute(
-                                "INSERT OR REPLACE INTO config (key, value) VALUES ('user_session', ?1)",
-                                [&json]
-                            );
+                            let _ = crate::secure_config::save_secret(conn, "user_session", &json);
                         }
                         // else: keep user_session JWT (fresher); no log — token refresh polls hit this often.
                     }
                 }
             }
-            // Non-Supabase auth_session (e.g. Jira): keep user_session only; no merge.
+            // Non-Supabase or different-user auth_session: keep user_session only.
             Some(us)
         }
         // Only user_session exists: use as-is
@@ -212,13 +192,9 @@ pub fn save_user_session(
     };
     let json = serde_json::to_string(&session).map_err(|e| e.to_string())?;
 
-    conn.execute(
-        "INSERT OR REPLACE INTO config (key, value) VALUES ('user_session', ?1)",
-        [&json],
-    )
-    .map_err(|e| e.to_string())?;
+    crate::secure_config::save_secret(&conn, "user_session", &json)?;
 
-    println!("[Sync] User session saved for: {}", session.email);
+    println!("[Sync] User session saved");
     Ok(())
 }
 
@@ -228,10 +204,7 @@ fn refresh_supabase_token(session: &UserSession) -> Result<UserSession, String> 
         .as_ref()
         .ok_or("No refresh token available in session")?;
 
-    println!(
-        "[Sync] Attempting token refresh using token starting with: {}...",
-        &refresh_token[..10]
-    );
+    println!("[Sync] Attempting token refresh");
     let client = Client::new();
     let url = format!("{}/auth/v1/token?grant_type=refresh_token", supabase_url());
 
@@ -244,9 +217,8 @@ fn refresh_supabase_token(session: &UserSession) -> Result<UserSession, String> 
 
     let status = resp.status();
     if !status.is_success() {
-        let err_body = resp.text().unwrap_or_default();
-        println!("[Sync] Refresh failed: {}", err_body);
-        return Err(format!("Refresh failed (HTTP {}): {}", status, err_body));
+        println!("[Sync] Refresh failed with HTTP {}", status);
+        return Err(format!("Refresh failed (HTTP {})", status));
     }
 
     let json: serde_json::Value = resp.json().map_err(|e| e.to_string())?;
@@ -276,11 +248,11 @@ fn refresh_supabase_token(session: &UserSession) -> Result<UserSession, String> 
 // Clear user session (logout)
 #[tauri::command]
 pub fn clear_user_session() -> Result<(), String> {
+    crate::calendar_companion::on_cloud_logout();
     let db_path = crate::paths::db_path()?;
     let conn = Connection::open(&db_path).map_err(|e| e.to_string())?;
 
-    conn.execute("DELETE FROM config WHERE key = 'user_session'", [])
-        .map_err(|e| e.to_string())?;
+    crate::secure_config::delete_secret(&conn, "user_session")?;
     crate::entitlements::clear_entitlements(&conn)?;
 
     println!("[Sync] User session cleared");
@@ -289,13 +261,21 @@ pub fn clear_user_session() -> Result<(), String> {
 
 // Check if user is logged in
 #[tauri::command]
-pub fn get_current_user() -> Result<Option<UserSession>, String> {
+pub fn get_current_user() -> Result<Option<PublicUserSession>, String> {
     let db_path = crate::paths::db_path()?;
     let conn = Connection::open(&db_path).map_err(|e| e.to_string())?;
-    Ok(get_user_session(&conn))
+    Ok(get_user_session(&conn).map(|session| PublicUserSession {
+        user_id: session.user_id,
+        team_id: session.team_id,
+        email: session.email,
+    }))
 }
 
 fn perform_sync(db_path: &std::path::PathBuf) -> Result<String, String> {
+    if !crate::privacy::cloud_sync_enabled(db_path) {
+        return Ok("Cloud activity sync is off in Privacy & data.".to_string());
+    }
+
     refresh_session_if_expiring(db_path);
 
     let conn = Connection::open(db_path).map_err(|e| e.to_string())?;
@@ -314,17 +294,16 @@ fn perform_sync(db_path: &std::path::PathBuf) -> Result<String, String> {
         return Ok(reason);
     }
 
-    if let Ok(entitlements) =
-        crate::entitlements::refresh_entitlements_from_supabase(&session.access_token)
-    {
+    if let Ok(entitlements) = crate::entitlements::refresh_entitlements_from_supabase(
+        &session.access_token,
+        &session.user_id,
+    ) {
         let _ = crate::entitlements::save_entitlements(&conn, &entitlements);
         if !entitlements.can_sync {
             println!("[CloudSync] License inactive — sync disabled.");
             return Ok("License inactive — sync disabled".to_string());
         }
     }
-
-    println!("[CloudSync] REST base: {}", supabase_url());
 
     let batch_limit = std::env::var("FLOWSIGHT_SYNC_BATCH_LIMIT")
         .ok()
@@ -380,10 +359,8 @@ fn perform_sync(db_path: &std::path::PathBuf) -> Result<String, String> {
 
         // Stats
         *categories.entry(cat).or_insert(0) += dur;
-        if let Some(t) = ticket {
-            if !t.is_empty() {
-                *tickets.entry(t).or_insert(0) += dur;
-            }
+        if let Some(ticket) = crate::focus_semantics::canonical_ticket_value(ticket.as_deref()) {
+            *tickets.entry(ticket).or_insert(0) += dur;
         }
     }
 
@@ -405,20 +382,13 @@ fn perform_sync(db_path: &std::path::PathBuf) -> Result<String, String> {
         println!("[CloudSync] Summary generation failed: {}", e);
         "Summary generation failed".to_string()
     });
-    println!(
-        "[CloudSync] Summary generated ({} chars): {:.120}",
-        summary.len(),
-        summary
-    );
+    println!("[CloudSync] Summary generated ({} chars)", summary.len());
 
     // 3. Upload to Supabase with user authentication (retry on JWT expired)
     let upload_result = upload_session(&session, total_duration, &summary, &categories, &tickets);
     let upload_result = match &upload_result {
         Err(e) if e.contains("401") || e.contains("PGRST3") => {
-            println!(
-                "[CloudSync] Auth error detected ({}), attempting JWT refresh...",
-                e
-            );
+            println!("[CloudSync] Authentication failed; attempting JWT refresh");
             let conn_refresh = Connection::open(db_path).map_err(|e| e.to_string())?;
             let session_for_refresh =
                 get_user_session(&conn_refresh).unwrap_or_else(|| session.clone());
@@ -437,10 +407,7 @@ fn perform_sync(db_path: &std::path::PathBuf) -> Result<String, String> {
 
     match upload_result {
         Ok(_) => {
-            println!(
-                "[CloudSync] Upload success for {} — in Supabase open public.work_sessions and public.activity_reports (local dev-agent.db table \"reports\" is not uploaded as raw rows).",
-                session.email
-            );
+            println!("[CloudSync] Aggregate upload succeeded");
 
             let primary_category = categories
                 .iter()
@@ -467,9 +434,8 @@ fn perform_sync(db_path: &std::path::PathBuf) -> Result<String, String> {
 
             match post_activity_report_with_refresh(db_path, &session, &activity_body) {
                 Ok(()) => println!("[CloudSync] activity_reports: AI window summary saved"),
-                Err(e) => println!(
-                    "[CloudSync] activity_reports insert failed (work_sessions row already saved): {}",
-                    e
+                Err(_) => println!(
+                    "[CloudSync] activity_reports insert failed after work_sessions was saved"
                 ),
             }
 
@@ -510,7 +476,7 @@ fn perform_sync(db_path: &std::path::PathBuf) -> Result<String, String> {
                 return Err("License expired. Contact your PM to renew.".to_string());
             }
 
-            println!("[CloudSync] Upload failed: {}", e);
+            println!("[CloudSync] Upload failed");
             return Ok(format!(
                 "(Cloud Upload Failed: {})\n\nLOCAL SUMMARY:\n{}",
                 e, summary
@@ -544,7 +510,7 @@ fn summarize_with_vision_model(text: &str) -> Result<String, String> {
 
     // Keep instructions short to preserve token budget for TASKS.
     let prompt = format!(
-        "Summarize the developer activity below in ONE short paragraph. Use only facts from the list; do not invent work.\n\nTASKS:\n{}",
+        "Summarize the observed knowledge-work activity below in ONE short paragraph. Use only facts from the list; do not invent completion, productivity, or intent. Preserve useful research, writing, design, planning, communication, administrative, sales, analysis, and software work.\n\nACTIVITY:\n{}",
         tasks
     );
 
@@ -567,8 +533,7 @@ fn summarize_with_vision_model(text: &str) -> Result<String, String> {
         .map_err(|e| e.to_string())?;
     if !resp.status().is_success() {
         let status = resp.status();
-        let err_body = resp.text().unwrap_or_default();
-        return Err(format!("Summary request failed ({}): {}", status, err_body));
+        return Err(format!("Summary request failed ({}).", status));
     }
 
     let json: serde_json::Value = resp.json().map_err(|e| e.to_string())?;
@@ -620,8 +585,7 @@ fn upload_session(
     }
 
     if !status.is_success() {
-        let body_text = resp.text().unwrap_or_default();
-        return Err(format!("HTTP {}: {}", status, body_text));
+        return Err(format!("HTTP {}", status));
     }
 
     Ok(())
@@ -664,58 +628,8 @@ fn post_activity_report_with_refresh(
         return Err("License expired or invalid".to_string());
     }
     if !status.is_success() {
-        let t = resp.text().unwrap_or_default();
-        return Err(format!("HTTP {}: {}", status, t));
+        return Err(format!("HTTP {}", status));
     }
-    Ok(())
-}
-
-// Upload individual activity report (for granular tracking).
-// Async so Tauri dispatches it off the main/UI thread (see crash_guard.rs module docs).
-#[tauri::command]
-pub async fn upload_activity_report(
-    description: String,
-    category: String,
-    jira_ticket_id: Option<String>,
-    duration_seconds: i32,
-) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        upload_activity_report_blocking(description, category, jira_ticket_id, duration_seconds)
-    })
-    .await
-    .map_err(|e| format!("Task join error: {}", e))?
-}
-
-fn upload_activity_report_blocking(
-    description: String,
-    category: String,
-    jira_ticket_id: Option<String>,
-    duration_seconds: i32,
-) -> Result<(), String> {
-    let db_path = crate::paths::db_path()?;
-    crate::entitlements::require_feature(&db_path, "sync")?;
-    let conn = Connection::open(&db_path).map_err(|e| e.to_string())?;
-
-    let session = get_user_session(&conn).ok_or("Not logged in")?;
-
-    let body = serde_json::json!({
-        "user_id": session.user_id,
-        "team_id": session.team_id,
-        "description": description,
-        "category": category,
-        "jira_ticket_id": jira_ticket_id,
-        "duration_seconds": duration_seconds,
-        "captured_at": chrono::Utc::now().to_rfc3339()
-    });
-
-    let resp = post_activity_report_row(&session, &body)?;
-
-    if resp.status().as_u16() == 403 {
-        return Err("License expired or invalid".to_string());
-    }
-
-    resp.error_for_status().map_err(|e| e.to_string())?;
-
     Ok(())
 }
 
@@ -766,8 +680,7 @@ fn get_user_teams_blocking() -> Result<serde_json::Value, String> {
 
     let status = resp.status();
     if !status.is_success() {
-        let body = resp.text().unwrap_or_default();
-        return Err(format!("Failed to fetch teams (HTTP {}): {}", status, body));
+        return Err(format!("Failed to fetch teams (HTTP {}).", status));
     }
 
     let teams: Vec<serde_json::Value> = resp.json().map_err(|e| e.to_string())?;
@@ -784,10 +697,7 @@ fn get_user_teams_blocking() -> Result<serde_json::Value, String> {
                 .first()
                 .and_then(|t| t["team_id"].as_str().map(|s| s.to_string()));
             if let Some(id) = first.clone() {
-                println!(
-                    "[Team] No active team in session; auto-selecting first membership: {}",
-                    id
-                );
+                println!("[Team] No active team in session; auto-selecting first membership");
                 save_user_session(
                     session.user_id.clone(),
                     Some(id.clone()),
@@ -800,11 +710,7 @@ fn get_user_teams_blocking() -> Result<serde_json::Value, String> {
         }
     };
 
-    println!(
-        "[Team] Found {} team memberships, active: {:?}",
-        teams.len(),
-        active_team_id
-    );
+    println!("[Team] Found {} team memberships", teams.len());
 
     Ok(serde_json::json!({
         "teams": teams,
@@ -820,7 +726,7 @@ pub fn set_active_team(team_id: String) -> Result<(), String> {
 
     let session = get_user_session(&conn).ok_or("Not logged in")?;
 
-    println!("[Team] Setting active team to: {}", team_id);
+    println!("[Team] Updating the active team");
 
     save_user_session(
         session.user_id,
@@ -879,13 +785,7 @@ fn join_team_blocking(token: String) -> Result<serde_json::Value, String> {
     }
 
     if !user_resp.status().is_success() {
-        let err_body = user_resp
-            .text()
-            .unwrap_or_else(|_| "Empty body".to_string());
-        return Err(format!(
-            "Your session has expired. Please sign out and sign in again. ({})",
-            err_body
-        ));
+        return Err("Your session has expired. Please sign out and sign in again.".to_string());
     }
 
     let user_json: serde_json::Value = user_resp.json().map_err(|e| e.to_string())?;
@@ -901,10 +801,7 @@ fn join_team_blocking(token: String) -> Result<serde_json::Value, String> {
         .unwrap_or(&session.user_id)
         .to_string();
     let user_id_from_jwt = &user_id_from_jwt_owned;
-    println!(
-        "[Team] Syncing profile for user {} (JWT id: {})",
-        session.user_id, user_id_from_jwt
-    );
+    println!("[Team] Syncing the signed-in profile");
 
     // 2. Ensure profile exists (Upsert)
     let profile_url = format!("{}/rest/v1/profiles", supabase_url());
@@ -917,25 +814,20 @@ fn join_team_blocking(token: String) -> Result<serde_json::Value, String> {
         .json(&serde_json::json!({
             "id": user_id_from_jwt,
             "display_name": display_name,
-            "avatar_url": avatar_url,
-            "role": "worker"
+            "avatar_url": avatar_url
         }))
         .send();
 
     match prof_resp {
         Ok(r) if !r.status().is_success() => {
-            println!(
-                "[Team] Profile upsert failed (HTTP {}): {}",
-                r.status(),
-                r.text().unwrap_or_default()
-            );
+            println!("[Team] Profile upsert failed (HTTP {})", r.status());
         }
         Err(e) => println!("[Team] Profile upsert request error: {}", e),
         _ => println!("[Team] Profile synced successfully"),
     }
 
     // 3. Verify invitation (Retry on 401)
-    println!("[Team] Validating invitation token: {}", token);
+    println!("[Team] Validating invitation token");
     let inv_url = format!(
         "{}/rest/v1/invitations?token=eq.{}&select=team_id,expires_at,used_at,created_by,email",
         supabase_url(),
@@ -967,28 +859,22 @@ fn join_team_blocking(token: String) -> Result<serde_json::Value, String> {
 
     let inv_status = inv_resp.status();
     if !inv_status.is_success() {
-        let err_body = inv_resp.text().unwrap_or_else(|_| "Empty body".to_string());
-        if err_body.contains("JWT expired") || err_body.contains("PGRST303") {
+        if inv_status.as_u16() == 401 || inv_status.as_u16() == 403 {
             return Err(
                 "Your session has expired. Please sign out, sign in again, then join the team."
                     .to_string(),
             );
         }
         return Err(format!(
-            "Error validating invitation (HTTP {}): {}",
-            inv_status, err_body
+            "Error validating invitation (HTTP {}).",
+            inv_status
         ));
     }
 
     let invitations: Vec<serde_json::Value> = inv_resp.json().map_err(|e| e.to_string())?;
     let invitation = invitations.first().ok_or("Invalid invitation token")?;
 
-    println!("[Team] Invitation details: {:?}", invitation);
-    let inv_email = invitation["email"].as_str();
-    println!(
-        "[Team] Analyzing match: Session Email '{}' vs Invitation Email '{:?}'",
-        session.email, inv_email
-    );
+    println!("[Team] Checking invitation recipient");
 
     if !invitation["used_at"].is_null() {
         return Err("This invitation has already been used".to_string());
@@ -1000,10 +886,7 @@ fn join_team_blocking(token: String) -> Result<serde_json::Value, String> {
     let _inviter_id = invitation["created_by"].as_str();
 
     // 4. Add to team_members (Retry on 401)
-    println!(
-        "[Team] Adding user {} to team {} (role: member, omitting invited_by)",
-        user_id_from_jwt, team_id
-    );
+    println!("[Team] Adding the signed-in account to the invited team");
     let member_url = format!("{}/rest/v1/team_members", supabase_url());
     let member_body = serde_json::json!({
         "team_id": team_id,
@@ -1040,13 +923,10 @@ fn join_team_blocking(token: String) -> Result<serde_json::Value, String> {
 
     let member_status = member_resp.status();
     if !member_status.is_success() {
-        let err_text = member_resp
-            .text()
-            .unwrap_or_else(|_| "Unknown RLS/DB error".to_string());
-        if err_text.contains("unique_team_user") || err_text.contains("duplicate") {
+        if member_status.as_u16() == 409 {
             // Already a member
         } else {
-            return Err(format!("Failed to join team: {}", err_text));
+            return Err(format!("Failed to join team (HTTP {}).", member_status));
         }
     }
 
@@ -1077,6 +957,9 @@ fn join_team_blocking(token: String) -> Result<serde_json::Value, String> {
 mod user_session_tests {
     use super::UserSession;
 
+    #[cfg(windows)]
+    use super::get_user_session_from_conn;
+
     #[test]
     fn user_session_json_roundtrip() {
         let s = UserSession {
@@ -1090,5 +973,43 @@ mod user_session_tests {
         let back: UserSession = serde_json::from_str(&j).unwrap();
         assert_eq!(back.email, s.email);
         assert_eq!(back.team_id, s.team_id);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn never_merge_supabase_tokens_from_a_different_user() {
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        conn.execute("CREATE TABLE config (key TEXT PRIMARY KEY, value TEXT)", [])
+            .unwrap();
+        let user = UserSession {
+            user_id: "owner-a".into(),
+            team_id: None,
+            access_token: "owner-a-access".into(),
+            refresh_token: Some("owner-a-refresh".into()),
+            email: "a@example.com".into(),
+        };
+        crate::secure_config::save_secret(
+            &conn,
+            "user_session",
+            &serde_json::to_string(&user).unwrap(),
+        )
+        .unwrap();
+        crate::secure_config::save_secret(
+            &conn,
+            "auth_session",
+            &serde_json::json!({
+                "provider": "google",
+                "user": { "id": "owner-b", "email": "b@example.com" },
+                "access_token": "eyJhbGciOiJub25lIn0.eyJleHAiOjk5OTk5OTk5OTl9.sig",
+                "refresh_token": "owner-b-refresh"
+            })
+            .to_string(),
+        )
+        .unwrap();
+
+        let resolved = get_user_session_from_conn(&conn).unwrap();
+        assert_eq!(resolved.user_id, "owner-a");
+        assert_eq!(resolved.access_token, "owner-a-access");
+        assert_eq!(resolved.refresh_token.as_deref(), Some("owner-a-refresh"));
     }
 }

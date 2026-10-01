@@ -1,5 +1,5 @@
 //! On-device state for the local action agent. The whole document is protected
-//! with a macOS Keychain-backed encryption key through `secure_config`.
+//! with the current Windows user's DPAPI key through `secure_config`.
 
 use std::collections::BTreeMap;
 use std::sync::Mutex;
@@ -24,6 +24,23 @@ pub struct AgentData {
     pub notification_digest: Vec<DigestItem>,
     pub audit: Vec<ActionAudit>,
     pub conversation: Vec<ConversationMessage>,
+    pub session_saves: Vec<SessionSave>,
+}
+
+/// A reviewed session is journaled before any provider request. Its stable
+/// identities allow recovery after network failures or an application restart.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionSave {
+    pub id: String,
+    pub target: Option<super::session_calendar::CalendarTarget>,
+    pub start_at: String,
+    pub end_at: String,
+    pub intention: String,
+    pub events: Vec<LocalEvent>,
+    pub complete: bool,
+    #[serde(default)]
+    pub abandoned: bool,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -196,7 +213,6 @@ pub fn update<T>(change: impl FnOnce(&mut AgentData) -> Result<T, String>) -> Re
     Ok(result)
 }
 
-#[allow(dead_code)]
 pub fn append_conversation(role: &str, content: &str) -> Result<(), String> {
     update(|data| {
         data.conversation.push(ConversationMessage {

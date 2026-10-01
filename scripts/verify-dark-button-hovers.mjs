@@ -66,10 +66,10 @@ try {
       const responses={initialize_agent:null,get_config:{captureInterval:60000,dailyGoalHours:6},get_auth_session:null,get_current_user:null,
         get_entitlements:{plan:'free',status:'active',can_integrations:false,can_cloud_ai:false,can_sync:false,team_ids:[]},
         get_privacy_settings:{monitoringNoticeAcknowledged:true,cloudSyncEnabled:false,cloudAiEnabled:false,storeWindowTitles:false,excludedApplications:[],retentionDays:30},
-        get_analytics_consent:{decided:true,consented:false},check_ollama:{online:false},get_status:{isRunning:true},check_installation_health:{healthy:true},check_local_server:{online:false},
+        get_analytics_consent:{decided:true,consented:false},get_status:{isRunning:true},check_installation_health:{healthy:true},check_local_server:{online:false},
         get_week_summary:{days:[]},get_today_history:history,get_local_agent_data:{events:[],preferences:{},tasks:[]},
         get_calendar_companion_status:{googleConnected:false,microsoftConnected:false,googleAvailable:false,microsoftAvailable:false,current:null},
-        get_mcp_connection_info:{command:'/Example/FlowSight'},get_user_preferences:prefs,get_desktop_preferences:{focusAlertsEnabled:false,contextualFocusAlertsEnabled:false,promptDecided:true},
+        get_user_preferences:prefs,get_desktop_preferences:{focusAlertsEnabled:false,contextualFocusAlertsEnabled:false,promptDecided:true},
         get_weekly_report_schedule:{enabled:false,weekday:5,time:'17:00',folder:'',revision:0},get_browser_pairing:{connected:false}};
       window.__TAURI_EVENT_PLUGIN_INTERNALS__={unregisterListener(){}};
       window.__TAURI_INTERNALS__={metadata:{currentWindow:{label:'main'},currentWebview:{windowLabel:'main',label:'main'}},
@@ -90,15 +90,13 @@ try {
     await inspectButton(page,'#onboardingChooseFolder',`onboarding-secondary-${viewport.name}`);
     if(stage==='after')await inspectButton(page,'#onboardingContinueBtn',`onboarding-primary-${viewport.name}`);
     await page.locator('#onboardingSkipCalendarBtn').click();await page.locator('#onboardingOverlay').waitFor({state:'hidden'});
-    // Display the actual stop control in a synthetic tracking visual state.
-    // Tracking remains off and no native start/stop command is invoked.
-    await page.locator('#stopTimerBtn').evaluate(button => { button.style.display='flex'; button.disabled=false; });
+    await inspectButton(page,'.titlebar-btn.maximize',`maximize-${viewport.name}`,{minimumContrast:3});
     await inspectButton(page,'#stopTimerBtn',`stop-${viewport.name}`);
     await page.locator('#navSummary').click();await page.locator('#generateReportBtn').waitFor();
     await inspectButton(page,'#generateReportBtn',`work-report-${viewport.name}`);
-    await page.locator('#navProfile').click();
-    await page.locator('#showMcpConnectionBtn').click();
-    await inspectButton(page,'#copyMcpCommandBtn',`settings-ghost-${viewport.name}`);
+    await page.locator('#navProfile').click();await page.locator('#weeklyReportChooseFolder').waitFor();
+    await inspectButton(page,'#weeklyReportChooseFolder',`settings-secondary-${viewport.name}`);
+    await inspectButton(page,'#viewPrivacyNoticeBtn',`settings-ghost-${viewport.name}`);
     assert.deepEqual(errors,[]);
     assert.equal((await page.evaluate(()=>window.testCalls)).some(c=>c.command==='start_monitoring'||c.command==='stop_monitoring'||c.command==='propose_session_plan'),false);
     await page.close();

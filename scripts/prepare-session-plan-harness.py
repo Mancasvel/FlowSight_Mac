@@ -5,8 +5,6 @@ development evidence, not an alternate planner implementation.
 """
 import pathlib
 import sys
-import hashlib
-import json
 
 root = pathlib.Path(__file__).resolve().parents[1]
 output = root / '.impeccable/review/suggestions-harness'
@@ -16,9 +14,13 @@ state = (root / 'apps/agent/src-tauri/src/local_agent/state.rs').read_text(encod
 output.joinpath('src').mkdir(parents=True, exist_ok=True)
 pure = session[session.index('const LIFETIME:'):session.index('\nfn planning_context')]
 model = session[session.index('fn model_request('):session.index('\n#[tauri::command]\npub async fn propose_session_plan')]
-add = session[session.index('fn add_blocks('):session.index('\n#[tauri::command]\npub async fn confirm_session_plan')]
+add = session[session.index('fn reviewed_events('):session.index('\nfn save_session(')]
 tests = session[session.index('#[cfg(test)]\nmod tests'):]
+abandon = session[session.index('#[derive(Serialize)]\n#[serde(rename_all = "camelCase")]\npub struct SessionAbandonment'):session.index('\n#[tauri::command]\npub async fn abandon_session_plan')]
 structs = state[state.index('#[derive(Clone, Debug, Default'):state.index('\nfn connection()')]
+structs = structs.replace('super::session_calendar::CalendarTarget', 'crate::local_agent::session_calendar::CalendarTarget')
+calendar = (root / 'apps/agent/src-tauri/src/local_agent/session_calendar.rs').read_text(encoding='utf8')
+target = calendar[calendar.index('#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]'):calendar.index('\npub struct CalendarClient')]
 output.joinpath('Cargo.toml').write_text('''[package]
 name = "flowsight-suggestions-harness"
 version = "0.1.0"
@@ -38,15 +40,19 @@ use reqwest::blocking::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use crate::state::{ActionAudit, AgentData, LocalEvent};
-''' + pure + '\n' + model + '\n' + add + '''
+use crate::state::SessionSave;
+use crate::local_agent::session_calendar::CalendarTarget;
+''' + pure + '\n' + model + '\n' + add + '\n' + abandon + '''
 pub fn evaluate(input: &Value) -> Value {
     let request: SessionRequest = serde_json::from_value(input["request"].clone()).unwrap();
     let mut data = AgentData::default();
     if let Some(events) = input.get("events") { data.events = serde_json::from_value(events.clone()).unwrap(); }
     let context = json!({"session": request, "availableMinutes":window(&request).unwrap().1,
-      "localCalendar": data.events,"openTasks":[],"savedPreferences":[],"observedTaskTime":[],"profile":""});
+      "localCalendar": data.events,"openTasks":[],"savedPreferences":[],"observedTaskTime":input.get("observedTaskTime").cloned().unwrap_or(json!([])),"profile":""});
     let previous = input.get("previous").filter(|value| !value.is_null()).map(|value| SessionProposal {
       id: value["id"].as_str().unwrap_or("previous").into(), summary: value["summary"].as_str().unwrap().into(),
+      localized_summary: value["localizedSummary"].clone(), localized_unscheduled: value["localizedUnscheduled"].clone(),
+      calendar_destination: None,
       blocks:serde_json::from_value(value["blocks"].clone()).unwrap(),
       unscheduled: serde_json::from_value(value["unscheduled"].clone()).unwrap(), expires_in_seconds:1800,
     });
@@ -60,7 +66,7 @@ pub fn evaluate(input: &Value) -> Value {
       assert_eq!(calls[0]["function"]["name"], "propose_session_blocks");
       crate::local_agent::parse_arguments(&calls[0]["function"]["arguments"]).unwrap()
     };
-    match decode_plan_with_feedback(value.clone(), &request, &data, feedback) {
+    match decode_plan_with_context(value.clone(), &request, &data, feedback, Some(&context), previous.as_ref()) {
       Err(error) => json!({"accepted":false,"error":error,"model":value}),
       Ok(proposal) => json!({"accepted":true,"model":value,"proposal":proposal,"calendarUntouched":data.events.len()==input["events"].as_array().map_or(0,Vec::len)}),
     }
@@ -68,8 +74,15 @@ pub fn evaluate(input: &Value) -> Value {
 ''' + '\n' + tests, encoding='utf8')
 output.joinpath('src/main.rs').write_text('''#![allow(dead_code, unused_imports)]
 mod state;
+mod language {
+ pub fn copy<'a>(english:&'a str,spanish:&'a str)->&'a str { if std::env::var("FLOWSIGHT_TEST_LANGUAGE").as_deref()==Ok("es") {spanish} else {english} }
+}
 mod vision_model { pub const LLAMA_CHAT_MODEL_ID: &str = "flowsight-qwen3vl-2b-instruct"; }
 mod local_agent {
+ pub mod session_calendar {
+  use serde::{Serialize, Deserialize};
+''' + target + '''
+ }
  use serde_json::Value;
  use reqwest::blocking::Client;
  #[path = "../planner.rs"] pub mod session_plan;
@@ -89,10 +102,4 @@ fn main() {
 }
 ''', encoding='utf8')
 output.joinpath('src/local_agent').mkdir(exist_ok=True)
-manifest = {'scope':'Exact extracted planner core, request builder and task decoder; synthetic context only; no native desktop, database or calendar writes.',
-    'source_sha256':hashlib.sha256(source.read_bytes()).hexdigest(),
-    'state_sha256':hashlib.sha256((root / 'apps/agent/src-tauri/src/local_agent/state.rs').read_bytes()).hexdigest(),
-    'planner_core_sha256':hashlib.sha256(pure.encode('utf8')).hexdigest(),
-    'request_builder_sha256':hashlib.sha256(model.encode('utf8')).hexdigest()}
-output.joinpath('source-manifest.json').write_text(json.dumps(manifest,indent=2),encoding='utf8')
 print(output)

@@ -67,6 +67,19 @@ impl Advice {
     }
 
     fn copy(self) -> (&'static str, &'static str) {
+        self.copy_for(crate::language::is_spanish())
+    }
+    fn copy_for(self, spanish: bool) -> (&'static str, &'static str) {
+        if spanish {
+            return match self {
+                Self::ChooseOneTask => ("Un momento para concentrarte", "Has cambiado entre varias aplicaciones. ¿Puedes elegir una tarea para los próximos minutos?"),
+                Self::FinishCurrentStep => ("Un momento para concentrarte", "Has cambiado de aplicación muchas veces. Considera terminar un pequeño paso antes de cambiar de tarea."),
+                Self::PauseAndPrioritize => ("Un momento para concentrarte", "Has cambiado entre varias aplicaciones. Una breve pausa para elegir la siguiente prioridad puede ayudar."),
+                Self::ReturnToTask => ("Un recordatorio de concentración", "La navegación ajena al trabajo lleva al menos dos minutos. ¿Quieres volver a tu tarea?"),
+                Self::TimeboxBrowsing => ("Un recordatorio de concentración", "La navegación ajena al trabajo lleva al menos dos minutos. ¿Te ayudaría fijar un límite breve?"),
+                Self::IntentionalBreak => ("Un recordatorio de concentración", "La navegación ajena al trabajo lleva al menos dos minutos. Si necesitas descansar, hazlo de forma intencionada."),
+            };
+        }
         match self {
             Self::ChooseOneTask => ("A moment to refocus", "You've switched among several apps. Could you choose one task for the next few minutes?"),
             Self::FinishCurrentStep => ("A moment to refocus", "There have been many app switches. Consider finishing one small step before changing tasks again."),
@@ -621,11 +634,39 @@ fn contextual_copy(
     destination: Option<&str>,
     task: Option<&str>,
 ) -> (String, String) {
+    contextual_copy_for(advice, destination, task, crate::language::is_spanish())
+}
+fn contextual_copy_for(
+    advice: Advice,
+    destination: Option<&str>,
+    task: Option<&str>,
+    spanish: bool,
+) -> (String, String) {
     if destination.is_none() && task.is_none() {
-        let (title, body) = advice.copy();
+        let (title, body) = advice.copy_for(spanish);
         return (title.into(), body.into());
     }
-    let task = task.map_or_else(|| "your task".to_string(), |name| format!("“{name}”"));
+    let task = task.map_or_else(
+        || {
+            if spanish {
+                "tu tarea".into()
+            } else {
+                "your task".into()
+            }
+        },
+        |name| format!("“{name}”"),
+    );
+    if spanish {
+        let body = match advice {
+            Advice::ChooseOneTask => format!("Has cambiado de aplicación varias veces. Elige {task} para los próximos minutos."),
+            Advice::FinishCurrentStep => format!("Has cambiado de aplicación varias veces. Termina un paso de {task} antes de volver a cambiar."),
+            Advice::PauseAndPrioritize => format!("Has cambiado mucho de aplicación. Tómate un momento para volver a {task}."),
+            Advice::ReturnToTask => format!("{}Vuelve a {task} para continuar.", destination.map_or(String::new(), |name|format!("{name} puede esperar. "))),
+            Advice::TimeboxBrowsing => format!("{}Fija un límite breve y después vuelve a {task}.", destination.map_or(String::new(), |name|format!("Estás en {name}. "))),
+            Advice::IntentionalBreak => format!("{}Si estás descansando, hazlo de forma intencionada y después vuelve a {task}.", destination.map_or(String::new(), |name|format!("Estás en {name}. "))),
+        };
+        return ("Mantén la concentración".into(), body);
+    }
     let body = match advice {
         Advice::ChooseOneTask => {
             format!("You've switched apps several times. Choose {task} for the next few minutes.")
@@ -724,6 +765,24 @@ fn finish_proposal(app: &tauri::AppHandle, proposal: Proposal, decision: Option<
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn spanish_reminders_preserve_original_task_and_app_names() {
+        let (title, body) = contextual_copy_for(
+            Advice::ReturnToTask,
+            Some("Microsoft Teams"),
+            Some("Review · 学習"),
+            true,
+        );
+        assert_eq!(title, "Mantén la concentración");
+        assert_eq!(
+            body,
+            "Microsoft Teams puede esperar. Vuelve a “Review · 学習” para continuar."
+        );
+        let generic = Advice::ReturnToTask.copy_for(true);
+        assert_eq!(generic.0, "Un recordatorio de concentración");
+        assert!(generic.1.contains("al menos dos minutos"));
+    }
 
     #[test]
     fn repeated_windows_in_one_app_do_not_count_as_context_churn() {

@@ -1,13 +1,14 @@
-//! Opt-in anonymous product analytics (local-first; Supabase only after explicit consent).
+//! Opt-in pseudonymous product analytics (local-first; Supabase only after explicit consent).
 //!
 //! Collects only aggregate usage: daily minutes and weekly primary activity category.
-//! No account, email, or other personally identifiable information is sent.
+//! No account or email is sent. The random installation identifier is
+//! pseudonymous personal data under GDPR, not anonymous data.
 
 #[cfg(test)]
 use chrono::NaiveDate;
 use chrono::{Datelike, Local};
 use reqwest::blocking::Client;
-use rusqlite::{params, Connection, OptionalExtension};
+use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::thread;
@@ -17,6 +18,7 @@ use uuid::Uuid;
 use crate::sync_env::{supabase_anon_key, supabase_url};
 
 const CONSENT_KEY: &str = "anonymous_analytics_consent";
+const ANALYTICS_SECRET_KEY: &str = "anonymous_analytics_secret";
 const ANALYTICS_SYNC_INTERVAL_HOURS: u64 = 6;
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
@@ -29,6 +31,8 @@ pub struct AnalyticsConsent {
     pub anonymous_id: Option<String>,
     #[serde(rename = "decidedAt", default)]
     pub decided_at: Option<String>,
+    #[serde(rename = "withdrawalPending", default)]
+    pub withdrawal_pending: bool,
 }
 
 #[derive(Serialize, Debug, Clone, PartialEq, Eq)]
@@ -69,6 +73,32 @@ pub fn save_analytics_consent(
     Ok(consent)
 }
 
+fn load_or_create_analytics_secret(db_path: &Path) -> Result<String, String> {
+    let conn = Connection::open(db_path).map_err(|error| error.to_string())?;
+    if let Some(secret) = crate::secure_config::load_secret(&conn, ANALYTICS_SECRET_KEY)? {
+        return Ok(secret);
+    }
+    // Two random UUIDs provide a device-held bearer credential for the
+    // pseudonymous analytics row without linking it to the signed-in account.
+    let secret = format!("{}{}", Uuid::new_v4(), Uuid::new_v4());
+    crate::secure_config::save_secret(&conn, ANALYTICS_SECRET_KEY, &secret)?;
+    Ok(secret)
+}
+
+fn delete_analytics_secret(db_path: &Path) -> Result<(), String> {
+    let conn = Connection::open(db_path).map_err(|error| error.to_string())?;
+    crate::secure_config::delete_secret(&conn, ANALYTICS_SECRET_KEY)
+}
+
+pub fn analytics_export_credentials(db_path: &Path) -> Result<Option<(String, String)>, String> {
+    let consent = load_analytics_consent(db_path)?;
+    let Some(anonymous_id) = consent.anonymous_id else {
+        return Ok(None);
+    };
+    let secret = load_or_create_analytics_secret(db_path)?;
+    Ok(Some((anonymous_id, secret)))
+}
+
 fn compute_daily_usage(conn: &Connection, days: i32) -> Result<Vec<DailyUsageEntry>, String> {
     if days <= 0 {
         return Ok(Vec::new());
@@ -79,25 +109,7 @@ fn compute_daily_usage(conn: &Connection, days: i32) -> Result<Vec<DailyUsageEnt
     let start_str = start.format("%Y-%m-%d").to_string();
     let end_str = today.format("%Y-%m-%d").to_string();
 
-    let mut stmt = conn
-        .prepare(
-            "SELECT date(created_at, 'localtime') as d, SUM(duration_seconds) as total
-             FROM reports
-             WHERE date(created_at, 'localtime') >= ?1 AND date(created_at, 'localtime') <= ?2
-             GROUP BY d",
-        )
-        .map_err(|e| e.to_string())?;
-
-    let mut totals: std::collections::HashMap<String, i32> = std::collections::HashMap::new();
-    let rows = stmt
-        .query_map(params![start_str, end_str], |row| {
-            Ok((row.get::<_, String>(0)?, row.get::<_, i32>(1).unwrap_or(0)))
-        })
-        .map_err(|e| e.to_string())?;
-
-    for row in rows.filter_map(|r| r.ok()) {
-        totals.insert(row.0, row.1);
-    }
+    let totals = crate::agent::load_daily_totals(conn, &start_str, &end_str)?;
 
     let mut entries = Vec::with_capacity(days as usize);
     for offset in 0..days {
@@ -121,33 +133,45 @@ pub fn compute_weekly_primary_activity(conn: &Connection) -> Result<Option<Strin
     let start_str = week_start.format("%Y-%m-%d").to_string();
     let end_str = week_end.format("%Y-%m-%d").to_string();
 
+    let window = crate::focus_semantics::LocalDateWindow::parse(&start_str, &end_str)?;
     let mut stmt = conn
         .prepare(
-            "SELECT activity_type, SUM(duration_seconds) as total
+            "SELECT datetime(created_at, 'localtime'), activity_type, duration_seconds
              FROM reports
-             WHERE date(created_at, 'localtime') >= ?1 AND date(created_at, 'localtime') <= ?2
-             GROUP BY activity_type
-             ORDER BY total DESC
-             LIMIT 1",
+             WHERE date(created_at, 'localtime') >= ?1
+               AND date(created_at, 'localtime') <= date(?2, '+1 day')",
         )
-        .map_err(|e| e.to_string())?;
-
-    let row = stmt
-        .query_row(params![start_str, end_str], |row| {
-            let category: String = row.get(0)?;
-            let total: i32 = row.get(1)?;
-            Ok((category, total))
+        .map_err(|error| error.to_string())?;
+    let rows = stmt
+        .query_map(params![start_str, end_str], |row| {
+            Ok((
+                row.get::<_, String>(0).unwrap_or_default(),
+                row.get::<_, String>(1).unwrap_or_default(),
+                row.get::<_, i64>(2).unwrap_or(0).max(0),
+            ))
         })
-        .optional()
-        .map_err(|e| e.to_string())?;
-
-    Ok(row
-        .filter(|(_, total)| *total > 0)
+        .map_err(|error| error.to_string())?;
+    let mut totals = std::collections::BTreeMap::<String, i64>::new();
+    for (timestamp, raw_category, duration) in rows.filter_map(Result::ok) {
+        let observed_seconds = window
+            .slices_for_observation(&timestamp, duration)
+            .iter()
+            .map(|slice| slice.duration_seconds)
+            .sum::<i64>();
+        if observed_seconds > 0 {
+            let category = crate::focus_semantics::canonicalize_category(&raw_category);
+            *totals.entry(category).or_default() += observed_seconds;
+        }
+    }
+    Ok(totals
+        .into_iter()
+        .max_by(|left, right| left.1.cmp(&right.1).then_with(|| right.0.cmp(&left.0)))
         .map(|(category, _)| category))
 }
 
 fn upsert_anonymous_analytics_on_supabase(
     anonymous_id: &str,
+    anonymous_secret: &str,
     consented: bool,
     daily_usage: &[DailyUsageEntry],
     weekly_primary_activity: Option<&str>,
@@ -164,6 +188,7 @@ fn upsert_anonymous_analytics_on_supabase(
 
     let body = serde_json::json!({
         "p_anonymous_id": anonymous_id,
+        "p_anonymous_secret": anonymous_secret,
         "p_consented": consented,
         "p_daily_usage": daily_usage,
         "p_weekly_primary_activity": weekly_primary_activity,
@@ -180,8 +205,7 @@ fn upsert_anonymous_analytics_on_supabase(
 
     if !resp.status().is_success() {
         let status = resp.status();
-        let body = resp.text().unwrap_or_default();
-        return Err(format!("Analytics sync failed ({status}): {body}"));
+        return Err(format!("Analytics sync failed ({status})."));
     }
 
     Ok(())
@@ -195,6 +219,7 @@ pub fn sync_anonymous_analytics_to_supabase(
         .anonymous_id
         .as_deref()
         .ok_or_else(|| "Missing anonymous analytics ID".to_string())?;
+    let anonymous_secret = load_or_create_analytics_secret(db_path)?;
 
     let conn = Connection::open(db_path).map_err(|e| e.to_string())?;
     let daily_usage = compute_daily_usage(&conn, 7)?;
@@ -202,6 +227,7 @@ pub fn sync_anonymous_analytics_to_supabase(
 
     upsert_anonymous_analytics_on_supabase(
         anonymous_id,
+        &anonymous_secret,
         consent.consented,
         &daily_usage,
         weekly_primary_activity.as_deref(),
@@ -209,8 +235,19 @@ pub fn sync_anonymous_analytics_to_supabase(
 }
 
 pub fn perform_analytics_sync(db_path: &Path) -> Result<bool, String> {
-    let consent = load_analytics_consent(db_path)?;
+    let mut consent = load_analytics_consent(db_path)?;
     if !consent.consented {
+        if consent.withdrawal_pending {
+            if let Some(id) = consent.anonymous_id.as_deref() {
+                let secret = load_or_create_analytics_secret(db_path)?;
+                upsert_anonymous_analytics_on_supabase(id, &secret, false, &[], None)?;
+            }
+            consent.withdrawal_pending = false;
+            consent.anonymous_id = None;
+            save_analytics_consent(db_path, consent)?;
+            delete_analytics_secret(db_path)?;
+            return Ok(true);
+        }
         return Ok(false);
     }
     sync_anonymous_analytics_to_supabase(db_path, &consent)?;
@@ -245,18 +282,31 @@ pub fn set_analytics_consent(consented: bool) -> Result<AnalyticsConsent, String
     if consented && consent.anonymous_id.is_none() {
         consent.anonymous_id = Some(Uuid::new_v4().to_string());
     }
+    if consented || consent.anonymous_id.is_some() {
+        load_or_create_analytics_secret(&db_path)?;
+    }
+    consent.withdrawal_pending = !consented && consent.anonymous_id.is_some();
 
-    let saved = save_analytics_consent(&db_path, consent)?;
+    let mut saved = save_analytics_consent(&db_path, consent)?;
 
     if saved.consented {
-        sync_anonymous_analytics_to_supabase(&db_path, &saved)?;
-    } else if saved.anonymous_id.is_some() {
-        upsert_anonymous_analytics_on_supabase(
+        if let Err(error) = sync_anonymous_analytics_to_supabase(&db_path, &saved) {
+            log::debug!("[Analytics] Initial consent sync deferred: {error}");
+        }
+    } else if saved.anonymous_id.is_some()
+        && upsert_anonymous_analytics_on_supabase(
             saved.anonymous_id.as_deref().unwrap_or_default(),
+            &load_or_create_analytics_secret(&db_path)?,
             false,
             &[],
             None,
-        )?;
+        )
+        .is_ok()
+    {
+        saved.withdrawal_pending = false;
+        saved.anonymous_id = None;
+        saved = save_analytics_consent(&db_path, saved)?;
+        delete_analytics_secret(&db_path)?;
     }
 
     Ok(saved)
@@ -274,6 +324,7 @@ const FEEDBACK_MAX_CHARS: usize = 2000;
 fn submit_feedback_to_supabase(
     message: &str,
     anonymous_id: Option<&str>,
+    anonymous_secret: Option<&str>,
     app_version: &str,
 ) -> Result<(), String> {
     let client = Client::builder()
@@ -286,6 +337,7 @@ fn submit_feedback_to_supabase(
     let body = serde_json::json!({
         "p_message": message,
         "p_anonymous_id": anonymous_id,
+        "p_anonymous_secret": anonymous_secret,
         "p_app_version": app_version,
     });
 
@@ -300,8 +352,7 @@ fn submit_feedback_to_supabase(
 
     if !resp.status().is_success() {
         let status = resp.status();
-        let body = resp.text().unwrap_or_default();
-        return Err(format!("Feedback submit failed ({status}): {body}"));
+        return Err(format!("Feedback submit failed ({status})."));
     }
 
     Ok(())
@@ -323,9 +374,15 @@ pub fn submit_product_feedback(message: String) -> Result<(), String> {
 
     let db_path = crate::paths::db_path()?;
     let consent = load_analytics_consent(&db_path).unwrap_or_default();
+    let secret = if consent.anonymous_id.is_some() {
+        Some(load_or_create_analytics_secret(&db_path)?)
+    } else {
+        None
+    };
     submit_feedback_to_supabase(
         trimmed,
         consent.anonymous_id.as_deref(),
+        secret.as_deref(),
         env!("CARGO_PKG_VERSION"),
     )
 }
@@ -422,10 +479,35 @@ mod tests {
             consented: true,
             anonymous_id: Some("00000000-0000-4000-8000-000000000001".to_string()),
             decided_at: Some("2026-06-24 10:00".to_string()),
+            withdrawal_pending: false,
         };
         save_analytics_consent(&path, consent.clone()).expect("save");
         let loaded = load_analytics_consent(&path).expect("load");
         assert_eq!(loaded, consent);
         fs::remove_dir_all(dir.path()).ok();
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn analytics_credential_is_dpapi_protected_at_rest() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = dir.path().join("consent.db");
+        let conn = Connection::open(&path).expect("open");
+        conn.execute("CREATE TABLE config (key TEXT PRIMARY KEY, value TEXT)", [])
+            .expect("schema");
+        drop(conn);
+
+        let secret = load_or_create_analytics_secret(&path).expect("secret");
+        let conn = Connection::open(&path).expect("open");
+        let raw: String = conn
+            .query_row(
+                "SELECT value FROM config WHERE key = ?1",
+                params![ANALYTICS_SECRET_KEY],
+                |row| row.get(0),
+            )
+            .expect("stored secret");
+
+        assert!(raw.starts_with("dpapi:v1:"));
+        assert!(!raw.contains(&secret));
     }
 }

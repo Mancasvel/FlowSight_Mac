@@ -16,6 +16,7 @@ jobs:
     timeout-minutes: 45
     env:
       # Authenticated GitHub API avoids 403 rate limits in prepare-macos-llm.sh
+      TAURI_GOOGLE_CALENDAR_CLIENT_ID: ${{ vars.TAURI_GOOGLE_CALENDAR_CLIENT_ID }}
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       FLOWSIGHT_LLM_ARCH: macos-arm64
       FLOWSIGHT_SKIP_LLM_RUN: "1"
@@ -98,13 +99,16 @@ jobs:
           node scripts/verify-session-onboarding.mjs
           node scripts/verify-adda-renderer.mjs
           node scripts/verify-dark-button-hovers.mjs
+          node scripts/verify-localization.mjs
+          node scripts/verify-coach-conversation.mjs
+          node scripts/verify-linked-session.mjs
 
       - name: Upload renderer evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: macos-renderer-previews
-          path: .impeccable/review/*.png
+          path: .impeccable/review/
           if-no-files-found: ignore
 
       - name: Formatting

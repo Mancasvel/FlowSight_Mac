@@ -200,3 +200,14 @@ pub fn record_foreground_for_reminder(app_name: &str) {
         crate::focus_alerts::record_app_switch(app, app_name);
     }
 }
+
+/// Native capture and reminders read the current filter on each observation.
+pub fn refresh_privacy_filter() {
+    if let Some(controller) = CONTROLLER.get() {
+        controller
+            .ring
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .clear();
+    }
+}

@@ -90,7 +90,26 @@ pub fn load_secret(conn: &Connection, key: &str) -> Result<Option<String>, Strin
     let Some(value) = value else {
         return Ok(None);
     };
-    decrypt_secret(&value, &encryption_key(false)?).map(Some)
+    if value.starts_with(PREFIX) {
+        return decrypt_secret(&value, &encryption_key(false)?).map(Some);
+    }
+    // Legacy macOS account credentials were plaintext. Encrypt on first read;
+    // planner/journal ciphertext must never be treated as an unprotected secret.
+    if key.starts_with("local_agent_state")
+        || key.starts_with("calendar_")
+        || value.starts_with("keychain:")
+        || value.starts_with("dpapi:")
+    {
+        return Err("Saved protected state is not in the macOS encryption format.".into());
+    }
+    save_secret(conn, key, &value)?;
+    Ok(Some(value))
+}
+
+pub fn delete_secret(conn: &Connection, key: &str) -> Result<(), String> {
+    conn.execute("DELETE FROM config WHERE key=?1", [key])
+        .map_err(|error| error.to_string())?;
+    Ok(())
 }
 
 fn decrypt_secret(value: &str, encryption_key: &[u8; 32]) -> Result<String, String> {

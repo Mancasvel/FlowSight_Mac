@@ -1,27 +1,37 @@
+import { setLanguagePreference } from './i18n.mjs';
+setLanguagePreference('en',{persist:false});
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 
 import {
   bucketFocusEntriesByHour,
   buildTaskBreakdown,
+  focusBarPercent,
   focusChartSlots,
   formatChartHour,
-  taskColorForCategory,
+  taskColorKeyForCategory,
   taskSharePercent,
 } from './insights-charts.mjs';
 
 process.env.TZ = 'Europe/Madrid';
 
 test('task colors follow the activity type, not the ranking', () => {
-  assert.equal(taskColorForCategory('Coding'), 'var(--task-color-coding)');
-  assert.equal(taskColorForCategory('Code Review'), 'var(--task-color-review)');
-  assert.equal(taskColorForCategory('Design'), 'var(--task-color-design)');
-  assert.equal(taskColorForCategory('Analysis'), 'var(--task-color-analysis)');
-  assert.equal(taskColorForCategory('Browsing'), 'var(--task-color-browsing)');
-  assert.equal(taskColorForCategory('General'), 'var(--task-color-general)');
-  assert.notEqual(taskColorForCategory('Analysis'), taskColorForCategory('General'));
-  assert.notEqual(taskColorForCategory('General'), taskColorForCategory('Browsing'));
-  assert.notEqual(taskColorForCategory('Coding'), taskColorForCategory('Design'));
+  const actualCategories = ['Analysis', 'Research', 'General', 'Communication', 'Browsing', 'Coding'];
+  const actualColors = actualCategories.map(taskColorKeyForCategory);
+  assert.equal(new Set(actualColors).size, actualCategories.length);
+  const theme = readFileSync(new URL('./mobile-theme.css', import.meta.url), 'utf8');
+  const darkTheme = readFileSync(new URL('./public/theme-dark-mobile.css', import.meta.url), 'utf8');
+  for (const key of actualColors) {
+    const token = `--task-color-${key}`;
+    assert.ok(theme.includes(`${token}:`), `${token} must exist in the light theme`);
+    assert.ok(darkTheme.includes(`${token}:`), `${token} must exist in the dark theme`);
+    assert.ok(theme.includes(`.task-color-${key} { color: var(${token}); }`), `${key} must bind its theme token without inline CSS`);
+  }
+  assert.equal(taskColorKeyForCategory('Coding'), 'coding');
+  assert.equal(taskColorKeyForCategory('Code Review'), 'review');
+  assert.equal(taskColorKeyForCategory('Design'), 'design');
+  assert.notEqual(taskColorKeyForCategory('Coding'), taskColorKeyForCategory('Design'));
 
   const data = {
     ticket_breakdown: [
@@ -39,10 +49,24 @@ test('task colors follow the activity type, not the ranking', () => {
   assert.equal(items.find(item => item.label === 'FS-1').category, 'Coding');
   assert.equal(items.find(item => item.label === 'FS-2').category, 'Design');
   assert.equal(items.find(item => item.label === 'Planning').category, 'Planning');
-  assert.equal(taskColorForCategory(items.find(item => item.label === 'FS-1').category), 'var(--task-color-coding)');
+  assert.equal(taskColorKeyForCategory(items.find(item => item.label === 'FS-1').category), 'coding');
   assert.equal(taskSharePercent(48, 100), 48);
   assert.equal(taskSharePercent(150, 100), 100);
   assert.equal(taskSharePercent(10, 0), 0);
+});
+
+test('Insights chart markup uses SVG geometry rather than runtime inline styles', () => {
+  const renderer = readFileSync(new URL('./index.html', import.meta.url), 'utf8');
+  assert.ok(renderer.includes('const colorKey = taskColorKeyForCategory(item.category)'));
+  assert.ok(renderer.includes('task-bar-dot task-color-${colorKey}'));
+  assert.ok(renderer.includes('task-bar-meter task-color-${colorKey}'));
+  assert.ok(renderer.includes('viewBox="0 0 100 9"'));
+  assert.ok(renderer.includes('viewBox="0 0 100 100"'));
+  assert.ok(renderer.includes('width="${fillWidth}"'));
+  assert.ok(renderer.includes('height="${pct}"'));
+  assert.ok(renderer.includes('renderSummaryRail(focusShare)'));
+  assert.ok(!renderer.includes('style="height:${pct}%"'));
+  assert.ok(!renderer.includes('style="width:${fillWidth}%"'));
 });
 
 test('focus durations span the real local hours, including outside office hours', () => {
@@ -58,6 +82,27 @@ test('focus durations span the real local hours, including outside office hours'
   assert.equal(slots[0].hour, 7);
   assert.equal(slots.at(-1).hour, 23);
   assert.equal(formatChartHour(slots.at(-1).hour), '11pm');
+});
+
+test('hourly focus bars retain a fixed 60-minute scale', () => {
+  assert.equal(focusBarPercent(0), 0);
+  assert.equal(focusBarPercent(1406), 39);
+  assert.equal(focusBarPercent(3569), 99);
+  assert.equal(focusBarPercent(3600), 100);
+  assert.equal(focusBarPercent(4500), 100);
+  assert.equal(focusBarPercent(Number.NaN), 0);
+
+  const sustainedDay = new Array(24).fill(0);
+  sustainedDay[1] = 1500;
+  sustainedDay.fill(3600, 2, 13);
+  sustainedDay[13] = 2400;
+  sustainedDay[14] = 900;
+  sustainedDay[15] = 600;
+  assert.equal(sustainedDay.reduce((sum, seconds) => sum + seconds, 0), 45_000);
+  const slots = focusChartSlots(sustainedDay);
+  assert.equal(slots[0].hour, 0);
+  assert.equal(slots.at(-1).hour, 16);
+  assert.equal(slots.filter(slot => focusBarPercent(slot.seconds) >= 90).length, 11);
 });
 
 test('focus time crossing midnight is clipped to the displayed local date', () => {

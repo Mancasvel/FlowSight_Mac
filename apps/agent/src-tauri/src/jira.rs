@@ -1,44 +1,14 @@
-use oauth2::reqwest::http_client;
-use oauth2::{
-    basic::BasicClient, AuthUrl, AuthorizationCode, ClientId, CsrfToken, PkceCodeChallenge,
-    RedirectUrl, Scope, TokenResponse, TokenUrl,
-};
 use reqwest::blocking::Client;
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
 use std::error::Error;
-use std::sync::{Mutex, OnceLock};
-use tiny_http::{Response, Server};
-use url::Url;
-
-static OAUTH_VERIFIER: OnceLock<Mutex<Option<String>>> = OnceLock::new();
-
-fn set_verifier(v: String) {
-    let mutex = OAUTH_VERIFIER.get_or_init(|| Mutex::new(None));
-    let mut lock = mutex.lock().unwrap();
-    *lock = Some(v);
-}
-
-fn get_verifier() -> Option<String> {
-    let mutex = OAUTH_VERIFIER.get_or_init(|| Mutex::new(None));
-    let lock = mutex.lock().unwrap();
-    lock.clone()
-}
+use std::time::Duration;
 
 // Constants for FlowSight (Registered Atlassian App)
 // In a real production app, Client ID is public, Secret is NOT used for Public Clients (PKCE)
 // However, Atlassian 3LO sometimes requires a "dummy" secret or strictly follows Code flow.
 // For installed apps (Public Client), we usually don't send a secret, or send an empty one.
-const AUTH_URL: &str = "https://auth.atlassian.com/authorize";
 const TOKEN_URL: &str = "https://auth.atlassian.com/oauth/token";
-const REDIRECT_URL: &str = "http://localhost:12345/callback";
-// Added read:me for direct profile access (User Identity API)
-const SCOPES: &[&str] = &[
-    "read:jira-work",
-    "read:jira-user",
-    "offline_access",
-    "read:me",
-];
 
 fn get_client_id() -> String {
     crate::oauth_env::jira_client_id()
@@ -57,114 +27,6 @@ fn get_client_secret() -> Option<String> {
     crate::oauth_env::jira_client_secret()
 }
 
-pub fn create_oauth_client() -> BasicClient {
-    use oauth2::ClientSecret;
-
-    let client_id = get_client_id();
-    let client_secret = get_client_secret();
-
-    BasicClient::new(
-        ClientId::new(client_id),
-        client_secret.map(ClientSecret::new),
-        AuthUrl::new(AUTH_URL.to_string()).expect("Invalid auth URL"),
-        Some(TokenUrl::new(TOKEN_URL.to_string()).expect("Invalid token URL")),
-    )
-    .set_redirect_uri(RedirectUrl::new(REDIRECT_URL.to_string()).expect("Invalid redirect URL"))
-}
-
-#[tauri::command]
-pub fn start_jira_oauth() -> Result<String, String> {
-    let db_path = crate::paths::db_path()?;
-    crate::entitlements::require_feature(&db_path, "integrations")?;
-    // 1. Setup PKCE
-    let client = create_oauth_client();
-    let (pkce_challenge, pkce_verifier) = PkceCodeChallenge::new_random_sha256();
-
-    set_verifier(pkce_verifier.secret().to_string());
-
-    // 2. Generate Auth URL
-    let (auth_url, _csrf_token) = client
-        .authorize_url(CsrfToken::new_random)
-        .add_scopes(SCOPES.iter().map(|s| Scope::new(s.to_string())))
-        .set_pkce_challenge(pkce_challenge)
-        .url();
-
-    // 3. Open Browser (`open` avoids a flashing cmd window on Windows)
-    open::that(auth_url.as_str()).map_err(|e| e.to_string())?;
-
-    // 4. Start Local Server to listen for code (Blocking! - needs own thread in real app, but for simplicity here...)
-    // NOTE: In Tauri main thread this blocks UI. Ideally we spawn a thread.
-    // 4. Start Local Server
-    // We try to bind. If it fails (Address in use), we assume a previous thread is still listening
-    // and effectively "adopt" it because we updated the shared OAUTH_VERIFIER.
-    std::thread::spawn(move || {
-        listen_for_callback();
-    });
-
-    Ok("Browser opened. Please authorize.".to_string())
-}
-
-fn listen_for_callback() {
-    let server = match Server::http("0.0.0.0:12345") {
-        Ok(s) => s,
-        Err(_) => {
-            println!(
-                "Jira OAuth: Port 12345 busy. Assuming existing listener will handle callback."
-            );
-            return;
-        }
-    };
-
-    println!("Listening for Jira Callback on 12345...");
-
-    for request in server.incoming_requests() {
-        let url = format!("http://localhost:12345{}", request.url());
-        let parsed = Url::parse(&url).unwrap();
-        let pairs: std::collections::HashMap<_, _> = parsed.query_pairs().into_owned().collect();
-
-        if let Some(code) = pairs.get("code") {
-            // Get Latest Verifier
-            let verifier_opt = get_verifier();
-            if verifier_opt.is_none() {
-                let _ = request.respond(Response::from_string(
-                    "Error: No PKCE Verifier found. Restart flow.",
-                ));
-                continue;
-            }
-            let pkce_verifier = verifier_opt.unwrap();
-
-            // Exchange Code
-            let client = create_oauth_client();
-            let token_result = client
-                .exchange_code(AuthorizationCode::new(code.clone()))
-                .set_pkce_verifier(oauth2::PkceCodeVerifier::new(pkce_verifier))
-                .request(http_client);
-
-            match token_result {
-                Ok(token) => {
-                    let access = token.access_token().secret().to_string();
-                    let refresh = token.refresh_token().map(|t| t.secret().to_string());
-
-                    // SAVE TO CONFIG DB
-                    save_tokens(&access, refresh.as_deref());
-
-                    let _ = request.respond(Response::from_string(
-                        "Success! You can close this tab and return to FlowSight.",
-                    ));
-                    break; // Stop server
-                }
-                Err(e) => {
-                    println!("OAuth Token Exchange Failed: {:#?}", e);
-                    let _ = request.respond(Response::from_string(format!(
-                        "Error Exchange Failed: {:#?}",
-                        e
-                    )));
-                }
-            }
-        }
-    }
-}
-
 fn save_tokens(access: &str, refresh: Option<&str>) {
     let db_path = match crate::paths::db_path() {
         Ok(p) => p,
@@ -174,15 +36,9 @@ fn save_tokens(access: &str, refresh: Option<&str>) {
         }
     };
     if let Ok(conn) = Connection::open(db_path) {
-        let _ = conn.execute(
-            "INSERT OR REPLACE INTO config (key, value) VALUES ('jira_access_token', ?)",
-            [access],
-        );
+        let _ = crate::secure_config::save_secret(&conn, "jira_access_token", access);
         if let Some(r) = refresh {
-            let _ = conn.execute(
-                "INSERT OR REPLACE INTO config (key, value) VALUES ('jira_refresh_token', ?)",
-                [r],
-            );
+            let _ = crate::secure_config::save_secret(&conn, "jira_refresh_token", r);
         }
 
         // Also fetch Cloud ID (simplification: assume single cloud resource)
@@ -201,19 +57,17 @@ fn refresh_access_token() -> Result<String, String> {
     let db_path = crate::paths::db_path()?;
     let conn = Connection::open(&db_path).map_err(|e| e.to_string())?;
 
-    let refresh_token: String = conn
-        .query_row(
-            "SELECT value FROM config WHERE key = 'jira_refresh_token'",
-            [],
-            |r| r.get(0),
-        )
-        .map_err(|_| "No refresh token found. Please reconnect to Jira.".to_string())?;
+    let refresh_token = crate::secure_config::load_secret(&conn, "jira_refresh_token")?
+        .ok_or_else(|| "No refresh token found. Please reconnect to Jira.".to_string())?;
 
     let client_id = get_client_id();
     let client_secret = get_client_secret();
 
     // Build the token refresh request
-    let http_client = Client::new();
+    let http_client = Client::builder()
+        .timeout(Duration::from_secs(10))
+        .build()
+        .map_err(|e| e.to_string())?;
     let mut params = vec![
         ("grant_type", "refresh_token"),
         ("refresh_token", &refresh_token),
@@ -235,8 +89,7 @@ fn refresh_access_token() -> Result<String, String> {
 
     if !resp.status().is_success() {
         let status = resp.status();
-        let body = resp.text().unwrap_or_default();
-        println!("[Jira] Token refresh failed: {} - {}", status, body);
+        println!("[Jira] Token refresh failed with HTTP {}", status);
         return Err(format!(
             "Token refresh failed ({}). Please reconnect to Jira.",
             status
@@ -261,20 +114,18 @@ fn refresh_access_token() -> Result<String, String> {
 
 /// Gets a valid access token, refreshing if necessary
 /// This is the main entry point for getting a token to use in API calls
-fn get_valid_token() -> Result<String, String> {
+pub(crate) fn get_valid_token() -> Result<String, String> {
     let db_path = crate::paths::db_path()?;
     let conn = Connection::open(&db_path).map_err(|e| e.to_string())?;
 
-    let access_token: String = conn
-        .query_row(
-            "SELECT value FROM config WHERE key = 'jira_access_token'",
-            [],
-            |r| r.get(0),
-        )
-        .map_err(|_| "Not connected to Jira".to_string())?;
+    let access_token = crate::secure_config::load_secret(&conn, "jira_access_token")?
+        .ok_or_else(|| "Not connected to Jira".to_string())?;
 
     // Quick validation: try to access a lightweight endpoint
-    let http_client = Client::new();
+    let http_client = Client::builder()
+        .timeout(Duration::from_secs(10))
+        .build()
+        .map_err(|e| e.to_string())?;
     let test_resp = http_client
         .get("https://api.atlassian.com/oauth/token/accessible-resources")
         .bearer_auth(&access_token)
@@ -303,7 +154,10 @@ fn get_valid_token() -> Result<String, String> {
 }
 
 fn fetch_cloud_id(token: &str) -> Result<String, Box<dyn Error>> {
-    let client = Client::new();
+    let client = Client::builder()
+        .timeout(Duration::from_secs(10))
+        .build()
+        .map_err(|e| e.to_string())?;
     let resp = client
         .get("https://api.atlassian.com/oauth/token/accessible-resources")
         .bearer_auth(token)
@@ -327,7 +181,7 @@ pub async fn fetch_jira_tasks() -> Result<Vec<JiraIssue>, String> {
         .map_err(|e| format!("Task join error: {}", e))?
 }
 
-fn fetch_jira_tasks_blocking() -> Result<Vec<JiraIssue>, String> {
+pub(crate) fn fetch_jira_tasks_blocking() -> Result<Vec<JiraIssue>, String> {
     let db_path = crate::paths::db_path()?;
     crate::entitlements::require_feature(&db_path, "integrations")?;
     // 1. Get valid token (auto-refreshes if expired)
@@ -398,7 +252,6 @@ fn fetch_jira_tasks_blocking() -> Result<Vec<JiraIssue>, String> {
 }
 
 fn parse_jira_issues(text_resp: String) -> Result<Vec<JiraIssue>, String> {
-    println!("[Jira] Raw Response: {}", text_resp);
     let json: serde_json::Value = serde_json::from_str(&text_resp).map_err(|e| e.to_string())?;
 
     let mut issues = Vec::new();
@@ -515,14 +368,4 @@ fn parse_jira_profile(json: serde_json::Value, conn: &Connection) -> Result<Jira
     );
 
     Ok(user)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn oauth_client_builds_without_panic() {
-        let _ = create_oauth_client();
-    }
 }

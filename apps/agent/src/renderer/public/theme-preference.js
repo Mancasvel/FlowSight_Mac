@@ -28,11 +28,14 @@
     const button = document.getElementById('themeToggleBtn');
     if (button) {
       button.setAttribute('aria-pressed', String(dark));
-      button.title = dark ? 'Switch to light mode' : 'Switch to dark mode';
+      const spanish = root.lang === 'es';
+      button.title = spanish ? (dark ? 'Cambiar al modo claro' : 'Cambiar al modo oscuro') : (dark ? 'Switch to light mode' : 'Switch to dark mode');
+      button.setAttribute('aria-label', spanish ? (dark ? 'Modo claro' : 'Modo oscuro') : (dark ? 'Light mode' : 'Dark mode'));
     }
   }
 
   let manualChoice = savedPreference();
+  document.addEventListener('flowsight:languagechange', () => applyTheme(root.dataset.theme));
   applyTheme(manualChoice || (systemDark.matches ? 'dark' : 'light'));
 
   function connectButton() {

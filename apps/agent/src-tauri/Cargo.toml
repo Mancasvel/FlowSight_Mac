@@ -25,11 +25,13 @@ tempfile = "3"
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 log = "0.4"
-tauri = { version = "2.11", features = [] }
+tauri = { version = "2.11", features = ["tray-icon"] }
 tauri-plugin-log = "2"
 screenshots = "0.8"
 base64 = "0.22"
 chrono = "0.4"
+chrono-tz = "0.10"
+sys-locale = "0.3"
 reqwest = { version = "0.12", features = ["json", "blocking"] }
 # sha256 de los pesos GGUF descargados en primer arranque (model_assets.rs).
 sha2 = "0.10"
@@ -38,7 +40,7 @@ rusqlite = { version = "0.32", features = ["bundled"] }
 dirs = "5"
 whoami = "1.5"
 active-win-pos-rs = "0.8"
-oauth2 = "4.4"
+oauth2 = { version = "5.0", default-features = false, features = ["reqwest-blocking", "rustls-tls"] }
 url = "2.5"
 tiny_http = "0.12"
 open = "5.0"
@@ -60,6 +62,8 @@ libc = "0.2"
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-updater = "2"
 tauri-plugin-process = "2"
+tauri-plugin-autostart = "=2.5.1"
+tauri-plugin-single-instance = "=2.3.5"
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.61", features = [

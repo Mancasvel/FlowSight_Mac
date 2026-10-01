@@ -79,6 +79,43 @@
 #tabProfile .profile-field-note { margin: var(--profile-space-tight) 0 0; }
 #tabProfile .profile-form-status { margin: 8px 0 0; }
 #tabProfile .profile-form-status:empty { display: none; }
+#weeklyReportCard .weekly-report-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 4px 0 12px;
+}
+#weeklyReportCard .form-group { min-width: 0; margin: 0; }
+#weeklyReportCard .input,
+#weeklyReportCard .select { display: block; width: 100%; min-width: 0; }
+#weeklyReportCard .weekly-report-folder-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: stretch;
+  gap: 8px;
+}
+#weeklyReportCard .weekly-report-folder {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  min-height: 42px;
+  padding: 8px 10px;
+  border: 1px solid var(--profile-divider);
+  border-radius: 10px;
+  background: var(--profile-subtle-surface);
+  color: var(--profile-secondary-ink);
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+#weeklyReportCard .weekly-report-note,
+#weeklyReportCard .weekly-report-status {
+  margin: 10px 0 0;
+  color: var(--profile-secondary-ink);
+  font-size: 11px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+#weeklyReportCard .weekly-report-status[data-state="error"] { color: hsl(var(--destructive)); }
 #tabProfile .profile-settings-group + .profile-settings-group {
   margin-top: var(--profile-space-section);
   padding-top: var(--profile-space-section);

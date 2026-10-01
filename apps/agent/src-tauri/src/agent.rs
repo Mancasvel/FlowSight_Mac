@@ -77,6 +77,7 @@ impl FlowSightAgent {
 
         agent.init_db();
         agent.load_config();
+        crate::privacy::start_local_retention_thread(agent.db_path.clone());
 
         // Start Background Sync (10m interval)
         crate::sync::start_sync_thread(agent.db_path.clone());
@@ -120,7 +121,7 @@ impl FlowSightAgent {
                 // Older macOS databases predate the local reminder context.
                 // Keep raw window titles absent; an explicit selected task is
                 // sufficient for grouping the recorded work.
-                for column in ["active_app", "window_title", "theme_hint"] {
+                for column in ["active_app", "window_title", "theme_hint", "capture_source"] {
                     let _ =
                         conn.execute(&format!("ALTER TABLE reports ADD COLUMN {column} TEXT"), []);
                 }
@@ -564,6 +565,7 @@ pub fn get_status(state: State<'_, AgentState>) -> Result<serde_json::Value, Str
 
 #[tauri::command]
 pub fn start_monitoring(state: State<'_, AgentState>) -> Result<bool, String> {
+    crate::privacy::require_monitoring_acknowledgement(&crate::paths::db_path()?)?;
     if let Some(a) = state.lock().unwrap().as_mut() {
         a.is_running = true;
     }
@@ -639,6 +641,43 @@ pub struct TodayHistory {
     pub category_breakdown: Vec<CategoryBreakdown>,
     pub ticket_breakdown: Vec<TicketBreakdown>,
     pub date: String,
+}
+
+pub(crate) fn load_daily_totals(
+    conn: &Connection,
+    period_start: &str,
+    period_end: &str,
+) -> Result<std::collections::HashMap<String, i32>, String> {
+    let window = crate::focus_semantics::LocalDateWindow::parse(period_start, period_end)?;
+    let mut stmt = conn
+        .prepare(
+            "SELECT datetime(created_at, 'localtime'), duration_seconds
+             FROM reports
+             WHERE date(created_at, 'localtime') >= ?1
+               AND date(created_at, 'localtime') <= date(?2, '+1 day')
+             ORDER BY datetime(created_at, 'localtime') ASC",
+        )
+        .map_err(|error| error.to_string())?;
+    let rows = stmt
+        .query_map(params![period_start, period_end], |row| {
+            Ok((
+                row.get::<_, String>(0).unwrap_or_default(),
+                row.get::<_, i64>(1).unwrap_or(0).max(0),
+            ))
+        })
+        .map_err(|error| error.to_string())?;
+    let mut totals = std::collections::HashMap::new();
+    for (observed_end, duration) in rows.filter_map(Result::ok) {
+        for slice in window.slices_for_observation(&observed_end, duration) {
+            let date = slice.start.format("%Y-%m-%d").to_string();
+            let seconds = i32::try_from(slice.duration_seconds).unwrap_or(i32::MAX);
+            totals
+                .entry(date)
+                .and_modify(|total: &mut i32| *total = total.saturating_add(seconds))
+                .or_insert(seconds);
+        }
+    }
+    Ok(totals)
 }
 
 #[tauri::command]
@@ -1733,10 +1772,15 @@ pub(crate) fn insert_report(
     let active_app = foreground
         .app_name
         .filter(|app| !crate::privacy::application_is_excluded(db_path, Some(app)));
+    let window_title = if crate::privacy::store_window_titles(db_path) {
+        foreground.window_title
+    } else {
+        None
+    };
     let theme = crate::telemetry::selected_task_for_reminder();
     conn.execute(
-        "INSERT INTO reports (description, activity_type, jira_ticket_id, duration_seconds, active_app, theme_hint) VALUES (?, ?, ?, ?, ?, ?)",
-        params![description, activity_type, jira_ticket, duration_seconds, active_app, theme],
+        "INSERT INTO reports (description, activity_type, jira_ticket_id, duration_seconds, active_app, window_title, theme_hint) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        params![description, activity_type, jira_ticket, duration_seconds, active_app, window_title, theme],
     )
     .ok()?;
     Some(conn.last_insert_rowid())
