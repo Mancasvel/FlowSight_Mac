@@ -44,7 +44,7 @@ fn dpapi_protect(plain: &[u8]) -> Option<Vec<u8>> {
     use std::ptr::addr_of;
 
     use windows_sys::Win32::Security::Cryptography::{
-        CryptProtectData, CRYPT_INTEGER_BLOB, CRYPTPROTECT_UI_FORBIDDEN,
+        CryptProtectData, CRYPTPROTECT_UI_FORBIDDEN, CRYPT_INTEGER_BLOB,
     };
 
     let in_blob = CRYPT_INTEGER_BLOB {

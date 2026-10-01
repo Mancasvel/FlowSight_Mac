@@ -4,7 +4,7 @@ use base64::Engine;
 
 /// Batch of unsynced rows (oldest first) for `perform_sync`. `limit` is clamped to 1..=5000.
 pub(crate) fn select_unsynced_pending_sql(limit: usize) -> String {
-    let lim = limit.max(1).min(5000);
+    let lim = limit.clamp(1, 5000);
     format!(
         "SELECT id, description, activity_type, duration_seconds, jira_ticket_id \
          FROM reports \
@@ -48,7 +48,8 @@ pub(crate) fn truncate_tasks_for_summary(text: &str, max_chars: usize) -> String
     if n <= max_chars {
         return text.to_string();
     }
-    const OMIT: &str = "[... earlier activity omitted; excerpt is the most recent part of the batch ...]\n\n";
+    const OMIT: &str =
+        "[... earlier activity omitted; excerpt is the most recent part of the batch ...]\n\n";
     let overhead = OMIT.chars().count();
     let budget = max_chars.saturating_sub(overhead);
     let skip = n.saturating_sub(budget);

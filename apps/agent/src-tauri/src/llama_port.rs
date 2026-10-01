@@ -47,8 +47,8 @@ fn lock_managed_port<'a>() -> std::sync::MutexGuard<'a, Option<u16>> {
 
 /// `true` si el error suele indicar que el puerto TCP local ya está en uso (Windows + Unix).
 pub(crate) fn tcp_bind_addr_in_use(err: &io::Error) -> bool {
-    matches!(err.kind(), io::ErrorKind::AddrInUse)
-        || err.raw_os_error() == Some(10048) // WSAEADDRINUSE
+    matches!(err.kind(), io::ErrorKind::AddrInUse) || err.raw_os_error() == Some(10048)
+    // WSAEADDRINUSE
 }
 
 fn probe_double_bind_then_release(port: u16) -> Result<(), io::Error> {

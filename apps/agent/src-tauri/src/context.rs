@@ -18,9 +18,13 @@ pub(crate) fn file_hint_from_window_title(title: &str) -> Option<String> {
 }
 
 fn git_command() -> Command {
-    let mut c = Command::new("git");
+    let c = Command::new("git");
     #[cfg(windows)]
-    c.creation_flags(CREATE_NO_WINDOW);
+    let c = {
+        let mut c = c;
+        c.creation_flags(CREATE_NO_WINDOW);
+        c
+    };
     c
 }
 
@@ -44,7 +48,7 @@ pub fn get_system_context() -> SystemContext {
         Ok(window) => {
             let app = Some(window.app_name);
             let title = Some(window.title.clone());
-            
+
             // Heuristic: Extract filename from title
             // VS Code: "filename.rs - Project - VS Code"
             // IntelliJ: "filename.rs [Project] - ..."
@@ -56,14 +60,16 @@ pub fn get_system_context() -> SystemContext {
                 file_name,
                 file_path: None, // Hard to get full path from title alone reliably
             }
-        },
-        Err(_) => SystemContext::default()
+        }
+        Err(_) => SystemContext::default(),
     }
 }
 
 pub fn get_git_context(cwd: &str) -> Option<GitContext> {
     let path = PathBuf::from(cwd);
-    if !path.exists() { return None; }
+    if !path.exists() {
+        return None;
+    }
 
     // 1. Get Branch
     let branch = git_command()
@@ -80,7 +86,7 @@ pub fn get_git_context(cwd: &str) -> Option<GitContext> {
         });
 
     // If not a git repo, return None
-    if branch.is_none() { return None; }
+    branch.as_ref()?;
 
     // 2. Check Dirty Status
     let is_dirty = git_command()

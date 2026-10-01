@@ -52,6 +52,7 @@ jobs:
             updater_platform: darwin-x86_64
     runs-on: macos-14
     env:
+      TAURI_GOOGLE_CALENDAR_CLIENT_ID: ${{ vars.TAURI_GOOGLE_CALENDAR_CLIENT_ID }}
       TAURI_JIRA_CLIENT_ID: ${{ secrets.TAURI_JIRA_CLIENT_ID }}
       TAURI_JIRA_CLIENT_SECRET: ${{ secrets.TAURI_JIRA_CLIENT_SECRET }}
       TAURI_LINEAR_CLIENT_ID: ${{ secrets.TAURI_LINEAR_CLIENT_ID }}

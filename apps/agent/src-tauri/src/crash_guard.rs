@@ -35,7 +35,9 @@ mod windows_impl {
     use std::sync::atomic::{AtomicU32, AtomicUsize, Ordering};
 
     use windows::core::PCWSTR;
-    use windows::Win32::Foundation::{EXCEPTION_ACCESS_VIOLATION, EXCEPTION_ILLEGAL_INSTRUCTION, HMODULE};
+    use windows::Win32::Foundation::{
+        EXCEPTION_ACCESS_VIOLATION, EXCEPTION_ILLEGAL_INSTRUCTION, HMODULE,
+    };
     use windows::Win32::System::Diagnostics::Debug::{
         AddVectoredExceptionHandler, EXCEPTION_CONTINUE_SEARCH, EXCEPTION_POINTERS,
     };
@@ -113,7 +115,8 @@ mod windows_impl {
     fn identify_module(address: usize) -> (String, String) {
         unsafe {
             let mut hmodule = HMODULE::default();
-            let flags = GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT;
+            let flags = GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS
+                | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT;
             // GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS repurposes the "module
             // name" parameter as the address to resolve — this is the
             // documented Win32 pattern, not a real string.
@@ -183,7 +186,11 @@ mod windows_impl {
              {}) so the rest of the app keeps running; the network operation on that thread will \
              fail/retry instead of completing.",
             code.0 as u32,
-            if is_main_thread { "MAIN/UI thread — see crash_guard module docs" } else { "background thread" }
+            if is_main_thread {
+                "MAIN/UI thread — see crash_guard module docs"
+            } else {
+                "background thread"
+            }
         );
 
         // Best-effort on two channels: the app's structured logger (ends up

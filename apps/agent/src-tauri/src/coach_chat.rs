@@ -9,6 +9,7 @@ use crate::sync_env::{supabase_anon_key, supabase_url};
 const COACH_MESSAGES_KEY: &str = "coach_chat_messages";
 const MAX_MESSAGE_LEN: usize = 500;
 const MAX_STORED_MESSAGES: usize = 40;
+const MESSAGE_RETENTION_DAYS: i64 = 30;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CoachChatMessage {
@@ -17,9 +18,11 @@ pub struct CoachChatMessage {
     pub content: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reasoning: Option<String>,
+    #[serde(rename = "createdAt", default)]
+    pub created_at: Option<String>,
 }
 
-fn load_messages(conn: &Connection) -> Result<Vec<CoachChatMessage>, String> {
+pub(crate) fn load_messages(conn: &Connection) -> Result<Vec<CoachChatMessage>, String> {
     let json: Option<String> = conn
         .query_row(
             "SELECT value FROM config WHERE key = ?1",
@@ -29,7 +32,21 @@ fn load_messages(conn: &Connection) -> Result<Vec<CoachChatMessage>, String> {
         .ok();
 
     match json {
-        Some(raw) => serde_json::from_str(&raw).map_err(|e| e.to_string()),
+        Some(raw) => {
+            let cutoff = chrono::Utc::now() - chrono::Duration::days(MESSAGE_RETENTION_DAYS);
+            let messages: Vec<CoachChatMessage> =
+                serde_json::from_str(&raw).map_err(|e| e.to_string())?;
+            Ok(messages
+                .into_iter()
+                .filter(|message| {
+                    message
+                        .created_at
+                        .as_deref()
+                        .and_then(|value| chrono::DateTime::parse_from_rfc3339(value).ok())
+                        .is_some_and(|created| created >= cutoff)
+                })
+                .collect())
+        }
         None => Ok(vec![]),
     }
 }
@@ -81,22 +98,23 @@ fn extract_coach_api_error(payload: &serde_json::Value, status: reqwest::StatusC
 pub fn get_coach_chat_messages() -> Result<Vec<CoachChatMessage>, String> {
     let db_path = crate::paths::db_path()?;
     let conn = Connection::open(&db_path).map_err(|e| e.to_string())?;
-    load_messages(&conn)
+    let messages = load_messages(&conn)?;
+    save_messages(&conn, &messages)?;
+    Ok(messages)
 }
 
+// The usage endpoint can wait on the network; never hold the Tauri UI thread.
 #[tauri::command]
-pub fn clear_coach_chat() -> Result<(), String> {
-    let db_path = crate::paths::db_path()?;
-    let conn = Connection::open(&db_path).map_err(|e| e.to_string())?;
-    conn.execute("DELETE FROM config WHERE key = ?1", params![COACH_MESSAGES_KEY])
-        .map_err(|e| e.to_string())?;
-    Ok(())
+pub async fn get_coach_chat_usage() -> Result<serde_json::Value, String> {
+    tauri::async_runtime::spawn_blocking(get_coach_chat_usage_blocking)
+        .await
+        .map_err(|error| format!("Coach usage worker failed: {error}"))?
 }
 
-#[tauri::command]
-pub fn get_coach_chat_usage() -> Result<serde_json::Value, String> {
+fn get_coach_chat_usage_blocking() -> Result<serde_json::Value, String> {
     let db_path = crate::paths::db_path()?;
     crate::entitlements::require_feature(&db_path, "cloud_ai")?;
+    crate::privacy::require_cloud_ai(&db_path)?;
 
     let conn = Connection::open(&db_path).map_err(|e| e.to_string())?;
     let session = get_user_session_from_conn(&conn).ok_or("Not logged in")?;
@@ -141,18 +159,30 @@ pub fn get_coach_chat_usage() -> Result<serde_json::Value, String> {
     Ok(body)
 }
 
+// Local report assembly and the cloud reply are blocking work. Keep navigation
+// responsive while the Coach is thinking, including on slow or failed requests.
 #[tauri::command]
-pub fn send_coach_chat_message(message: String) -> Result<serde_json::Value, String> {
+pub async fn send_coach_chat_message(message: String) -> Result<serde_json::Value, String> {
+    tauri::async_runtime::spawn_blocking(move || send_coach_chat_message_blocking(message))
+        .await
+        .map_err(|error| format!("Coach message worker failed: {error}"))?
+}
+
+fn send_coach_chat_message_blocking(message: String) -> Result<serde_json::Value, String> {
     let trimmed = message.trim();
     if trimmed.is_empty() {
         return Err("Message cannot be empty".to_string());
     }
     if trimmed.len() > MAX_MESSAGE_LEN {
-        return Err(format!("Message must be {} characters or fewer", MAX_MESSAGE_LEN));
+        return Err(format!(
+            "Message must be {} characters or fewer",
+            MAX_MESSAGE_LEN
+        ));
     }
 
     let db_path = crate::paths::db_path()?;
     crate::entitlements::require_feature(&db_path, "cloud_ai")?;
+    crate::privacy::require_cloud_ai(&db_path)?;
 
     let conn = Connection::open(&db_path).map_err(|e| e.to_string())?;
     let session = get_user_session_from_conn(&conn).ok_or("Not logged in")?;
@@ -169,6 +199,7 @@ pub fn send_coach_chat_message(message: String) -> Result<serde_json::Value, Str
         role: "user".to_string(),
         content: trimmed.to_string(),
         reasoning: None,
+        created_at: Some(chrono::Utc::now().to_rfc3339()),
     };
     messages.push(user_msg);
 
@@ -182,10 +213,8 @@ pub fn send_coach_chat_message(message: String) -> Result<serde_json::Value, Str
         })
         .collect();
 
-    let local_context =
-        crate::insights_local::build_local_insights_report(&db_path, 7).unwrap_or_else(|err| {
-            serde_json::json!({ "error": err })
-        });
+    let local_context = crate::insights_local::build_local_insights_report(&db_path, 7)
+        .unwrap_or_else(|err| serde_json::json!({ "error": err }));
 
     let body = serde_json::json!({
         "message": trimmed,
@@ -225,6 +254,7 @@ pub fn send_coach_chat_message(message: String) -> Result<serde_json::Value, Str
             .get("reasoning")
             .and_then(|v| v.as_str())
             .map(String::from),
+        created_at: Some(chrono::Utc::now().to_rfc3339()),
     };
     messages.push(assistant_msg.clone());
     save_messages(&conn, &messages)?;
@@ -234,4 +264,62 @@ pub fn send_coach_chat_message(message: String) -> Result<serde_json::Value, Str
         "usage": payload.get("usage"),
         "messages": messages,
     }))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn test_connection() -> Connection {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute("CREATE TABLE config (key TEXT PRIMARY KEY, value TEXT)", [])
+            .unwrap();
+        conn
+    }
+
+    fn message(id: usize, created_at: Option<String>) -> CoachChatMessage {
+        CoachChatMessage {
+            id: id.to_string(),
+            role: "user".to_string(),
+            content: format!("message-{id}"),
+            reasoning: None,
+            created_at,
+        }
+    }
+
+    #[test]
+    fn loading_messages_drops_expired_and_legacy_undated_content() {
+        let conn = test_connection();
+        let recent = chrono::Utc::now().to_rfc3339();
+        let expired = (chrono::Utc::now() - chrono::Duration::days(31)).to_rfc3339();
+        let stored = vec![
+            message(1, Some(recent)),
+            message(2, Some(expired)),
+            message(3, None),
+        ];
+        conn.execute(
+            "INSERT INTO config (key, value) VALUES (?1, ?2)",
+            params![COACH_MESSAGES_KEY, serde_json::to_string(&stored).unwrap()],
+        )
+        .unwrap();
+
+        let loaded = load_messages(&conn).unwrap();
+        assert_eq!(loaded.len(), 1);
+        assert_eq!(loaded[0].id, "1");
+    }
+
+    #[test]
+    fn saving_messages_keeps_only_the_newest_bounded_history() {
+        let conn = test_connection();
+        let now = chrono::Utc::now().to_rfc3339();
+        let messages = (0..45)
+            .map(|id| message(id, Some(now.clone())))
+            .collect::<Vec<_>>();
+        save_messages(&conn, &messages).unwrap();
+
+        let loaded = load_messages(&conn).unwrap();
+        assert_eq!(loaded.len(), MAX_STORED_MESSAGES);
+        assert_eq!(loaded.first().map(|item| item.id.as_str()), Some("5"));
+        assert_eq!(loaded.last().map(|item| item.id.as_str()), Some("44"));
+    }
 }

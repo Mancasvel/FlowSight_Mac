@@ -15,8 +15,8 @@ use windows::Win32::System::Threading::{
 };
 use windows::Win32::UI::Accessibility::{SetWinEventHook, UnhookWinEvent, HWINEVENTHOOK};
 use windows::Win32::UI::WindowsAndMessaging::{
-    DispatchMessageW, GetMessageW, GetWindowTextW, GetWindowThreadProcessId,
-    TranslateMessage, EVENT_SYSTEM_FOREGROUND, MSG, WINEVENT_OUTOFCONTEXT,
+    DispatchMessageW, GetMessageW, GetWindowTextW, GetWindowThreadProcessId, TranslateMessage,
+    EVENT_SYSTEM_FOREGROUND, MSG, WINEVENT_OUTOFCONTEXT,
 };
 
 struct ForegroundContext {
@@ -30,10 +30,20 @@ thread_local! {
     static CONTEXT: RefCell<Option<ForegroundContext>> = const { RefCell::new(None) };
 }
 
-pub fn spawn(ring: SharedRing, running: SharedFlag, uia_target: SharedTarget, current_app: SharedAppInfo) {
+pub fn spawn(
+    ring: SharedRing,
+    running: SharedFlag,
+    uia_target: SharedTarget,
+    current_app: SharedAppInfo,
+) {
     std::thread::spawn(move || {
         CONTEXT.with(|c| {
-            *c.borrow_mut() = Some(ForegroundContext { ring, running, uia_target, current_app });
+            *c.borrow_mut() = Some(ForegroundContext {
+                ring,
+                running,
+                uia_target,
+                current_app,
+            });
         });
 
         unsafe {
@@ -48,7 +58,9 @@ pub fn spawn(ring: SharedRing, running: SharedFlag, uia_target: SharedTarget, cu
             );
 
             if hook.is_invalid() {
-                log::warn!("[Telemetry][Foreground] SetWinEventHook failed; foreground tracking disabled");
+                log::warn!(
+                    "[Telemetry][Foreground] SetWinEventHook failed; foreground tracking disabled"
+                );
                 return;
             }
 
@@ -101,7 +113,11 @@ unsafe extern "system" fn win_event_proc(
             *lock_or_recover(&ctx.current_app) = Some(app_name.clone());
             push_event(
                 &ctx.ring,
-                ActionEvent::ForegroundChanged { app_name, window_title, at: Instant::now() },
+                ActionEvent::ForegroundChanged {
+                    app_name,
+                    window_title,
+                    at: Instant::now(),
+                },
             );
         });
     });

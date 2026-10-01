@@ -45,7 +45,13 @@ impl ActionCaptureTrigger {
         running: SharedFlag,
         task_ctx: Arc<Mutex<TaskContext>>,
     ) -> Self {
-        Self { app_handle, db_path, running, task_ctx, last_fired: Mutex::new(None) }
+        Self {
+            app_handle,
+            db_path,
+            running,
+            task_ctx,
+            last_fired: Mutex::new(None),
+        }
     }
 
     /// Attempts to fire an action-triggered capture for `action_context`
@@ -62,7 +68,10 @@ impl ActionCaptureTrigger {
         {
             let mut last = self.last_fired.lock().unwrap();
             let now = Instant::now();
-            if last.map(|t| now.duration_since(t) < COOLDOWN).unwrap_or(false) {
+            if last
+                .map(|t| now.duration_since(t) < COOLDOWN)
+                .unwrap_or(false)
+            {
                 return;
             }
             *last = Some(now);
@@ -77,15 +86,19 @@ impl ActionCaptureTrigger {
             let ctx = self.task_ctx.lock().unwrap();
             (ctx.user_task.clone(), ctx.jira_ticket.clone())
         };
-        let task_label = jira_ticket.clone().or_else(|| user_task.clone()).unwrap_or_else(|| "General".to_string());
+        let task_label = jira_ticket
+            .clone()
+            .or_else(|| user_task.clone())
+            .unwrap_or_else(|| "General".to_string());
 
-        let (description, category) = match crate::agent::capture_and_analyze_action(&task_label, &action_context) {
-            Ok(result) => result,
-            Err(e) => {
-                log::warn!("[Telemetry][ActionCapture] capture/analysis failed: {e}");
-                return;
-            }
-        };
+        let (description, category) =
+            match crate::agent::capture_and_analyze_action(&task_label, &action_context) {
+                Ok(result) => result,
+                Err(e) => {
+                    log::warn!("[Telemetry][ActionCapture] capture/analysis failed: {e}");
+                    return;
+                }
+            };
         let category = crate::agent_pure::resolve_persisted_category(&category);
 
         match crate::agent::insert_report(
@@ -106,7 +119,9 @@ impl ActionCaptureTrigger {
                     }),
                 );
             }
-            None => log::warn!("[Telemetry][ActionCapture] Failed to persist action-triggered report to local DB"),
+            None => log::warn!(
+                "[Telemetry][ActionCapture] Failed to persist action-triggered report to local DB"
+            ),
         }
     }
 }

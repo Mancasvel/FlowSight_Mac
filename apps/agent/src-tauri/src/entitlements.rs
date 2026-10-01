@@ -6,6 +6,8 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Entitlements {
+    #[serde(default)]
+    pub owner_user_id: Option<String>,
     pub plan: Option<String>,
     pub status: String,
     pub team_ids: Vec<String>,
@@ -18,6 +20,7 @@ pub struct Entitlements {
 impl Entitlements {
     pub fn free() -> Self {
         Self {
+            owner_user_id: None,
             plan: None,
             status: "free".to_string(),
             team_ids: vec![],
@@ -46,11 +49,9 @@ fn parse_entitlements_json(value: &serde_json::Value) -> Entitlements {
         .unwrap_or_default();
 
     Entitlements {
+        owner_user_id: None,
         plan: value["plan"].as_str().map(String::from),
-        status: value["status"]
-            .as_str()
-            .unwrap_or("free")
-            .to_string(),
+        status: value["status"].as_str().unwrap_or("free").to_string(),
         team_ids: team_ids.clone(),
         active_team_id: team_ids.first().cloned(),
         can_sync: features["sync"].as_bool().unwrap_or(false),
@@ -86,7 +87,10 @@ pub fn clear_entitlements(conn: &Connection) -> Result<(), String> {
     Ok(())
 }
 
-pub fn refresh_entitlements_from_supabase(access_token: &str) -> Result<Entitlements, String> {
+pub fn refresh_entitlements_from_supabase(
+    access_token: &str,
+    owner_user_id: &str,
+) -> Result<Entitlements, String> {
     let client = Client::new();
     let url = format!("{}/rest/v1/rpc/get_user_entitlements", supabase_url());
 
@@ -100,12 +104,16 @@ pub fn refresh_entitlements_from_supabase(access_token: &str) -> Result<Entitlem
         .map_err(|e| e.to_string())?;
 
     if !resp.status().is_success() {
-        let body = resp.text().unwrap_or_default();
-        return Err(format!("Failed to fetch entitlements: {}", body));
+        return Err(format!(
+            "Failed to fetch entitlements (HTTP {}).",
+            resp.status()
+        ));
     }
 
     let json: serde_json::Value = resp.json().map_err(|e| e.to_string())?;
-    Ok(parse_entitlements_json(&json))
+    let mut entitlements = parse_entitlements_json(&json);
+    entitlements.owner_user_id = Some(owner_user_id.to_string());
+    Ok(entitlements)
 }
 
 pub fn require_feature(db_path: &std::path::Path, feature: &str) -> Result<(), String> {
@@ -136,103 +144,14 @@ pub fn get_entitlements() -> Result<Entitlements, String> {
 }
 
 #[tauri::command]
-pub fn save_entitlements_command(entitlements: Entitlements) -> Result<(), String> {
-    let db_path = crate::paths::db_path()?;
-    let conn = Connection::open(&db_path).map_err(|e| e.to_string())?;
-    save_entitlements(&conn, &entitlements)
-}
-
-#[tauri::command]
 pub fn refresh_entitlements() -> Result<Entitlements, String> {
     let db_path = crate::paths::db_path()?;
     let conn = Connection::open(&db_path).map_err(|e| e.to_string())?;
 
-    let session = get_user_session_from_conn(&conn)
-        .ok_or("Not logged in — cannot refresh entitlements")?;
+    let session =
+        get_user_session_from_conn(&conn).ok_or("Not logged in — cannot refresh entitlements")?;
 
-    let entitlements = refresh_entitlements_from_supabase(&session.access_token)?;
+    let entitlements = refresh_entitlements_from_supabase(&session.access_token, &session.user_id)?;
     save_entitlements(&conn, &entitlements)?;
     Ok(entitlements)
-}
-
-#[tauri::command]
-pub fn fetch_cloud_insights(limit: Option<u32>) -> Result<Vec<serde_json::Value>, String> {
-    let db_path = crate::paths::db_path()?;
-    require_feature(&db_path, "cloud_ai")?;
-
-    let conn = Connection::open(&db_path).map_err(|e| e.to_string())?;
-    let session = get_user_session_from_conn(&conn).ok_or("Not logged in")?;
-
-    let team_filter = session
-        .team_id
-        .as_ref()
-        .map(|team_id| format!("&team_id=eq.{}", team_id))
-        .unwrap_or_default();
-
-    let max_rows = limit.unwrap_or(10).min(50);
-    let url = format!(
-        "{}/rest/v1/cloud_insights?select=*&order=created_at.desc&limit={}{}",
-        supabase_url(),
-        max_rows,
-        team_filter
-    );
-
-    let client = Client::new();
-    let resp = client
-        .get(&url)
-        .header("apikey", supabase_anon_key())
-        .header("Authorization", format!("Bearer {}", session.access_token))
-        .send()
-        .map_err(|e| e.to_string())?;
-
-    if !resp.status().is_success() {
-        let body = resp.text().unwrap_or_default();
-        return Err(format!("Failed to fetch cloud insights: {}", body));
-    }
-
-    resp.json::<Vec<serde_json::Value>>()
-        .map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-pub fn request_cloud_insights(period_days: Option<i32>, team_id: Option<String>) -> Result<serde_json::Value, String> {
-    let db_path = crate::paths::db_path()?;
-    require_feature(&db_path, "cloud_ai")?;
-
-    let conn = Connection::open(&db_path).map_err(|e| e.to_string())?;
-    let session = get_user_session_from_conn(&conn).ok_or("Not logged in")?;
-    let entitlements = load_entitlements(&conn);
-
-    let days = period_days.unwrap_or(7).clamp(1, 30);
-    let resolved_team_id = team_id.or(session.team_id.clone());
-
-    let mut body = serde_json::json!({
-        "period_days": days,
-        "team_id": resolved_team_id,
-        "plan": entitlements.plan,
-    });
-
-    if entitlements.plan.as_deref() == Some("individual") {
-        let local_report = crate::insights_local::build_local_insights_report(&db_path, days)?;
-        body["local_report"] = local_report;
-    }
-
-    let client = Client::new();
-    let url = format!("{}/functions/v1/generate-insights", supabase_url());
-    let resp = client
-        .post(&url)
-        .header("apikey", supabase_anon_key())
-        .header("Authorization", format!("Bearer {}", session.access_token))
-        .header("Content-Type", "application/json")
-        .json(&body)
-        .send()
-        .map_err(|e| e.to_string())?;
-
-    if !resp.status().is_success() {
-        let body = resp.text().unwrap_or_default();
-        return Err(format!("Failed to generate cloud insights: {}", body));
-    }
-
-    resp.json::<serde_json::Value>()
-        .map_err(|e| e.to_string())
 }

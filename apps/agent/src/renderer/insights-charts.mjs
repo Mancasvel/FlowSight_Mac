@@ -1,3 +1,4 @@
+import {getLanguage} from './i18n.mjs';
 const TASK_COLOR_KEYS = Object.freeze({
   analysis: 'analysis',
   coding: 'coding',
@@ -18,9 +19,9 @@ const TASK_COLOR_KEYS = Object.freeze({
   general: 'general',
 });
 
-export function taskColorForCategory(category) {
+export function taskColorKeyForCategory(category) {
   const key = String(category ?? '').toLowerCase().replace(/[^a-z]/g, '');
-  return `var(--task-color-${TASK_COLOR_KEYS[key] || 'other'})`;
+  return TASK_COLOR_KEYS[key] || 'other';
 }
 
 export function taskSharePercent(seconds, totalSeconds) {
@@ -107,5 +108,12 @@ export function focusChartSlots(byHour) {
 }
 
 export function formatChartHour(hour) {
-  return `${hour % 12 || 12}${hour < 12 ? 'am' : 'pm'}`;
+  return getLanguage()==='es' ? `${String(hour).padStart(2,'0')}:00` : `${hour % 12 || 12}${hour < 12 ? 'am' : 'pm'}`;
+}
+
+// Each column is one clock hour, so a full column always means 60 minutes.
+export function focusBarPercent(seconds) {
+  const value = Number(seconds);
+  if (!Number.isFinite(value) || value <= 0) return 0;
+  return Math.min(100, Math.round(value / 3600 * 100));
 }

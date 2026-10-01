@@ -1,8 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { jsPDF } from 'jspdf';
+import { setLanguagePreference } from './i18n.mjs';
+setLanguagePreference('en', { persist: false });
 
-import { createStatusReportViewModel } from './status-report-model.mjs';
+import { createStatusReportViewModel } from './status-report.mjs';
 import { renderStatusReportPdf } from './status-report-pdf.mjs';
 
 function syntheticReport() {
@@ -15,6 +17,7 @@ function syntheticReport() {
       period_days: 7,
       total_seconds: 36_000,
       focus_seconds: 14_400,
+      deep_focus_seconds: 14_400,
       active_days: 2,
       daily_totals: [
         { date: '2026-09-22', total_seconds: 14_400 },
@@ -40,7 +43,7 @@ function syntheticReport() {
   };
 }
 
-test('the PDF model uses focus-category time, not sustained blocks', () => {
+test('the PDF model displays deep-focus time using measured sustained intervals', () => {
   const model = createStatusReportViewModel(syntheticReport(), { userName: 'Sample user' });
   assert.equal(model.focusHours, '4.0');
   assert.equal(model.days.length, 7);
@@ -48,8 +51,8 @@ test('the PDF model uses focus-category time, not sustained blocks', () => {
   assert.equal(model.categories[0].percent, 60);
   assert.equal(model.activeDays, 2);
   const pdf = renderStatusReportPdf(new jsPDF({ compress: false }), model).output();
-  assert.match(pdf, /FOCUS-CATEGORY TIME/);
-  assert.doesNotMatch(pdf, /SUSTAINED FOCUS/);
+  assert.match(pdf, /SUSTAINED FOCUS/);
+  assert.doesNotMatch(pdf, /FOCUS-CATEGORY TIME/);
   assert.match(pdf, /Rule-based narrative/);
 });
 

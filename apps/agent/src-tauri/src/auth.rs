@@ -1,17 +1,16 @@
-use serde::{Deserialize, Serialize};
-use reqwest::blocking::Client;
 use crate::sync_env::{supabase_anon_key, supabase_url};
-use oauth2::{
-    basic::BasicClient, AuthUrl, ClientId, RedirectUrl, TokenUrl,
-    PkceCodeChallenge, CsrfToken, Scope, AuthorizationCode, TokenResponse
-};
-use oauth2::reqwest::http_client;
-use url::Url;
-use tiny_http::{Server, Response};
-use rusqlite::Connection;
-use std::sync::{Mutex, OnceLock};
 use base64::Engine;
-use std::io::Write;
+use oauth2::{
+    basic::BasicClient, AuthUrl, AuthorizationCode, ClientId, CsrfToken, PkceCodeChallenge,
+    RedirectUrl, Scope, TokenResponse, TokenUrl,
+};
+use reqwest::blocking::Client;
+use rusqlite::Connection;
+use serde::{Deserialize, Serialize};
+use std::io::{Cursor, Read, Write};
+use std::sync::{Mutex, OnceLock};
+use tiny_http::{Response, Server};
+use url::Url;
 
 static OAUTH_STATE: OnceLock<Mutex<OAuthState>> = OnceLock::new();
 
@@ -26,7 +25,19 @@ fn auth_log(message: impl AsRef<str>) {
     log::info!("{}", message);
 
     if let Ok(path) = crate::paths::auth_log_path() {
-        if let Ok(mut file) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
+        // Keep local diagnostics bounded. Authentication logs must never become
+        // an indefinite record of account activity.
+        if std::fs::metadata(&path)
+            .map(|metadata| metadata.len() > 512 * 1024)
+            .unwrap_or(false)
+        {
+            let _ = std::fs::write(&path, []);
+        }
+        if let Ok(mut file) = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(path)
+        {
             let _ = file.write_all(line.as_bytes());
         }
     }
@@ -121,9 +132,10 @@ fn supabase_login_error_html(error: &str, description: &str) -> String {
 struct OAuthState {
     verifier: Option<String>,
     provider: Option<String>,
+    csrf_token: Option<String>,
 }
 
-fn set_oauth_state(verifier: String, provider: String) {
+fn set_oauth_state(verifier: String, provider: String, csrf_token: String) {
     let mutex = OAUTH_STATE.get_or_init(|| Mutex::new(OAuthState::default()));
     // Usamos lock().ok() + default para sobrevivir a un poison: si un hilo
     // panicó mientras sostenía este mutex, no queremos que el próximo login
@@ -132,26 +144,66 @@ fn set_oauth_state(verifier: String, provider: String) {
         Ok(mut lock) => {
             lock.verifier = Some(verifier);
             lock.provider = Some(provider);
+            lock.csrf_token = Some(csrf_token);
         }
         Err(poisoned) => {
             let mut lock = poisoned.into_inner();
             lock.verifier = Some(verifier);
             lock.provider = Some(provider);
+            lock.csrf_token = Some(csrf_token);
             println!("[Auth] OAuth state mutex was poisoned; recovered.");
         }
     }
 }
 
-fn get_oauth_state() -> (Option<String>, Option<String>) {
+fn get_oauth_state() -> (Option<String>, Option<String>, Option<String>) {
     let mutex = OAUTH_STATE.get_or_init(|| Mutex::new(OAuthState::default()));
     match mutex.lock() {
-        Ok(lock) => (lock.verifier.clone(), lock.provider.clone()),
+        Ok(lock) => (
+            lock.verifier.clone(),
+            lock.provider.clone(),
+            lock.csrf_token.clone(),
+        ),
         Err(poisoned) => {
             let lock = poisoned.into_inner();
             println!("[Auth] OAuth state mutex was poisoned; recovered.");
-            (lock.verifier.clone(), lock.provider.clone())
+            (
+                lock.verifier.clone(),
+                lock.provider.clone(),
+                lock.csrf_token.clone(),
+            )
         }
     }
+}
+
+fn clear_oauth_state() {
+    let mutex = OAUTH_STATE.get_or_init(|| Mutex::new(OAuthState::default()));
+    let mut lock = mutex
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    lock.verifier = None;
+    lock.provider = None;
+    lock.csrf_token = None;
+}
+
+fn private_html_response(body: impl Into<String>) -> Response<Cursor<Vec<u8>>> {
+    Response::from_string(body.into())
+        .with_header(
+            tiny_http::Header::from_bytes(&b"Content-Type"[..], &b"text/html; charset=utf-8"[..])
+                .expect("static response header is valid"),
+        )
+        .with_header(
+            tiny_http::Header::from_bytes(&b"Cache-Control"[..], &b"no-store, max-age=0"[..])
+                .expect("static response header is valid"),
+        )
+        .with_header(
+            tiny_http::Header::from_bytes(&b"Pragma"[..], &b"no-cache"[..])
+                .expect("static response header is valid"),
+        )
+        .with_header(
+            tiny_http::Header::from_bytes(&b"Referrer-Policy"[..], &b"no-referrer"[..])
+                .expect("static response header is valid"),
+        )
 }
 
 // Provider configs
@@ -178,7 +230,13 @@ const JIRA: ProviderConfig = ProviderConfig {
     name: "jira",
     auth_url: "https://auth.atlassian.com/authorize",
     token_url: "https://auth.atlassian.com/oauth/token",
-    scopes: &["read:jira-work", "read:jira-user", "offline_access", "read:me"],
+    scopes: &[
+        "read:jira-work",
+        "write:jira-work",
+        "read:jira-user",
+        "offline_access",
+        "read:me",
+    ],
     userinfo_url: "https://api.atlassian.com/me",
 };
 
@@ -186,7 +244,7 @@ const LINEAR: ProviderConfig = ProviderConfig {
     name: "linear",
     auth_url: "https://linear.app/oauth/authorize",
     token_url: "https://api.linear.app/oauth/token",
-    scopes: &["read", "issues:create"],
+    scopes: &["read", "write", "issues:create"],
     userinfo_url: "https://api.linear.app/graphql",
 };
 
@@ -297,7 +355,10 @@ const SUPABASE_SUCCESS_HTML_TEMPLATE: &str = r#"<!DOCTYPE html>
 fn supabase_login_success_html() -> String {
     static HTML: OnceLock<String> = OnceLock::new();
     HTML.get_or_init(|| {
-        let bytes = include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/flowsight_sinfondo.png"));
+        let bytes = include_bytes!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/flowsight_sinfondo.png"
+        ));
         let b64 = base64::engine::general_purpose::STANDARD.encode(bytes);
         let data_uri = format!("data:image/png;base64,{}", b64);
         SUPABASE_SUCCESS_HTML_TEMPLATE.replace("__FLOW_LOGO_DATA_URI__", &data_uri)
@@ -320,6 +381,23 @@ pub struct AuthSession {
     pub access_token: String,
     pub refresh_token: Option<String>,
     pub provider: String,
+}
+
+/// Renderer-safe account view. OAuth bearer/refresh tokens never cross the
+/// native IPC boundary after they have been stored.
+#[derive(Debug, Clone, Serialize)]
+pub struct PublicAuthSession {
+    pub user: AuthUser,
+    pub provider: String,
+}
+
+impl From<AuthSession> for PublicAuthSession {
+    fn from(session: AuthSession) -> Self {
+        Self {
+            user: session.user,
+            provider: session.provider,
+        }
+    }
 }
 
 fn get_env_var(key: &str) -> Option<String> {
@@ -353,34 +431,46 @@ fn get_provider_config(provider: &str) -> Option<ProviderConfig> {
     }
 }
 
-fn create_oauth_client(provider: &str) -> Result<BasicClient, String> {
+fn create_oauth_client(
+    provider: &str,
+) -> Result<
+    BasicClient<
+        oauth2::EndpointSet,
+        oauth2::EndpointNotSet,
+        oauth2::EndpointNotSet,
+        oauth2::EndpointNotSet,
+        oauth2::EndpointSet,
+    >,
+    String,
+> {
     use oauth2::ClientSecret;
-    
+
     let config = get_provider_config(provider).ok_or("Unknown provider")?;
     let client_id = get_provider_client_id(provider);
     let client_secret = get_provider_client_secret(provider);
-    
+
     if client_id.is_empty() {
         return Err(format!("Missing client ID for {}", provider));
     }
-    
-    let mut client = BasicClient::new(
-        ClientId::new(client_id),
-        client_secret.map(ClientSecret::new),
-        AuthUrl::new(config.auth_url.to_string()).map_err(|e| e.to_string())?,
-        Some(TokenUrl::new(config.token_url.to_string()).map_err(|e| e.to_string())?)
-    );
-    
-    client = client.set_redirect_uri(
-        RedirectUrl::new(REDIRECT_URL.to_string()).map_err(|e| e.to_string())?
-    );
-    
+
+    let mut client = BasicClient::new(ClientId::new(client_id))
+        .set_auth_uri(AuthUrl::new(config.auth_url.to_string()).map_err(|e| e.to_string())?)
+        .set_token_uri(TokenUrl::new(config.token_url.to_string()).map_err(|e| e.to_string())?)
+        .set_redirect_uri(RedirectUrl::new(REDIRECT_URL.to_string()).map_err(|e| e.to_string())?);
+
+    if let Some(secret) = client_secret {
+        client = client.set_client_secret(ClientSecret::new(secret));
+    }
+
     Ok(client)
 }
 
 #[tauri::command]
 pub fn start_auth(provider: String) -> Result<String, String> {
-    auth_log(format!("[Auth] start_auth requested for provider: {}", provider));
+    auth_log(format!(
+        "[Auth] start_auth requested for provider: {}",
+        provider
+    ));
 
     let db_path = crate::paths::db_path()?;
 
@@ -391,33 +481,42 @@ pub fn start_auth(provider: String) -> Result<String, String> {
 
     // Jira and Linear are paid-plan integrations only.
     crate::entitlements::require_feature(&db_path, "integrations")?;
-    
+
     // Jira and Linear use direct OAuth with .env keys
     let config = get_provider_config(&provider).ok_or("Unknown provider")?;
     let client = create_oauth_client(&provider)?;
-    
+
     let (pkce_challenge, pkce_verifier) = PkceCodeChallenge::new_random_sha256();
-    set_oauth_state(pkce_verifier.secret().to_string(), provider.clone());
-    
+
     let mut auth_request = client
         .authorize_url(CsrfToken::new_random)
         .set_pkce_challenge(pkce_challenge);
-    
+
     for scope in config.scopes {
         auth_request = auth_request.add_scope(Scope::new(scope.to_string()));
     }
-    
+
     // Jira requires audience parameter
-    let (mut auth_url, _csrf) = auth_request.url();
+    let (mut auth_url, csrf) = auth_request.url();
+    set_oauth_state(
+        pkce_verifier.secret().to_string(),
+        provider.clone(),
+        csrf.secret().to_string(),
+    );
     if provider == "jira" {
-        auth_url.query_pairs_mut().append_pair("audience", "api.atlassian.com");
+        auth_url
+            .query_pairs_mut()
+            .append_pair("audience", "api.atlassian.com");
     }
-    
-    auth_log(format!("[Auth] Opening direct OAuth URL for provider: {}", provider));
+
+    auth_log(format!(
+        "[Auth] Opening direct OAuth URL for provider: {}",
+        provider
+    ));
 
     // Open browser
     open::that(auth_url.as_str()).map_err(|e| e.to_string())?;
-    
+
     // Start callback listener — aislado en catch_unwind por si un panic
     // suelto en el hilo llega a abortar el proceso (depende de profile.panic).
     std::thread::spawn(move || {
@@ -437,24 +536,31 @@ pub fn start_auth(provider: String) -> Result<String, String> {
 
 // Supabase OAuth for providers configured in Supabase Dashboard (Google, etc.)
 fn start_supabase_oauth(provider: &str) -> Result<String, String> {
-    set_oauth_state("supabase".to_string(), provider.to_string());
-    auth_log(format!("[Auth] Starting Supabase OAuth for provider: {}", provider));
-    
-    let redirect_to = "http://localhost:12345/callback";
+    let csrf = uuid::Uuid::new_v4().to_string();
+    set_oauth_state("supabase".to_string(), provider.to_string(), csrf.clone());
+    auth_log(format!(
+        "[Auth] Starting Supabase OAuth for provider: {}",
+        provider
+    ));
+
+    let redirect_to = format!(
+        "http://localhost:12345/callback?state={}",
+        urlencoding::encode(&csrf)
+    );
     let auth_url = format!(
         "{}/auth/v1/authorize?provider={}&redirect_to={}",
         supabase_url(),
         provider,
-        urlencoding::encode(redirect_to)
+        urlencoding::encode(&redirect_to)
     );
-    
-    auth_log(format!("[Auth] Opening Supabase OAuth URL: {}", auth_url));
-    
+
+    auth_log("[Auth] Opening Supabase OAuth URL");
+
     open::that(&auth_url).map_err(|e| {
         auth_log(format!("[Auth] Failed to open browser: {}", e));
         format!("Failed to open browser: {}", e)
     })?;
-    
+
     // Start callback listener for Supabase tokens — envuelto en catch_unwind
     // para no poder tumbar el proceso ante un panic inesperado.
     std::thread::spawn(move || {
@@ -469,7 +575,10 @@ fn start_supabase_oauth(provider: &str) -> Result<String, String> {
         }
     });
 
-    Ok(format!("Browser opened for {} login via Supabase", provider))
+    Ok(format!(
+        "Browser opened for {} login via Supabase",
+        provider
+    ))
 }
 
 fn listen_for_callback() {
@@ -479,9 +588,15 @@ fn listen_for_callback() {
     let mut server_opt = None;
     for attempt in 0..5 {
         match Server::http("127.0.0.1:12345") {
-            Ok(s) => { server_opt = Some(s); break; }
+            Ok(s) => {
+                server_opt = Some(s);
+                break;
+            }
             Err(_) => {
-                println!("[Auth] Port 12345 busy (attempt {}), retrying...", attempt + 1);
+                println!(
+                    "[Auth] Port 12345 busy (attempt {}), retrying...",
+                    attempt + 1
+                );
                 std::thread::sleep(std::time::Duration::from_secs(1));
             }
         }
@@ -523,7 +638,7 @@ fn listen_for_callback() {
         let parsed = match Url::parse(&url) {
             Ok(p) => p,
             Err(e) => {
-                println!("[Auth] Ignoring unparsable callback URL ({}): {}", e, url);
+                println!("[Auth] Ignoring unparsable callback URL: {}", e);
                 let _ = request.respond(Response::from_string("Bad request"));
                 continue;
             }
@@ -531,32 +646,48 @@ fn listen_for_callback() {
         let pairs: std::collections::HashMap<_, _> = parsed.query_pairs().into_owned().collect();
 
         if let Some(code) = pairs.get("code") {
-            let (verifier_opt, provider_opt) = get_oauth_state();
+            let (verifier_opt, provider_opt, expected_state) = get_oauth_state();
 
-            let (verifier, provider) = match (verifier_opt, provider_opt) {
-                (Some(v), Some(p)) => (v, p),
-                _ => {
-                    println!("[Auth] Callback received but OAuth state is missing");
-                    let _ = request.respond(Response::from_string("Error: Invalid OAuth state"));
-                    continue;
-                }
-            };
-            
+            let (verifier, provider, expected_state) =
+                match (verifier_opt, provider_opt, expected_state) {
+                    (Some(v), Some(p), Some(s)) => (v, p, s),
+                    _ => {
+                        println!("[Auth] Callback received but OAuth state is missing");
+                        let _ = request.respond(
+                            private_html_response("Error: Invalid OAuth state")
+                                .with_status_code(400),
+                        );
+                        continue;
+                    }
+                };
+
+            if pairs.get("state").map(String::as_str) != Some(expected_state.as_str()) {
+                println!("[Auth] Rejected OAuth callback with invalid state");
+                let _ = request.respond(
+                    private_html_response("Error: Invalid OAuth state").with_status_code(400),
+                );
+                continue;
+            }
+
             match exchange_code(&provider, code, &verifier) {
                 Ok(session) => {
+                    clear_oauth_state();
                     save_auth_session(&session);
-                    
+
                     // For Jira: also save provider-specific tokens so jira.rs can find them
                     if provider == "jira" {
                         save_jira_specific_tokens(&session);
                     }
-                    
-                    let _ = request.respond(Response::from_string(supabase_login_success_html())
-                        .with_header(tiny_http::Header::from_bytes(&b"Content-Type"[..], &b"text/html"[..]).unwrap()));
+
+                    let _ = request.respond(private_html_response(supabase_login_success_html()));
                     break;
                 }
                 Err(e) => {
-                    let _ = request.respond(Response::from_string(format!("Error: {}", e)));
+                    clear_oauth_state();
+                    let _ = request.respond(
+                        private_html_response(format!("Error: {}", html_escape(&e)))
+                            .with_status_code(400),
+                    );
                 }
             }
         }
@@ -586,7 +717,10 @@ fn listen_for_supabase_callback() {
                 break;
             }
             Err(_) => {
-                auth_log(format!("[Auth] Supabase port 12345 busy (attempt {}), retrying...", attempt + 1));
+                auth_log(format!(
+                    "[Auth] Supabase port 12345 busy (attempt {}), retrying...",
+                    attempt + 1
+                ));
                 std::thread::sleep(std::time::Duration::from_secs(1));
             }
         }
@@ -605,7 +739,7 @@ fn listen_for_supabase_callback() {
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(120);
 
     auth_log("[Auth] Listening for Supabase callback on 127.0.0.1:12345...");
-    
+
     // FIX: Use a same-origin <form> submit instead of window.location.href.
     // Chrome 115+ and Firefox block cross-origin href redirects to localhost
     // when the initiating page comes from a Supabase/Google domain. A form
@@ -626,11 +760,16 @@ fn listen_for_supabase_callback() {
         document.body.innerHTML = '<p style="color:red">Login failed &ndash; no token received. Please close this tab and try again.</p>';
         return;
       }
-      // Build a <form> and submit it as a GET to /token.
+      var state = new URLSearchParams(window.location.search).get('state');
+      if (!state) {
+        document.body.innerHTML = '<p style="color:red">Login failed &ndash; invalid state. Please close this tab and try again.</p>';
+        return;
+      }
+      // Send credentials in a POST body so they never enter a URL or history.
       // This is a same-origin request and is NEVER blocked by browser
       // cross-origin navigation guards (unlike window.location.href).
       var form = document.createElement('form');
-      form.method = 'GET';
+      form.method = 'POST';
       form.action = '/token';
       hash.split('&').forEach(function (pair) {
         var eqIdx = pair.indexOf('=');
@@ -643,20 +782,25 @@ fn listen_for_supabase_callback() {
         inp.value = val;
         form.appendChild(inp);
       });
+      var stateInput = document.createElement('input');
+      stateInput.type = 'hidden';
+      stateInput.name = 'state';
+      stateInput.value = state;
+      form.appendChild(stateInput);
       document.body.appendChild(form);
       form.submit();
     })();
   </script>
 </body>
 </html>"#;
-    
+
     loop {
         let remaining = deadline.saturating_duration_since(std::time::Instant::now());
         if remaining.is_zero() {
             auth_log("[Auth] Supabase listener timed out waiting for callback");
             break;
         }
-        let request = match server.recv_timeout(remaining) {
+        let mut request = match server.recv_timeout(remaining) {
             Ok(Some(r)) => r,
             Ok(None) => {
                 auth_log("[Auth] Supabase listener timed out waiting for callback");
@@ -669,17 +813,53 @@ fn listen_for_supabase_callback() {
         };
 
         let url = format!("http://localhost:12345{}", request.url());
-        auth_log(format!("[Auth] Supabase callback request received: {}", url));
+        auth_log("[Auth] Supabase callback request received");
         let parsed = match Url::parse(&url) {
             Ok(p) => p,
             Err(e) => {
-                auth_log(format!("[Auth] Ignoring unparsable Supabase callback URL ({}): {}", e, url));
-                let _ = request.respond(Response::from_string("Bad request"));
+                auth_log(format!(
+                    "[Auth] Ignoring unparsable Supabase callback URL: {}",
+                    e
+                ));
+                let _ = request.respond(private_html_response("Bad request").with_status_code(400));
                 continue;
             }
         };
-        let path = parsed.path();
-        let pairs: std::collections::HashMap<_, _> = parsed.query_pairs().into_owned().collect();
+        let path = parsed.path().to_string();
+        let mut pairs: std::collections::HashMap<String, String> =
+            parsed.query_pairs().into_owned().collect();
+
+        if path == "/token" {
+            if request.method() != &tiny_http::Method::Post {
+                let _ = request
+                    .respond(private_html_response("Method not allowed").with_status_code(405));
+                continue;
+            }
+            let mut body = String::new();
+            if request
+                .as_reader()
+                .take(64 * 1024)
+                .read_to_string(&mut body)
+                .is_err()
+            {
+                let _ =
+                    request.respond(private_html_response("Invalid request").with_status_code(400));
+                continue;
+            }
+            pairs = url::form_urlencoded::parse(body.as_bytes())
+                .into_owned()
+                .collect();
+        }
+
+        if path == "/callback" || path == "/token" {
+            let (_, _, expected_state) = get_oauth_state();
+            if expected_state.as_deref() != pairs.get("state").map(String::as_str) {
+                auth_log("[Auth] Rejected Supabase callback with invalid state");
+                let _ = request
+                    .respond(private_html_response("Invalid OAuth state").with_status_code(400));
+                continue;
+            }
+        }
 
         if let Some(error) = pairs.get("error") {
             let desc = pairs
@@ -688,35 +868,36 @@ fn listen_for_supabase_callback() {
                 .map(|s| s.as_str())
                 .unwrap_or("");
             auth_log(format!(
-                "[Auth] Supabase OAuth error on {}: {} - {}",
-                path, error, desc
+                "[Auth] Supabase OAuth error on {}: {}",
+                path, error
             ));
-            let _ = request.respond(Response::from_string(supabase_login_error_html(error, desc))
-                .with_header(tiny_http::Header::from_bytes(&b"Content-Type"[..], &b"text/html; charset=utf-8"[..]).unwrap()));
+            clear_oauth_state();
+            let _ = request.respond(private_html_response(supabase_login_error_html(
+                error, desc,
+            )));
             break;
         }
 
         // First request: serve HTML to capture hash fragment via form submit
         if path == "/callback" {
             auth_log("[Auth] Serving token capture page (form-submit method)...");
-            let _ = request.respond(Response::from_string(capture_html)
-                .with_header(tiny_http::Header::from_bytes(&b"Content-Type"[..], &b"text/html; charset=utf-8"[..]).unwrap()));
+            let _ = request.respond(private_html_response(capture_html));
             continue;
         }
-        
-        // Second request: receive tokens via query params from the form submit
+
+        // Second request: receive tokens in the body of the form POST.
         if path == "/token" {
             auth_log("[Auth] Supabase token callback received");
-            
+
             if let Some(access_token) = pairs.get("access_token") {
-                let (_, provider_opt) = get_oauth_state();
+                let (_, provider_opt, _) = get_oauth_state();
                 let provider = provider_opt.unwrap_or_else(|| "google".to_string());
                 auth_log(format!(
                     "[Auth] Supabase access token received (provider: {}, refresh_token: {})",
                     provider,
                     pairs.contains_key("refresh_token")
                 ));
-                
+
                 // Fetch user info from Supabase
                 match fetch_supabase_user(access_token) {
                     Ok(user) => {
@@ -726,30 +907,45 @@ fn listen_for_supabase_callback() {
                             refresh_token: pairs.get("refresh_token").cloned(),
                             provider,
                         };
+                        clear_oauth_state();
                         save_auth_session(&session);
-                        auth_log(format!(
-                            "[Auth] Supabase login successful for {} ({})",
-                            session.user.email, session.user.id
-                        ));
-                        let _ = request.respond(Response::from_string(supabase_login_success_html())
-                            .with_header(tiny_http::Header::from_bytes(&b"Content-Type"[..], &b"text/html"[..]).unwrap()));
+                        auth_log("[Auth] Supabase login successful");
+                        let _ =
+                            request.respond(private_html_response(supabase_login_success_html()));
                         break;
                     }
                     Err(e) => {
                         auth_log(format!("[Auth] Failed to fetch Supabase user: {}", e));
-                        let _ = request.respond(Response::from_string(format!("Error: {}", e)));
+                        let _ = request.respond(
+                            private_html_response(format!("Error: {}", html_escape(&e)))
+                                .with_status_code(400),
+                        );
                     }
                 }
             } else if let Some(error) = pairs.get("error") {
-                let desc = pairs.get("error_description").map(|s| s.as_str()).unwrap_or("");
-                auth_log(format!("[Auth] OAuth error from Supabase: {} - {}", error, desc));
-                let _ = request.respond(Response::from_string(format!("Auth Error: {} - {}", error, desc)));
+                let desc = pairs
+                    .get("error_description")
+                    .map(|s| s.as_str())
+                    .unwrap_or("");
+                auth_log(format!("[Auth] OAuth error from Supabase: {}", error));
+                clear_oauth_state();
+                let _ = request.respond(
+                    private_html_response(format!(
+                        "Auth Error: {} - {}",
+                        html_escape(error),
+                        html_escape(desc)
+                    ))
+                    .with_status_code(400),
+                );
                 break;
             } else {
                 auth_log("[Auth] /token callback received without access_token or error");
             }
         } else {
-            auth_log(format!("[Auth] Ignoring unexpected Supabase callback path: {}", path));
+            auth_log(format!(
+                "[Auth] Ignoring unexpected Supabase callback path: {}",
+                path
+            ));
             let _ = request.respond(Response::from_string("Not found").with_status_code(404));
         }
     }
@@ -757,45 +953,53 @@ fn listen_for_supabase_callback() {
 
 fn fetch_supabase_user(access_token: &str) -> Result<AuthUser, String> {
     let client = Client::new();
-    let resp = client.get(format!("{}/auth/v1/user", supabase_url()))
+    let resp = client
+        .get(format!("{}/auth/v1/user", supabase_url()))
         .header("apikey", supabase_anon_key())
         .header("Authorization", format!("Bearer {}", access_token))
         .send()
         .map_err(|e| e.to_string())?;
-    
+
     if !resp.status().is_success() {
         return Err("Failed to fetch user from Supabase".to_string());
     }
-    
+
     let json: serde_json::Value = resp.json().map_err(|e| e.to_string())?;
-    
+
     Ok(AuthUser {
         id: json["id"].as_str().unwrap_or_default().to_string(),
         email: json["email"].as_str().unwrap_or_default().to_string(),
-        display_name: json["user_metadata"]["full_name"].as_str()
+        display_name: json["user_metadata"]["full_name"]
+            .as_str()
             .or(json["user_metadata"]["name"].as_str())
             .unwrap_or("User")
             .to_string(),
-        avatar_url: json["user_metadata"]["avatar_url"].as_str().map(String::from),
+        avatar_url: json["user_metadata"]["avatar_url"]
+            .as_str()
+            .map(String::from),
         provider: "google".to_string(),
     })
 }
 
 fn exchange_code(provider: &str, code: &str, verifier: &str) -> Result<AuthSession, String> {
     let client = create_oauth_client(provider)?;
-    
+    let http_client = Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .build()
+        .map_err(|e| format!("OAuth HTTP client initialization failed: {e}"))?;
+
     let token_result = client
         .exchange_code(AuthorizationCode::new(code.to_string()))
         .set_pkce_verifier(oauth2::PkceCodeVerifier::new(verifier.to_string()))
-        .request(http_client)
+        .request(&http_client)
         .map_err(|e| format!("Token exchange failed: {:?}", e))?;
-    
+
     let access_token = token_result.access_token().secret().to_string();
     let refresh_token = token_result.refresh_token().map(|t| t.secret().to_string());
-    
+
     // Fetch user info
     let user = fetch_user_info(provider, &access_token)?;
-    
+
     Ok(AuthSession {
         user,
         access_token,
@@ -806,16 +1010,17 @@ fn exchange_code(provider: &str, code: &str, verifier: &str) -> Result<AuthSessi
 
 fn fetch_user_info(provider: &str, access_token: &str) -> Result<AuthUser, String> {
     let http_client = Client::new();
-    
+
     match provider {
         "google" => {
-            let resp = http_client.get(GOOGLE.userinfo_url)
+            let resp = http_client
+                .get(GOOGLE.userinfo_url)
                 .bearer_auth(access_token)
                 .send()
                 .map_err(|e| e.to_string())?;
-            
+
             let json: serde_json::Value = resp.json().map_err(|e| e.to_string())?;
-            
+
             Ok(AuthUser {
                 id: json["sub"].as_str().unwrap_or_default().to_string(),
                 email: json["email"].as_str().unwrap_or_default().to_string(),
@@ -825,13 +1030,14 @@ fn fetch_user_info(provider: &str, access_token: &str) -> Result<AuthUser, Strin
             })
         }
         "jira" => {
-            let resp = http_client.get(JIRA.userinfo_url)
+            let resp = http_client
+                .get(JIRA.userinfo_url)
                 .bearer_auth(access_token)
                 .send()
                 .map_err(|e| e.to_string())?;
-            
+
             let json: serde_json::Value = resp.json().map_err(|e| e.to_string())?;
-            
+
             Ok(AuthUser {
                 id: json["account_id"].as_str().unwrap_or_default().to_string(),
                 email: json["email"].as_str().unwrap_or_default().to_string(),
@@ -842,16 +1048,17 @@ fn fetch_user_info(provider: &str, access_token: &str) -> Result<AuthUser, Strin
         }
         "linear" => {
             let query = r#"{ "query": "{ viewer { id email name avatarUrl } }" }"#;
-            let resp = http_client.post(LINEAR.userinfo_url)
+            let resp = http_client
+                .post(LINEAR.userinfo_url)
                 .bearer_auth(access_token)
                 .header("Content-Type", "application/json")
                 .body(query)
                 .send()
                 .map_err(|e| e.to_string())?;
-            
+
             let json: serde_json::Value = resp.json().map_err(|e| e.to_string())?;
             let viewer = &json["data"]["viewer"];
-            
+
             Ok(AuthUser {
                 id: viewer["id"].as_str().unwrap_or_default().to_string(),
                 email: viewer["email"].as_str().unwrap_or_default().to_string(),
@@ -870,12 +1077,7 @@ fn get_db_conn() -> Result<Connection, String> {
     // `initialize_agent` haya corrido (el usuario no está logueado todavía),
     // así que hay que garantizar el directorio acá o sqlite devuelve
     // "unable to open database file" y perdemos la sesión en silencio.
-    let base = dirs::data_local_dir().ok_or("No local data dir")?;
-    let dir = base.join("FlowSight");
-    if !dir.exists() {
-        std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
-    }
-    let db_path = dir.join("dev-agent.db");
+    let db_path = crate::paths::db_path()?;
     let conn = Connection::open(&db_path).map_err(|e| e.to_string())?;
     // Asegurar tabla `config` por si somos los primeros en abrir la DB (antes
     // de que agent::init_db corra). Sin esto, los INSERT posteriores también
@@ -892,20 +1094,16 @@ fn get_db_conn() -> Result<Connection, String> {
 // jira.rs reads from 'jira_access_token', 'jira_refresh_token', 'jira_cloud_id' config keys
 fn save_jira_specific_tokens(session: &AuthSession) {
     if let Ok(conn) = get_db_conn() {
-        let _ = conn.execute(
-            "INSERT OR REPLACE INTO config (key, value) VALUES ('jira_access_token', ?1)",
-            [&session.access_token]
-        );
+        let _ =
+            crate::secure_config::save_secret(&conn, "jira_access_token", &session.access_token);
         if let Some(ref rt) = session.refresh_token {
-            let _ = conn.execute(
-                "INSERT OR REPLACE INTO config (key, value) VALUES ('jira_refresh_token', ?1)",
-                [rt]
-            );
+            let _ = crate::secure_config::save_secret(&conn, "jira_refresh_token", rt);
         }
-        
+
         // Fetch and save Cloud ID (needed for Jira API calls)
         let http_client = Client::new();
-        match http_client.get("https://api.atlassian.com/oauth/token/accessible-resources")
+        match http_client
+            .get("https://api.atlassian.com/oauth/token/accessible-resources")
             .bearer_auth(&session.access_token)
             .send()
         {
@@ -916,13 +1114,13 @@ fn save_jira_specific_tokens(session: &AuthSession) {
                             "INSERT OR REPLACE INTO config (key, value) VALUES ('jira_cloud_id', ?1)",
                             [cloud_id]
                         );
-                        println!("[Auth] Saved Jira cloud_id: {}", cloud_id);
+                        println!("[Auth] Saved Jira workspace identifier");
                     }
                 }
             }
             Err(e) => println!("[Auth] Could not fetch Jira cloud_id: {}", e),
         }
-        
+
         println!("[Auth] Jira-specific tokens saved for jira.rs compatibility");
     }
 }
@@ -931,12 +1129,9 @@ fn save_auth_session(session: &AuthSession) {
     match get_db_conn() {
         Ok(conn) => {
             let json = serde_json::to_string(session).unwrap_or_default();
-            match conn.execute(
-                "INSERT OR REPLACE INTO config (key, value) VALUES ('auth_session', ?1)",
-                [&json],
-            ) {
-                Ok(_) => println!("[Auth] Session saved for: {}", session.user.email),
-                Err(e) => println!("[Auth] FAILED to persist session for {}: {}", session.user.email, e),
+            match crate::secure_config::save_secret(&conn, "auth_session", &json) {
+                Ok(_) => println!("[Auth] Session saved securely"),
+                Err(e) => println!("[Auth] FAILED to persist session: {}", e),
             }
         }
         Err(e) => println!("[Auth] FAILED to open DB while saving session: {}", e),
@@ -944,28 +1139,21 @@ fn save_auth_session(session: &AuthSession) {
 }
 
 #[tauri::command]
-pub fn get_auth_session() -> Result<Option<AuthSession>, String> {
+pub fn get_auth_session() -> Result<Option<PublicAuthSession>, String> {
     let conn = get_db_conn()?;
-    
-    let json: Result<String, _> = conn.query_row(
-        "SELECT value FROM config WHERE key = 'auth_session'",
-        [],
-        |row| row.get(0)
-    );
-    
-    match json {
-        Ok(j) => Ok(serde_json::from_str(&j).ok()),
-        Err(_) => Ok(None),
-    }
+
+    let json = crate::secure_config::load_secret(&conn, "auth_session")?;
+    Ok(json
+        .and_then(|value| serde_json::from_str::<AuthSession>(&value).ok())
+        .map(PublicAuthSession::from))
 }
 
 #[tauri::command]
 pub fn logout() -> Result<(), String> {
+    crate::calendar_companion::on_cloud_logout();
     let conn = get_db_conn()?;
-    conn.execute("DELETE FROM config WHERE key = 'auth_session'", [])
-        .map_err(|e| e.to_string())?;
-    conn.execute("DELETE FROM config WHERE key = 'user_session'", [])
-        .map_err(|e| e.to_string())?;
+    crate::secure_config::delete_secret(&conn, "auth_session")?;
+    crate::secure_config::delete_secret(&conn, "user_session")?;
     crate::entitlements::clear_entitlements(&conn)?;
     println!("[Auth] Logged out (cleared auth_session + user_session + entitlements)");
     Ok(())
@@ -1002,10 +1190,11 @@ pub(crate) fn parse_tokens_from_oauth_code(code: &str) -> Result<(String, Option
 // call below opens a real socket, which is what lets Windows inject a broken
 // Winsock LSP into this process (see crash_guard.rs module docs).
 #[tauri::command]
-pub async fn login_with_code(code: String) -> Result<AuthSession, String> {
+pub async fn login_with_code(code: String) -> Result<PublicAuthSession, String> {
     tauri::async_runtime::spawn_blocking(move || login_with_code_blocking(code))
         .await
         .map_err(|e| format!("Task join error: {}", e))?
+        .map(PublicAuthSession::from)
 }
 
 fn login_with_code_blocking(code: String) -> Result<AuthSession, String> {
@@ -1014,54 +1203,56 @@ fn login_with_code_blocking(code: String) -> Result<AuthSession, String> {
     let (access_token, refresh_token) = match parse_tokens_from_oauth_code(&code) {
         Ok((at, rt)) => {
             if code.contains("access_token=") {
-                println!("[Auth] Extracted tokens from URL (refresh_token: {})", rt.is_some());
+                println!(
+                    "[Auth] Extracted tokens from URL (refresh_token: {})",
+                    rt.is_some()
+                );
             }
             (at, rt)
         }
         Err(e) => return Err(e),
     };
-    
+
     // Validate against Supabase Auth API
     let client = Client::new();
-    let resp = client.get(format!("{}/auth/v1/user", supabase_url()))
+    let resp = client
+        .get(format!("{}/auth/v1/user", supabase_url()))
         .header("apikey", supabase_anon_key())
         .header("Authorization", format!("Bearer {}", access_token))
         .send()
         .map_err(|e| e.to_string())?;
-    
+
     if !resp.status().is_success() {
         return Err("Invalid token or expired code".to_string());
     }
-    
+
     let json: serde_json::Value = resp.json().map_err(|e| e.to_string())?;
-    
+
     // Construct session
     let user = AuthUser {
         id: json["id"].as_str().unwrap_or_default().to_string(),
         email: json["email"].as_str().unwrap_or_default().to_string(),
-        display_name: json["user_metadata"]["full_name"].as_str()
+        display_name: json["user_metadata"]["full_name"]
+            .as_str()
             .or(json["user_metadata"]["name"].as_str())
             .unwrap_or("User")
             .to_string(),
-        avatar_url: json["user_metadata"]["avatar_url"].as_str().map(String::from),
+        avatar_url: json["user_metadata"]["avatar_url"]
+            .as_str()
+            .map(String::from),
         provider: "google".to_string(),
     };
-    
+
     let session = AuthSession {
         user,
         access_token,
         refresh_token,
         provider: "google".to_string(),
     };
-    
-    save_auth_session(&session);
-    println!("[Auth] Login with code successful for: {}", session.user.email);
-    Ok(session)
-}
 
-#[tauri::command]
-pub fn is_logged_in() -> Result<bool, String> {
-    Ok(get_auth_session()?.is_some())
+    save_auth_session(&session);
+    println!("[Auth] Login with code successful");
+    Ok(session)
 }
 
 #[cfg(test)]
@@ -1090,5 +1281,4 @@ mod oauth_code_parse_tests {
         assert_eq!(at, "CCC");
         assert_eq!(rt.as_deref(), Some("DDD"));
     }
-
 }

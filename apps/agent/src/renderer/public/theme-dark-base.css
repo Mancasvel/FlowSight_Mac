@@ -1,0 +1,38 @@
+:root {
+  --background: 225 18% 8%;
+  --foreground: 210 20% 96%;
+  --card: 225 16% 12%;
+  --card-foreground: 210 20% 96%;
+  --primary: 264 90% 70%;
+  --primary-foreground: 226 28% 10%;
+  --secondary: 224 14% 17%;
+  --secondary-foreground: 214 18% 92%;
+  --muted: 224 14% 17%;
+  --muted-foreground: 218 12% 70%;
+  --accent: 263 38% 21%;
+  --accent-foreground: 264 100% 84%;
+  --destructive: 0 72% 62%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 224 12% 24%;
+  --input: 224 12% 29%;
+  --ring: 264 90% 72%;
+  --scrollbar-thumb: rgb(148 163 184 / 0.38);
+  --surface-shadow: 0 1px 2px rgb(0 0 0 / 0.18), 0 10px 26px rgb(0 0 0 / 0.16);
+  --glass-shadow: 0 12px 36px rgb(0 0 0 / 0.38), inset 0 1px 0 rgb(255 255 255 / 0.1);
+}
+
+.app-titlebar,
+.bottom-nav,
+.play-timer-btn {
+  box-shadow: var(--glass-shadow);
+}
+
+.highlight-focus .highlight-card-header { color: hsl(25 100% 72%); }
+.highlight-distraction .highlight-card-header { color: hsl(215 90% 72%); }
+
+@media (prefers-contrast: more) {
+  :root {
+    --muted-foreground: 216 18% 84%;
+    --border: 216 16% 48%;
+  }
+}

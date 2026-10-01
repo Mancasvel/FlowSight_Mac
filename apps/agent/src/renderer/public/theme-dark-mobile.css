@@ -1,0 +1,188 @@
+:root {
+  color-scheme: dark;
+  --background: 210 30% 8%;
+  --foreground: 190 22% 91%;
+  --card: 209 25% 13%;
+  --card-foreground: 190 22% 91%;
+  --primary: 172 66% 63%;
+  --primary-foreground: 208 32% 9%;
+  --secondary: 205 22% 19%;
+  --secondary-foreground: 190 19% 91%;
+  --muted: 207 21% 18%;
+  --muted-foreground: 199 15% 74%;
+  --accent: 174 27% 20%;
+  --accent-foreground: 172 75% 75%;
+  --border: 203 15% 29%;
+  --input: 203 15% 32%;
+  --ring: 172 71% 62%;
+  --task-color-analysis: #ae8bea;
+  --task-color-coding: #4dcfc0;
+  --task-color-debugging: #f28d7e;
+  --task-color-review: #79ade5;
+  --task-color-testing: #eabd70;
+  --task-color-design: #bc9ae5;
+  --task-color-devops: #95a5e8;
+  --task-color-database: #75c6a9;
+  --task-color-research: #79b1f0;
+  --task-color-documentation: #d695bd;
+  --task-color-planning: #dfb677;
+  --task-color-communication: #ef91ad;
+  --task-color-browsing: #66d0e4;
+  --task-color-general: #e6ba69;
+  --task-color-other: #a1b0bb;
+  --fs-grid: linear-gradient(to right, rgb(194 226 233 / 0.055) 1px, transparent 1px),
+    linear-gradient(to bottom, rgb(194 226 233 / 0.055) 1px, transparent 1px);
+  --surface-shadow: 0 9px 28px rgb(0 0 0 / 0.16);
+  --glass-shadow: 0 14px 36px rgb(0 0 0 / 0.3);
+}
+
+html,
+body,
+.app-shell,
+.cloud-activation-overlay,
+.onboarding-overlay { background-color: #101d25; }
+.app-titlebar { background: #162630; border-color: #2a414b; }
+.titlebar-name,
+.today-greeting,
+.profile-heading h1,
+.summary-title,
+.summary-total-time,
+.timer-display,
+.card-title,
+.highlights-title,
+.timeline-section-title,
+.coach-empty-title,
+.coach-lock-card h3,
+.consent-title,
+.modal-title,
+.report-modal-header h2 { color: #e5f0f1; }
+.titlebar-btn { color: #bed1d7; }
+.titlebar-btn:hover { background: #203a40; color: #77d7cb; }
+.today-intro,
+.profile-heading p,
+.summary-date,
+#todayDate,
+.summary-goal,
+.summary-focus-ratio p,
+.coach-empty-sub,
+.coach-char-count,
+.onboarding-prefs-summary,
+.upgrade-hint,
+#tabProfile .privacy-detail,
+.consent-copy,
+.consent-note { color: #adbec8; }
+#tabProfile .onboarding-prefs-summary,
+#tabProfile .upgrade-hint,
+#tabProfile .status-text { color: #adbec8; }
+.today-timer-ring { border-color: #2b444d; background: linear-gradient(147deg, #1b3039, #182a34 74%, #18383a); box-shadow: 0 16px 36px rgb(0 0 0 / 0.12); }
+.today-timer-meta,
+.timer-meta-label,
+.week-card-heading span:last-child { color: #b4c5cf; }
+.today-tracking-state { border-color: #3b5560; background: #263a43; color: #c2cfd5; }
+.today-tracking-state.is-recording { border-color: #266f68; background: #19433f; color: #79e2d5; }
+.today-tracking-state.is-paused { border-color: #795f35; background: #443725; color: #f2cc84; }
+.timer-goal-label,
+.timer-streak span:last-child,
+.task-bar-name,
+.task-bar-time,
+.summary-focus-head,
+#tabProfile .consent-toggle-row { color: #d4e3e6; }
+.summary-goal-track,
+.summary-focus-track { background: #265450; }
+.today-calendar-progress-track { background: #294d50; }
+.today-calendar-progress-track > span { background: #6cdfd0; }
+.bottom-nav,
+.card,
+.card-flat,
+.summary-main-card,
+.highlight-card,
+.today-goal-row,
+.today-task-card,
+.week-card,
+.empty-state,
+.coach-chat-shell,
+.login-splash-auth,
+.login-preview-card,
+.modal-content,
+.report-modal,
+.consent-card,
+.coach-lock-card { border-color: #2a414b; background: #1a2c36; box-shadow: 0 10px 26px rgb(0 0 0 / 0.12); }
+.card-header,
+.modal-header,
+.report-modal-header { border-color: #314953; }
+.nav-item { color: #a4b6c2; }
+.nav-item.active,
+.nav-item.active:hover { background: #204441; color: #6cdfd0; }
+.nav-item:hover:not(.active) { background: #243b44; color: #d5e5e8; }
+.status-indicator,
+.user-profile,
+#tabProfile .profile-state-copy,
+.coach-msg.assistant .coach-msg-bubble,
+.coach-composer,
+.notion-panel-section { border-color: #2b4550; background: #213741; }
+#privacyAnalyticsCard .profile-settings-group + .profile-settings-group { border-top-color: #314953; }
+#privacyAnalyticsCard .profile-settings-group h3 { color: #d5e5e8; }
+#privacyAnalyticsCard #analyticsConsentStatus { color: #adbec8; }
+.input,
+.select,
+.onboarding-name-input { border-color: #39545e; background: #213742; color: #ecf4f3; }
+.input::placeholder,
+.coach-input::placeholder { color: #aebfc8; }
+.label,
+.consent-list,
+.consent-toggle-row,
+.privacy-notice-card p,
+.privacy-notice-card li,
+.privacy-notice-card h3,
+.highlight-insight,
+.coach-input { color: #d5e5e8; }
+.button-secondary,
+.summary-download-btn,
+.summary-download-btn:hover:not(:disabled),
+.coach-quick-btn { border-color: #3c625f; background: #204341; color: #b2efe4; }
+.button-ghost { color: #9ce6db; }
+.button-ghost:hover:not(:disabled) { background: #244c48; }
+.stop-timer-btn { border-color: #7b4947; background: #412d31; color: #ffc4bf; }
+.week-day-ring { border-color: #50646f; }
+.summary-focus-ratio { border-color: #30464f; }
+.task-bar-track { background: #354954; }
+.focus-chart { border-bottom-color: #354954; }
+.focus-chart-scale { color: #afc0cc; }
+.coach-composer-wrap { border-color: #314953; background: #1a2c36; }
+.coach-lock-overlay { background: rgb(16 29 37 / 0.78); }
+.consent-overlay,
+.modal-overlay,
+.report-modal-overlay { background: rgb(0 7 11 / 0.7); }
+.consent-scroll-content { scrollbar-color: #558d88 #25413e; }
+.consent-scroll-content::-webkit-scrollbar-track { background: #25413e; }
+.consent-scroll-content::-webkit-scrollbar-thumb { background: #558d88; }
+.consent-scroll-cue { color: #8ce1d5; }
+.consent-scroll-cue:hover { color: #b1f2e8; }
+.onboarding-option { border-color: #39505b; background: #1a2c36; }
+.onboarding-option.selected { border-color: #58cbbd; background: #204440; }
+.onboarding-footer { background: linear-gradient(to top, #101d25 75%, rgb(16 29 37 / 0)); }
+.sr-next { background: #213e3d; }
+
+/* Match the interactive selector specificity of the light renderer rules.
+   A hover keeps the current dark surface and only adds a little light. */
+html[data-theme="dark"] .button-secondary:hover:not(:disabled),
+html[data-theme="dark"] .summary-download-btn:hover:not(:disabled),
+html[data-theme="dark"] .summary-download-btn:focus-visible:not(:disabled),
+html[data-theme="dark"] .coach-quick-btn:hover:not(:disabled) {
+  background: #294e4b;
+  color: #b2efe4;
+}
+html[data-theme="dark"] .button-ghost:hover:not(:disabled) { background: #213741; }
+html[data-theme="dark"] .titlebar-btn:hover:not(:disabled),
+html[data-theme="dark"] .titlebar-btn.maximize:hover:not(:disabled) { background: #20343e; color: #bed1d7; }
+html[data-theme="dark"] .titlebar-btn.close:hover:not(:disabled),
+html[data-theme="dark"] .stop-timer-btn:hover:not(:disabled) { background: #4d373b; color: #ffc4bf; }
+html[data-theme="dark"] .titlebar-btn:disabled:hover { background: transparent; color: #bed1d7; }
+html[data-theme="dark"] .stop-timer-btn:disabled:hover { background: #412d31; color: #ffc4bf; }
+html[data-theme="dark"] .session-planner .button-primary:hover:not(:disabled),
+html[data-theme="dark"] .onboarding-footer .onboarding-continue:hover:not(:disabled),
+html[data-theme="dark"] .pdf-download-dialog__actions .button-primary:hover:not(:disabled) { background: #0c837c; border-color: #0c837c; }
+
+@media (prefers-contrast: more) {
+  :root { --muted-foreground: 195 18% 88%; --border: 194 21% 55%; }
+}

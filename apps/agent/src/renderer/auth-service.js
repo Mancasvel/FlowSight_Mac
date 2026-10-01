@@ -1,3 +1,4 @@
+import { t as tr } from './i18n.mjs';
 import { createClient } from '@supabase/supabase-js';
 
 const DEFAULT_SUPABASE_URL = 'https://dzpyrdxelcgfpmcdojvb.supabase.co';
@@ -16,7 +17,10 @@ export function getSupabaseClient() {
   if (!supabaseClient) {
     supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
       auth: {
-        persistSession: true,
+        // The native layer stores the session encrypted with Windows DPAPI.
+        // Keeping a second plaintext token copy in WebView localStorage would
+        // increase exposure without providing a product benefit.
+        persistSession: false,
         autoRefreshToken: true,
         detectSessionInUrl: false,
       },
@@ -30,26 +34,26 @@ export function getFriendlyAuthError(error) {
   const message = String(error?.message || error || '').toLowerCase();
 
   if (message.includes('invalid login credentials')) {
-    return 'Invalid email or password. Check your license credentials.';
+    return tr('Invalid email or password. Check your license credentials.');
   }
 
   if (message.includes('email not confirmed')) {
-    return 'Please confirm your email before signing in.';
+    return tr('Please confirm your email before signing in.');
   }
 
   if (message.includes('no active individual subscription')) {
-    return 'This account does not have an active Individual license.';
+    return tr('This account does not have an active Individual license.');
   }
 
   if (message.includes('no active') && message.includes('subscription')) {
-    return 'No active Individual or Team license found for this account.';
+    return tr('No active Individual or Team license found for this account.');
   }
 
   if (message.includes('supabase public configuration')) {
-    return 'Cloud login is not configured yet. Contact support.';
+    return tr('Cloud login is not configured yet. Contact support.');
   }
 
-  return 'Login failed. Please try again or contact support.';
+  return tr('Login failed. Please try again or contact support.');
 }
 
 async function rejectSignedInUser(supabase, message) {
@@ -74,10 +78,10 @@ function parseEntitlements(raw) {
   };
 }
 
-export async function fetchUserEntitlements(supabase) {
+async function fetchUserEntitlements(supabase) {
   const { data, error } = await supabase.rpc('get_user_entitlements');
   if (error) {
-    throw new Error(error.message || 'Could not load license entitlements.');
+    throw new Error('Could not load license entitlements.');
   }
   return parseEntitlements(data);
 }
@@ -85,7 +89,7 @@ export async function fetchUserEntitlements(supabase) {
 export async function ensurePersonalTeam(supabase) {
   const { data, error } = await supabase.rpc('ensure_personal_team');
   if (error) {
-    throw new Error(error.message || 'Could not create your personal team.');
+    throw new Error('Could not create your personal team.');
   }
   return data?.team_id ? String(data.team_id) : null;
 }
@@ -96,7 +100,7 @@ export async function claimLicenseCode(supabase, code) {
 
   const { data, error } = await supabase.rpc('claim_license', { p_code: normalized });
   if (error) {
-    throw new Error(error.message || 'Could not claim license code.');
+    throw new Error('Could not claim license code.');
   }
   return data;
 }
@@ -194,12 +198,7 @@ export async function signInForCloudFeatures(email, password) {
   };
 }
 
-/** @deprecated Use signInForCloudFeatures */
-export const signInWorker = signInForCloudFeatures;
-
 export async function signOutWorker() {
   const supabase = getSupabaseClient();
   await supabase.auth.signOut();
 }
-
-export { parseEntitlements, fetchUserEntitlements as getUserEntitlements };
