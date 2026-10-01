@@ -1509,6 +1509,14 @@
       margin-bottom: 2px;
     }
 
+    .timer-recording-note {
+      max-width: 22ch;
+      margin-top: 8px;
+      font-size: 11px;
+      line-height: 1.4;
+      color: hsl(var(--muted-foreground));
+    }
+
     .timer-display {
       font-size: 48px;
       font-weight: 700;
@@ -3573,7 +3581,7 @@
         <div class="today-timer-section">
           <div class="today-timer-ring">
             <div class="today-timer-meta">
-              <span>Tracking session</span>
+              <span>Recorded today</span>
               <span class="today-tracking-state" id="todayTrackingState">Ready</span>
             </div>
             <svg viewBox="0 0 200 200" aria-hidden="true">
@@ -3583,6 +3591,7 @@
             </svg>
             <div class="timer-inner">
               <div class="timer-display" id="timerDisplay">00:00:00</div>
+              <small class="timer-recording-note">Updates after each local analysis.</small>
             </div>
             <div class="today-calendar-status" aria-live="polite">
               <div class="today-calendar-context" id="todayCalendarContext" hidden>
@@ -4261,6 +4270,7 @@
       loadTrackingCheckpoint,
       resolveTrackingRestore,
       saveTrackingCheckpoint,
+      recordedDailyTotal,
     } from './tracking-session.mjs';
     import {
       cleanReportText as extractEnglishText,
@@ -5300,9 +5310,9 @@
     }
 
     let todayTotalSeconds = 0;
-    let sessionSeconds = 0;
     let sessionTimerInterval = null;
     let todayRefreshInterval = null;
+    let dailyHistoryRequest = null;
     let trackingStateHydrated = false;
     let trackingTransitionInProgress = false;
     const TIMER_RING_CIRC = 2 * Math.PI * 82;
@@ -5321,8 +5331,24 @@
       if (ring) ring.setAttribute('stroke-dashoffset', String(TIMER_RING_CIRC * (1 - p)));
     }
 
+    function applyRecordedHistory(history) {
+      todayTotalSeconds = recordedDailyTotal(history);
+      currentHistoryData = history;
+      updateTimerDisplay();
+    }
+
+    function loadCurrentDayHistory() {
+      if (!dailyHistoryRequest) {
+        dailyHistoryRequest = invoke('get_today_history').then(history => {
+          applyRecordedHistory(history);
+          return history;
+        }).finally(() => { dailyHistoryRequest = null; });
+      }
+      return dailyHistoryRequest;
+    }
+
     function getDisplayTotalSeconds() {
-      return todayTotalSeconds + sessionSeconds;
+      return todayTotalSeconds;
     }
 
     function updateTimerControlsVisibility() {
@@ -5420,24 +5446,20 @@
         clearInterval(sessionTimerInterval);
         sessionTimerInterval = null;
       }
-      todayTotalSeconds += sessionSeconds;
-      sessionSeconds = 0;
       updateTimerDisplay();
     }
 
     function resumeSessionTimer() {
       if (sessionTimerInterval) clearInterval(sessionTimerInterval);
       sessionTimerInterval = setInterval(() => {
-        sessionSeconds++;
-        updateTimerDisplay();
-        if (sessionSeconds % TRACKING_CHECKPOINT_INTERVAL_SECONDS === 0) {
+        loadCurrentDayHistory().then(history => {
+          if (document.getElementById('tabSummary')?.classList.contains('active')) renderHistory(history, currentWeekData);
           persistTrackingState();
-        }
-      }, 1000);
+        }).catch(() => {});
+      }, TRACKING_CHECKPOINT_INTERVAL_SECONDS * 1000);
     }
 
     function startSessionTimer() {
-      sessionSeconds = 0;
       resumeSessionTimer();
     }
 
@@ -5484,7 +5506,7 @@
       try {
         const [nativeStatus, history, localAgent] = await Promise.all([
           invoke('get_status'),
-          invoke('get_today_history'),
+          loadCurrentDayHistory(),
           invoke('get_local_agent_data').catch(() => null),
         ]);
         const checkpoint = loadTrackingCheckpoint(localStorage);
@@ -5498,7 +5520,7 @@
         let restored = resolveTrackingRestore({
           nativeRunning: Boolean(nativeStatus?.isRunning),
           serverOnline,
-          historySeconds: history?.total_seconds,
+          historySeconds: recordedDailyTotal(history),
           checkpoint,
           agentFocusStatus: localAgent?.focus?.status,
         });
@@ -5513,7 +5535,6 @@
         }
 
         todayTotalSeconds = restored.totalSeconds;
-        sessionSeconds = 0;
         isMonitoring = restored.mode === 'running';
         isPaused = restored.mode === 'paused';
 
@@ -5634,12 +5655,10 @@
         const streak = computeStreak(week);
         const streakEl = document.getElementById('streakText');
         if (streakEl) setText(streakEl, () => (formatMessage`${streak} day${streak === 1 ? '' : 's'}`));
-        if (!isMonitoring && !isPaused) {
-          const history = await invoke('get_today_history');
-          todayTotalSeconds = history.total_seconds || 0;
-        } else if (isPaused) {
-          const history = await invoke('get_today_history');
-          todayTotalSeconds = Math.max(todayTotalSeconds, history.total_seconds || 0);
+        currentWeekData = week;
+        const history = await loadCurrentDayHistory();
+        if (document.getElementById('tabSummary')?.classList.contains('active')) {
+          renderHistory(history, week);
         }
       } catch (_) { /* agent may not be init yet */ }
       updateTimerDisplay();
@@ -6770,8 +6789,7 @@
         showToast(formatMessage`Local AI Server Ready${layerSuffix}`, 'success');
 
         try {
-          const history = await invoke('get_today_history');
-          todayTotalSeconds = Math.max(todayTotalSeconds, history.total_seconds || 0);
+          await loadCurrentDayHistory();
         } catch (_) { /* keep local total */ }
 
         await startNativeMonitoring();
@@ -8687,6 +8705,7 @@
     }
 
     function renderHistory(data, week) {
+      applyRecordedHistory(data);
       const activeDays = week?.days?.filter(day => day.has_activity).length || 0;
       const weekActivityLabel = formatMessage`${activeDays} active day${activeDays === 1 ? '' : 's'}`;
       if (data.entries.length === 0) {
@@ -9030,7 +9049,7 @@
       summaryBody.innerHTML = markup('<div class="empty-state"><span class="loading"></span> Loading summary...</div>');
       try {
         const [history, week] = await Promise.all([
-          invoke('get_today_history'),
+          loadCurrentDayHistory(),
           invoke('get_week_summary').catch(() => null),
         ]);
         currentHistoryData = history;
