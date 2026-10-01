@@ -78,9 +78,8 @@ impl TrackingClock {
                 .min(u64::MAX as u128) as u64
         });
         let day = wall.format("%Y-%m-%d").to_string();
-        let next_elapsed;
         let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
-        if day != self.day {
+        let next_elapsed = if day != self.day {
             // Allocate only the portion after local midnight to the new day.
             // A stopped clock adds no time, even when the window was closed.
             let midnight = Local
@@ -107,10 +106,10 @@ impl TrackingClock {
                 .map_err(|e| e.to_string())?
                 .unwrap_or(0)
                 .max(0) as u64;
-            next_elapsed = existing.saturating_add(after_midnight);
+            existing.saturating_add(after_midnight)
         } else {
-            next_elapsed = self.elapsed_ms.saturating_add(elapsed);
-        }
+            self.elapsed_ms.saturating_add(elapsed)
+        };
         Self::save(&tx, &day, next_elapsed)?;
         tx.commit().map_err(|e| e.to_string())?;
         // Commit memory only after SQLite succeeds. A retry cannot charge a delta twice.
