@@ -39,7 +39,9 @@ pub fn load_user_preferences(db_path: &std::path::Path) -> Result<UserPreference
         .ok();
 
     match raw {
-        Some(json) => serde_json::from_str(&json).map_err(|e| format!("Invalid preferences JSON: {}", e)),
+        Some(json) => {
+            serde_json::from_str(&json).map_err(|e| format!("Invalid preferences JSON: {}", e))
+        }
         None => Ok(UserPreferences::default()),
     }
 }

@@ -31,6 +31,7 @@ pub fn spawn(
                             // Store a stable-ish process id for AX observers (best-effort).
                             *lock_or_recover(&uia_target) = Some(window.process_id as isize);
                             *lock_or_recover(&current_app) = Some(app_name.clone());
+                            super::record_foreground_for_reminder(&app_name);
                             push_event(
                                 &ring,
                                 ActionEvent::ForegroundChanged {

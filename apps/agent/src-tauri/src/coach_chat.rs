@@ -88,8 +88,11 @@ pub fn get_coach_chat_messages() -> Result<Vec<CoachChatMessage>, String> {
 pub fn clear_coach_chat() -> Result<(), String> {
     let db_path = crate::paths::db_path()?;
     let conn = Connection::open(&db_path).map_err(|e| e.to_string())?;
-    conn.execute("DELETE FROM config WHERE key = ?1", params![COACH_MESSAGES_KEY])
-        .map_err(|e| e.to_string())?;
+    conn.execute(
+        "DELETE FROM config WHERE key = ?1",
+        params![COACH_MESSAGES_KEY],
+    )
+    .map_err(|e| e.to_string())?;
     Ok(())
 }
 
@@ -148,7 +151,10 @@ pub fn send_coach_chat_message(message: String) -> Result<serde_json::Value, Str
         return Err("Message cannot be empty".to_string());
     }
     if trimmed.len() > MAX_MESSAGE_LEN {
-        return Err(format!("Message must be {} characters or fewer", MAX_MESSAGE_LEN));
+        return Err(format!(
+            "Message must be {} characters or fewer",
+            MAX_MESSAGE_LEN
+        ));
     }
 
     let db_path = crate::paths::db_path()?;
@@ -182,10 +188,8 @@ pub fn send_coach_chat_message(message: String) -> Result<serde_json::Value, Str
         })
         .collect();
 
-    let local_context =
-        crate::insights_local::build_local_insights_report(&db_path, 7).unwrap_or_else(|err| {
-            serde_json::json!({ "error": err })
-        });
+    let local_context = crate::insights_local::build_local_insights_report(&db_path, 7)
+        .unwrap_or_else(|err| serde_json::json!({ "error": err }));
 
     let body = serde_json::json!({
         "message": trimmed,

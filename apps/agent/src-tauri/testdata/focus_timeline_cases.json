@@ -1,0 +1,104 @@
+[
+  {
+    "id":"writing_then_research_same_task",
+    "samples":[
+      {"start":"2026-08-22 09:00:00","seconds":900,"category":"Writing","theme":"Policy brief"},
+      {"start":"2026-08-22 09:15:00","seconds":900,"category":"Research","theme":"Policy brief"}
+    ],
+    "deep_seconds":1800,"deep_sessions":1,"total_sessions":1,"interrupted_sessions":0,"theme_switches":0,"resume_events":0,"distraction_events":0,"context_seconds":0
+  },
+  {
+    "id":"one_general_sensor_blip",
+    "samples":[
+      {"start":"2026-08-22 09:00:00","seconds":720,"category":"Analysis","theme":"Forecast"},
+      {"start":"2026-08-22 09:12:00","seconds":60,"category":"General","theme":"Forecast"},
+      {"start":"2026-08-22 09:13:00","seconds":840,"category":"Analysis","theme":"Forecast"}
+    ],
+    "deep_seconds":1560,"deep_sessions":1,"total_sessions":1,"interrupted_sessions":1,"theme_switches":0,"resume_events":0,"distraction_events":0,"context_seconds":0
+  },
+  {
+    "id":"confirmed_browsing_break",
+    "samples":[
+      {"start":"2026-08-22 09:00:00","seconds":900,"category":"Design","theme":"Prototype"},
+      {"start":"2026-08-22 09:15:00","seconds":120,"category":"Browsing"},
+      {"start":"2026-08-22 09:17:00","seconds":900,"category":"Design","theme":"Prototype"}
+    ],
+    "deep_seconds":0,"deep_sessions":0,"total_sessions":2,"interrupted_sessions":1,"theme_switches":0,"resume_events":1,"distraction_events":1,"context_seconds":0
+  },
+  {
+    "id":"meeting_between_two_deep_blocks",
+    "samples":[
+      {"start":"2026-08-22 09:00:00","seconds":1500,"category":"Writing","theme":"Proposal"},
+      {"start":"2026-08-22 09:25:00","seconds":120,"category":"Meeting"},
+      {"start":"2026-08-22 09:27:00","seconds":1500,"category":"Writing","theme":"Proposal"}
+    ],
+    "deep_seconds":3000,"deep_sessions":2,"total_sessions":2,"interrupted_sessions":1,"theme_switches":0,"resume_events":1,"distraction_events":0,"context_seconds":120
+  },
+  {
+    "id":"explicit_task_change",
+    "samples":[
+      {"start":"2026-08-22 09:00:00","seconds":900,"category":"Research","theme":"Market study"},
+      {"start":"2026-08-22 09:15:00","seconds":900,"category":"Analysis","theme":"Budget review"}
+    ],
+    "deep_seconds":0,"deep_sessions":0,"total_sessions":2,"interrupted_sessions":1,"theme_switches":1,"resume_events":0,"distraction_events":0,"context_seconds":0
+  },
+  {
+    "id":"single_observation_crosses_midnight",
+    "samples":[
+      {"start":"2026-08-22 23:50:00","seconds":1800,"category":"Documentation","theme":"Procedure"}
+    ],
+    "deep_seconds":0,"deep_sessions":0,"total_sessions":2,"interrupted_sessions":0,"theme_switches":0,"resume_events":0,"distraction_events":0,"context_seconds":0
+  },
+  {
+    "id":"non_developer_analysis_block",
+    "samples":[
+      {"start":"2026-08-22 11:00:00","seconds":1500,"category":"Analysis","theme":"Survey results"}
+    ],
+    "deep_seconds":1500,"deep_sessions":1,"total_sessions":1,"interrupted_sessions":0,"theme_switches":0,"resume_events":0,"distraction_events":0,"context_seconds":0
+  },
+  {
+    "id":"valuable_coordination_only",
+    "samples":[
+      {"start":"2026-08-22 13:00:00","seconds":600,"category":"Planning","theme":"Launch"},
+      {"start":"2026-08-22 13:10:00","seconds":600,"category":"Communication","theme":"Launch"},
+      {"start":"2026-08-22 13:20:00","seconds":600,"category":"Sales","theme":"Launch"}
+    ],
+    "deep_seconds":0,"deep_sessions":0,"total_sessions":0,"interrupted_sessions":0,"theme_switches":0,"resume_events":0,"distraction_events":0,"context_seconds":1800
+  },
+  {
+    "id":"overlap_is_clipped",
+    "samples":[
+      {"start":"2026-08-22 14:00:00","seconds":900,"category":"Learning","theme":"Course"},
+      {"start":"2026-08-22 14:10:00","seconds":900,"category":"Learning","theme":"Course"}
+    ],
+    "deep_seconds":1500,"deep_sessions":1,"total_sessions":1,"interrupted_sessions":0,"theme_switches":0,"resume_events":0,"distraction_events":0,"context_seconds":0
+  },
+  {
+    "id":"noise_beyond_grace_breaks",
+    "samples":[
+      {"start":"2026-08-22 15:00:00","seconds":900,"category":"Documentation","theme":"Handbook"},
+      {"start":"2026-08-22 15:15:00","seconds":120,"category":"General","theme":"Handbook"},
+      {"start":"2026-08-22 15:17:00","seconds":900,"category":"Documentation","theme":"Handbook"}
+    ],
+    "deep_seconds":0,"deep_sessions":0,"total_sessions":2,"interrupted_sessions":1,"theme_switches":0,"resume_events":1,"distraction_events":0,"context_seconds":0
+  },
+  {
+    "id":"meeting_then_different_explicit_task",
+    "samples":[
+      {"start":"2026-08-22 16:00:00","seconds":900,"category":"Writing","theme":"Customer proposal"},
+      {"start":"2026-08-22 16:15:00","seconds":300,"category":"Meeting","theme":"Customer proposal"},
+      {"start":"2026-08-22 16:20:00","seconds":900,"category":"Analysis","theme":"Quarterly forecast"}
+    ],
+    "deep_seconds":0,"deep_sessions":0,"total_sessions":2,"interrupted_sessions":1,"theme_switches":1,"resume_events":0,"distraction_events":0,"context_seconds":300
+  },
+  {
+    "id":"two_uncertain_samples_are_not_a_micro_blip",
+    "samples":[
+      {"start":"2026-08-22 17:00:00","seconds":600,"category":"Research","theme":"Literature review"},
+      {"start":"2026-08-22 17:10:00","seconds":30,"category":"General","theme":"Literature review"},
+      {"start":"2026-08-22 17:10:30","seconds":30,"category":"Idle","theme":"Literature review"},
+      {"start":"2026-08-22 17:11:00","seconds":900,"category":"Writing","theme":"Literature review"}
+    ],
+    "deep_seconds":0,"deep_sessions":0,"total_sessions":2,"interrupted_sessions":1,"theme_switches":0,"resume_events":1,"distraction_events":0,"context_seconds":0
+  }
+]

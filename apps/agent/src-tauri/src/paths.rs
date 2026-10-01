@@ -51,7 +51,10 @@ pub fn db_path_read_only() -> Result<PathBuf, String> {
     let base = dirs::data_local_dir().ok_or_else(|| "No local data dir available".to_string())?;
     let path = base.join(APP_DIR_NAME).join(DB_FILE);
     if !path.is_file() {
-        return Err("FlowSight local database not found. Start monitoring in the desktop app first.".to_string());
+        return Err(
+            "FlowSight local database not found. Start monitoring in the desktop app first."
+                .to_string(),
+        );
     }
     Ok(path)
 }
@@ -230,6 +233,21 @@ fn unique_download_path(downloads: &std::path::Path, filename: &str) -> PathBuf 
     downloads.join(format!("{stem}_{stamp}.pdf"))
 }
 
+pub fn save_pdf_to_directory(
+    directory: &std::path::Path,
+    filename: &str,
+    bytes: &[u8],
+) -> Result<String, String> {
+    let directory = std::fs::canonicalize(directory).map_err(|e| e.to_string())?;
+    if !directory.is_dir() {
+        return Err("Choose a report folder.".into());
+    }
+    let safe = sanitize_pdf_filename(filename)?;
+    let path = unique_download_path(&directory, &safe);
+    std::fs::write(&path, bytes).map_err(|e| format!("Could not save PDF: {e}"))?;
+    Ok(path.to_string_lossy().to_string())
+}
+
 /// Guarda un PDF en la carpeta Descargas del usuario y devuelve la ruta absoluta escrita.
 #[tauri::command]
 pub fn save_pdf_to_downloads(filename: String, bytes: Vec<u8>) -> Result<String, String> {
@@ -246,9 +264,7 @@ pub fn save_pdf_to_downloads(filename: String, bytes: Vec<u8>) -> Result<String,
 pub fn open_path_in_file_manager(path: String) -> Result<(), String> {
     let p = PathBuf::from(path);
     let target = if p.is_file() {
-        p.parent()
-            .map(|parent| parent.to_path_buf())
-            .unwrap_or(p)
+        p.parent().map(|parent| parent.to_path_buf()).unwrap_or(p)
     } else {
         p
     };

@@ -48,7 +48,8 @@ pub(crate) fn truncate_tasks_for_summary(text: &str, max_chars: usize) -> String
     if n <= max_chars {
         return text.to_string();
     }
-    const OMIT: &str = "[... earlier activity omitted; excerpt is the most recent part of the batch ...]\n\n";
+    const OMIT: &str =
+        "[... earlier activity omitted; excerpt is the most recent part of the batch ...]\n\n";
     let overhead = OMIT.chars().count();
     let budget = max_chars.saturating_sub(overhead);
     let skip = n.saturating_sub(budget);

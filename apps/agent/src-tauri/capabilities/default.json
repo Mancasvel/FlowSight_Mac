@@ -16,6 +16,7 @@
     "core:window:allow-start-dragging",
     "core:window:allow-is-maximized",
     "updater:default",
-    "process:default"
+    "process:default",
+    "dialog:allow-open"
   ]
 }

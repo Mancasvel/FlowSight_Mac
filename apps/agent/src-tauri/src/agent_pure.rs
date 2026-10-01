@@ -29,8 +29,8 @@ const CATEGORY_MAP: &[(&str, &str)] = &[
 pub(crate) fn parse_analysis(raw: &str) -> (String, String) {
     let lower = raw.to_lowercase();
 
-    let category = extract_category_from_field(&lower)
-        .unwrap_or_else(|| infer_category_from_content(&lower));
+    let category =
+        extract_category_from_field(&lower).unwrap_or_else(|| infer_category_from_content(&lower));
     // Local VL models often label IDEs / GitHub / terminals as Browsing or General.
     // Prefer clear engineering signals over a weak model label.
     let category = correct_misclassified_category(&category, &lower);
@@ -262,12 +262,18 @@ fn infer_category_from_content(lower: &str) -> String {
         || lower.contains("youtube")
         || lower.contains("netflix")
         || lower.contains("reddit")
-        || ((lower.contains("browser") || lower.contains("chrome") || lower.contains("firefox") || lower.contains("safari"))
+        || ((lower.contains("browser")
+            || lower.contains("chrome")
+            || lower.contains("firefox")
+            || lower.contains("safari"))
             && !looks_like_engineering_work(lower))
     {
         // Consumer / social browsing only — never treat GitHub/IDE work as Browsing.
         "Browsing"
-    } else if lower.contains("idle") || lower.contains("no activity") || lower.contains("lock screen") {
+    } else if lower.contains("idle")
+        || lower.contains("no activity")
+        || lower.contains("lock screen")
+    {
         "Idle"
     } else {
         "General"

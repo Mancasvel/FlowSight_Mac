@@ -67,10 +67,7 @@ pub fn save_analytics_consent(
     Ok(consent)
 }
 
-pub fn compute_daily_usage(
-    conn: &Connection,
-    days: i32,
-) -> Result<Vec<DailyUsageEntry>, String> {
+pub fn compute_daily_usage(conn: &Connection, days: i32) -> Result<Vec<DailyUsageEntry>, String> {
     if days <= 0 {
         return Ok(Vec::new());
     }
@@ -92,10 +89,7 @@ pub fn compute_daily_usage(
     let mut totals: std::collections::HashMap<String, i32> = std::collections::HashMap::new();
     let rows = stmt
         .query_map(params![start_str, end_str], |row| {
-            Ok((
-                row.get::<_, String>(0)?,
-                row.get::<_, i32>(1).unwrap_or(0),
-            ))
+            Ok((row.get::<_, String>(0)?, row.get::<_, i32>(1).unwrap_or(0)))
         })
         .map_err(|e| e.to_string())?;
 
@@ -145,7 +139,9 @@ pub fn compute_weekly_primary_activity(conn: &Connection) -> Result<Option<Strin
         .optional()
         .map_err(|e| e.to_string())?;
 
-    Ok(row.filter(|(_, total)| *total > 0).map(|(category, _)| category))
+    Ok(row
+        .filter(|(_, total)| *total > 0)
+        .map(|(category, _)| category))
 }
 
 fn upsert_anonymous_analytics_on_supabase(
@@ -220,15 +216,13 @@ pub fn perform_analytics_sync(db_path: &Path) -> Result<bool, String> {
 }
 
 pub fn start_analytics_sync_thread(db_path: PathBuf) {
-    thread::spawn(move || {
-        loop {
-            match perform_analytics_sync(&db_path) {
-                Ok(true) => log::debug!("[Analytics] Background sync completed"),
-                Ok(false) => {}
-                Err(e) => log::debug!("[Analytics] Background sync failed: {e}"),
-            }
-            thread::sleep(Duration::from_secs(ANALYTICS_SYNC_INTERVAL_HOURS * 3600));
+    thread::spawn(move || loop {
+        match perform_analytics_sync(&db_path) {
+            Ok(true) => log::debug!("[Analytics] Background sync completed"),
+            Ok(false) => {}
+            Err(e) => log::debug!("[Analytics] Background sync failed: {e}"),
         }
+        thread::sleep(Duration::from_secs(ANALYTICS_SYNC_INTERVAL_HOURS * 3600));
     });
 }
 
@@ -285,10 +279,7 @@ fn submit_feedback_to_supabase(
         .build()
         .map_err(|e| e.to_string())?;
 
-    let url = format!(
-        "{}/rest/v1/rpc/submit_product_feedback",
-        supabase_url()
-    );
+    let url = format!("{}/rest/v1/rpc/submit_product_feedback", supabase_url());
 
     let body = serde_json::json!({
         "p_message": message,
@@ -420,11 +411,8 @@ mod tests {
         let dir = tempfile::tempdir().expect("tempdir");
         let path = dir.path().join("consent.db");
         let conn = Connection::open(&path).expect("open");
-        conn.execute(
-            "CREATE TABLE config (key TEXT PRIMARY KEY, value TEXT)",
-            [],
-        )
-        .expect("schema");
+        conn.execute("CREATE TABLE config (key TEXT PRIMARY KEY, value TEXT)", [])
+            .expect("schema");
         drop(conn);
 
         let consent = AnalyticsConsent {

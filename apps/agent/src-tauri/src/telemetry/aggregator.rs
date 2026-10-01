@@ -57,7 +57,18 @@ pub fn spawn(
             let ctx = task_ctx.lock().unwrap();
             (ctx.user_task.clone(), ctx.jira_ticket.clone())
         };
-        let task_label = jira_ticket.clone().or_else(|| user_task.clone()).unwrap_or_else(|| "General".to_string());
+        let task_label = jira_ticket
+            .clone()
+            .or_else(|| user_task.clone())
+            .unwrap_or_else(|| "General".to_string());
+        let foreground = crate::context::get_system_context();
+        if let Some(app) = foreground.app_name.as_deref() {
+            if crate::privacy::application_is_excluded(&db_path, Some(app)) {
+                crate::focus_alerts::excluded_app_entered();
+            } else {
+                crate::focus_alerts::record_app_switch(&app_handle, app);
+            }
+        }
 
         // (a) Text review of accumulated UIA/foreground actions, if any.
         // Skip empty minutes rather than inventing an idle/no-activity signal.
@@ -101,8 +112,22 @@ fn persist_and_emit(
     duration_seconds: u64,
 ) {
     let category = crate::agent_pure::resolve_persisted_category(category);
-    match crate::agent::insert_report(db_path, description, &category, jira_ticket.clone(), duration_seconds) {
+    match crate::agent::insert_report(
+        db_path,
+        description,
+        &category,
+        jira_ticket.clone(),
+        duration_seconds,
+    ) {
         Some(id) => {
+            crate::focus_alerts::review_browsing_report(
+                app_handle,
+                db_path,
+                &category,
+                duration_seconds,
+                description,
+                crate::context::get_system_context().app_name.as_deref(),
+            );
             let _ = app_handle.emit(
                 "activity-report",
                 serde_json::json!({
@@ -123,7 +148,10 @@ fn review_cycle(events: &[ActionEvent], task_label: &str) -> (String, String) {
         Ok(raw) => crate::agent_pure::parse_analysis(&raw),
         Err(e) => {
             log::warn!("[Telemetry] Action-log review failed: {e}");
-            (format!("Automatic action-log review failed: {e}"), "General".to_string())
+            (
+                format!("Automatic action-log review failed: {e}"),
+                "General".to_string(),
+            )
         }
     }
 }
@@ -133,19 +161,44 @@ fn summarize_events(events: &[ActionEvent]) -> String {
         .iter()
         .take(MAX_EVENTS_IN_SUMMARY)
         .map(|e| match e {
-            ActionEvent::ForegroundChanged { app_name, window_title, .. } => {
-                format!("- switched focus to app '{}' (window: '{}')", app_name, truncate(window_title, 80))
+            ActionEvent::ForegroundChanged {
+                app_name,
+                window_title,
+                ..
+            } => {
+                format!(
+                    "- switched focus to app '{}' (window: '{}')",
+                    app_name,
+                    truncate(window_title, 80)
+                )
             }
-            ActionEvent::UiaFocusChanged { control_name, control_type, .. } => format!(
+            ActionEvent::UiaFocusChanged {
+                control_name,
+                control_type,
+                ..
+            } => format!(
                 "- focused a {} control{}",
                 control_type.as_deref().unwrap_or("UI"),
-                control_name.as_deref().map(|n| format!(" named '{}'", truncate(n, 60))).unwrap_or_default()
+                control_name
+                    .as_deref()
+                    .map(|n| format!(" named '{}'", truncate(n, 60)))
+                    .unwrap_or_default()
             ),
             ActionEvent::UiaWindowOpened { name, .. } => {
-                format!("- opened a window{}", name.as_deref().map(|n| format!(" '{}'", truncate(n, 60))).unwrap_or_default())
+                format!(
+                    "- opened a window{}",
+                    name.as_deref()
+                        .map(|n| format!(" '{}'", truncate(n, 60)))
+                        .unwrap_or_default()
+                )
             }
             ActionEvent::UiaWindowClosed { name, .. } => {
-                format!("- closed a window{}", name.as_deref().map(|n| format!(" '{}'", truncate(n, 60))).unwrap_or_default())
+                format!(
+                    "- closed a window{}",
+                    name.as_deref()
+                        .map(|n| format!(" '{}'", truncate(n, 60)))
+                        .unwrap_or_default()
+                )
             }
         })
         .collect::<Vec<_>>()

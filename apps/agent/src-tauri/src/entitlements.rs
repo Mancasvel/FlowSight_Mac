@@ -47,10 +47,7 @@ fn parse_entitlements_json(value: &serde_json::Value) -> Entitlements {
 
     Entitlements {
         plan: value["plan"].as_str().map(String::from),
-        status: value["status"]
-            .as_str()
-            .unwrap_or("free")
-            .to_string(),
+        status: value["status"].as_str().unwrap_or("free").to_string(),
         team_ids: team_ids.clone(),
         active_team_id: team_ids.first().cloned(),
         can_sync: features["sync"].as_bool().unwrap_or(false),
@@ -147,8 +144,8 @@ pub fn refresh_entitlements() -> Result<Entitlements, String> {
     let db_path = crate::paths::db_path()?;
     let conn = Connection::open(&db_path).map_err(|e| e.to_string())?;
 
-    let session = get_user_session_from_conn(&conn)
-        .ok_or("Not logged in — cannot refresh entitlements")?;
+    let session =
+        get_user_session_from_conn(&conn).ok_or("Not logged in — cannot refresh entitlements")?;
 
     let entitlements = refresh_entitlements_from_supabase(&session.access_token)?;
     save_entitlements(&conn, &entitlements)?;
@@ -195,7 +192,10 @@ pub fn fetch_cloud_insights(limit: Option<u32>) -> Result<Vec<serde_json::Value>
 }
 
 #[tauri::command]
-pub fn request_cloud_insights(period_days: Option<i32>, team_id: Option<String>) -> Result<serde_json::Value, String> {
+pub fn request_cloud_insights(
+    period_days: Option<i32>,
+    team_id: Option<String>,
+) -> Result<serde_json::Value, String> {
     let db_path = crate::paths::db_path()?;
     require_feature(&db_path, "cloud_ai")?;
 
@@ -233,6 +233,5 @@ pub fn request_cloud_insights(period_days: Option<i32>, team_id: Option<String>)
         return Err(format!("Failed to generate cloud insights: {}", body));
     }
 
-    resp.json::<serde_json::Value>()
-        .map_err(|e| e.to_string())
+    resp.json::<serde_json::Value>().map_err(|e| e.to_string())
 }

@@ -33,15 +33,18 @@ use std::time::{Duration, Instant};
 use windows::core::{Ref, Result as WinResult};
 use windows::Win32::Foundation::{E_FAIL, HWND};
 use windows::Win32::System::Com::{
-    CoCreateInstance, CoInitializeEx, CoUninitialize, CLSCTX_INPROC_SERVER, COINIT_APARTMENTTHREADED,
+    CoCreateInstance, CoInitializeEx, CoUninitialize, CLSCTX_INPROC_SERVER,
+    COINIT_APARTMENTTHREADED,
 };
 use windows::Win32::UI::Accessibility::{
     CUIAutomation, IUIAutomation, IUIAutomationElement, IUIAutomationEventHandler,
     IUIAutomationEventHandler_Impl, IUIAutomationFocusChangedEventHandler,
-    IUIAutomationFocusChangedEventHandler_Impl, TreeScope_Subtree, UIA_EVENT_ID,
-    UIA_Window_WindowClosedEventId, UIA_Window_WindowOpenedEventId,
+    IUIAutomationFocusChangedEventHandler_Impl, TreeScope_Subtree, UIA_Window_WindowClosedEventId,
+    UIA_Window_WindowOpenedEventId, UIA_EVENT_ID,
 };
-use windows::Win32::UI::WindowsAndMessaging::{DispatchMessageW, PeekMessageW, TranslateMessage, MSG, PM_REMOVE};
+use windows::Win32::UI::WindowsAndMessaging::{
+    DispatchMessageW, PeekMessageW, TranslateMessage, MSG, PM_REMOVE,
+};
 
 const POLL_INTERVAL: Duration = Duration::from_millis(150);
 
@@ -73,14 +76,20 @@ impl IUIAutomationFocusChangedEventHandler_Impl for FocusHandler_Impl {
         let ring = &self.ring;
         let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             let element: Option<&IUIAutomationElement> = sender.as_ref();
-            let control_name = element.and_then(|e| unsafe { e.CurrentName().ok() }).map(|b| b.to_string());
+            let control_name = element
+                .and_then(|e| unsafe { e.CurrentName().ok() })
+                .map(|b| b.to_string());
             let control_type = element
                 .and_then(|e| unsafe { e.CurrentLocalizedControlType().ok() })
                 .map(|b| b.to_string());
 
             push_event(
                 ring,
-                ActionEvent::UiaFocusChanged { control_name, control_type, at: Instant::now() },
+                ActionEvent::UiaFocusChanged {
+                    control_name,
+                    control_type,
+                    at: Instant::now(),
+                },
             );
         }));
 
@@ -117,13 +126,22 @@ impl IUIAutomationEventHandler_Impl for WindowLifecycleHandler_Impl {
         // must never be allowed to unwind across that `extern "system"`
         // boundary (UB on Windows) — catch it and fail the call cleanly.
         let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            let name = sender.as_ref().and_then(|e| unsafe { e.CurrentName().ok() }).map(|b| b.to_string());
+            let name = sender
+                .as_ref()
+                .and_then(|e| unsafe { e.CurrentName().ok() })
+                .map(|b| b.to_string());
             let at = Instant::now();
             let is_opened = eventid == UIA_Window_WindowOpenedEventId;
             let event = if is_opened {
-                ActionEvent::UiaWindowOpened { name: name.clone(), at }
+                ActionEvent::UiaWindowOpened {
+                    name: name.clone(),
+                    at,
+                }
             } else {
-                ActionEvent::UiaWindowClosed { name: name.clone(), at }
+                ActionEvent::UiaWindowClosed {
+                    name: name.clone(),
+                    at,
+                }
             };
             push_event(&self.ring, event);
 
@@ -132,9 +150,14 @@ impl IUIAutomationEventHandler_Impl for WindowLifecycleHandler_Impl {
             // `AutomationFocusChanged` is deliberately excluded as a trigger —
             // it fires far too often to screenshot on every occurrence — and
             // stays purely textual context for the 60s aggregator instead.
-            let app_name = lock_or_recover(&self.current_app).clone().unwrap_or_else(|| "an application".to_string());
+            let app_name = lock_or_recover(&self.current_app)
+                .clone()
+                .unwrap_or_else(|| "an application".to_string());
             let verb = if is_opened { "opened" } else { "closed" };
-            let window_desc = name.as_deref().map(|n| format!(" named '{}'", n)).unwrap_or_default();
+            let window_desc = name
+                .as_deref()
+                .map(|n| format!(" named '{}'", n))
+                .unwrap_or_default();
             self.trigger.trigger(format!(
                 "The user just {verb} a window{window_desc} in the application '{app_name}'."
             ));
@@ -150,19 +173,35 @@ impl IUIAutomationEventHandler_Impl for WindowLifecycleHandler_Impl {
     }
 }
 
-pub fn spawn(ring: SharedRing, running: SharedFlag, target: SharedTarget, current_app: SharedAppInfo, trigger: Arc<ActionCaptureTrigger>) {
+pub fn spawn(
+    ring: SharedRing,
+    running: SharedFlag,
+    target: SharedTarget,
+    current_app: SharedAppInfo,
+    trigger: Arc<ActionCaptureTrigger>,
+) {
     std::thread::spawn(move || run(ring, running, target, current_app, trigger));
 }
 
-fn run(ring: SharedRing, running: SharedFlag, target: SharedTarget, current_app: SharedAppInfo, trigger: Arc<ActionCaptureTrigger>) {
+fn run(
+    ring: SharedRing,
+    running: SharedFlag,
+    target: SharedTarget,
+    current_app: SharedAppInfo,
+    trigger: Arc<ActionCaptureTrigger>,
+) {
     unsafe {
         if let Err(e) = CoInitializeEx(None, COINIT_APARTMENTTHREADED).ok() {
-            log::warn!("[Telemetry][UIA] CoInitializeEx failed ({e}); UIA action tracking disabled");
+            log::warn!(
+                "[Telemetry][UIA] CoInitializeEx failed ({e}); UIA action tracking disabled"
+            );
             return;
         }
     }
 
-    let automation: IUIAutomation = match unsafe { CoCreateInstance(&CUIAutomation, None, CLSCTX_INPROC_SERVER) } {
+    let automation: IUIAutomation = match unsafe {
+        CoCreateInstance(&CUIAutomation, None, CLSCTX_INPROC_SERVER)
+    } {
         Ok(a) => a,
         Err(e) => {
             log::warn!("[Telemetry][UIA] Failed to create IUIAutomation instance ({e}); UIA action tracking disabled");
@@ -171,14 +210,22 @@ fn run(ring: SharedRing, running: SharedFlag, target: SharedTarget, current_app:
         }
     };
 
-    let focus_handler: IUIAutomationFocusChangedEventHandler =
-        FocusHandler { ring: ring.clone(), running: running.clone() }.into();
+    let focus_handler: IUIAutomationFocusChangedEventHandler = FocusHandler {
+        ring: ring.clone(),
+        running: running.clone(),
+    }
+    .into();
     if let Err(e) = unsafe { automation.AddFocusChangedEventHandler(None, &focus_handler) } {
         log::warn!("[Telemetry][UIA] Failed to register focus-changed handler ({e}); focus events disabled");
     }
 
-    let window_handler: IUIAutomationEventHandler =
-        WindowLifecycleHandler { ring, running, current_app, trigger }.into();
+    let window_handler: IUIAutomationEventHandler = WindowLifecycleHandler {
+        ring,
+        running,
+        current_app,
+        trigger,
+    }
+    .into();
 
     let mut current_target: Option<isize> = None;
     let mut current_element: Option<IUIAutomationElement> = None;
@@ -192,7 +239,8 @@ fn run(ring: SharedRing, running: SharedFlag, target: SharedTarget, current_app:
                 unbind_window_events(&automation, &el, &window_handler);
             }
             current_target = desired;
-            current_element = desired.and_then(|raw| bind_window_events(&automation, raw, &window_handler));
+            current_element =
+                desired.and_then(|raw| bind_window_events(&automation, raw, &window_handler));
         }
 
         std::thread::sleep(POLL_INTERVAL);
@@ -214,12 +262,24 @@ fn bind_window_events(
     };
 
     if let Err(e) = unsafe {
-        automation.AddAutomationEventHandler(UIA_Window_WindowOpenedEventId, &element, TreeScope_Subtree, None, handler)
+        automation.AddAutomationEventHandler(
+            UIA_Window_WindowOpenedEventId,
+            &element,
+            TreeScope_Subtree,
+            None,
+            handler,
+        )
     } {
         log::debug!("[Telemetry][UIA] AddAutomationEventHandler(WindowOpened) failed: {e}");
     }
     if let Err(e) = unsafe {
-        automation.AddAutomationEventHandler(UIA_Window_WindowClosedEventId, &element, TreeScope_Subtree, None, handler)
+        automation.AddAutomationEventHandler(
+            UIA_Window_WindowClosedEventId,
+            &element,
+            TreeScope_Subtree,
+            None,
+            handler,
+        )
     } {
         log::debug!("[Telemetry][UIA] AddAutomationEventHandler(WindowClosed) failed: {e}");
     }
@@ -227,11 +287,19 @@ fn bind_window_events(
     Some(element)
 }
 
-fn unbind_window_events(automation: &IUIAutomation, element: &IUIAutomationElement, handler: &IUIAutomationEventHandler) {
-    if let Err(e) = unsafe { automation.RemoveAutomationEventHandler(UIA_Window_WindowOpenedEventId, element, handler) } {
+fn unbind_window_events(
+    automation: &IUIAutomation,
+    element: &IUIAutomationElement,
+    handler: &IUIAutomationEventHandler,
+) {
+    if let Err(e) = unsafe {
+        automation.RemoveAutomationEventHandler(UIA_Window_WindowOpenedEventId, element, handler)
+    } {
         log::debug!("[Telemetry][UIA] RemoveAutomationEventHandler(WindowOpened) failed: {e}");
     }
-    if let Err(e) = unsafe { automation.RemoveAutomationEventHandler(UIA_Window_WindowClosedEventId, element, handler) } {
+    if let Err(e) = unsafe {
+        automation.RemoveAutomationEventHandler(UIA_Window_WindowClosedEventId, element, handler)
+    } {
         log::debug!("[Telemetry][UIA] RemoveAutomationEventHandler(WindowClosed) failed: {e}");
     }
 }

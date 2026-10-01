@@ -104,6 +104,7 @@ struct TelemetryController {
 }
 
 static CONTROLLER: OnceLock<TelemetryController> = OnceLock::new();
+static APP_HANDLE: OnceLock<tauri::AppHandle> = OnceLock::new();
 
 fn push_event(ring: &SharedRing, event: ActionEvent) {
     let mut buf = ring.lock().unwrap_or_else(|e| e.into_inner());
@@ -116,6 +117,7 @@ fn push_event(ring: &SharedRing, event: ActionEvent) {
 
 /// Starts the telemetry pipeline's background threads. Idempotent.
 pub fn start(app_handle: tauri::AppHandle, db_path: PathBuf) {
+    let _ = APP_HANDLE.set(app_handle.clone());
     if CONTROLLER.get().is_some() {
         return;
     }
@@ -175,5 +177,25 @@ pub fn set_task_context(user_task: Option<String>, jira_ticket: Option<String>) 
         let mut ctx = c.task_ctx.lock().unwrap();
         ctx.user_task = user_task;
         ctx.jira_ticket = jira_ticket;
+    }
+}
+
+pub fn selected_task_for_reminder() -> Option<String> {
+    let controller = CONTROLLER.get()?;
+    let task = controller.task_ctx.lock().ok()?;
+    task.jira_ticket.clone().or_else(|| task.user_task.clone())
+}
+
+pub fn record_foreground_for_reminder(app_name: &str) {
+    let Some(app) = APP_HANDLE.get() else {
+        return;
+    };
+    let Ok(path) = crate::paths::db_path() else {
+        return;
+    };
+    if crate::privacy::application_is_excluded(&path, Some(app_name)) {
+        crate::focus_alerts::excluded_app_entered();
+    } else {
+        crate::focus_alerts::record_app_switch(app, app_name);
     }
 }

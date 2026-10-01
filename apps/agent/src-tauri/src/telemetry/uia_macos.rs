@@ -149,9 +149,7 @@ pub fn spawn(
                                 at: Instant::now(),
                             },
                         );
-                        trigger.trigger(format!(
-                            "The user just focused the application '{app}'."
-                        ));
+                        trigger.trigger(format!("The user just focused the application '{app}'."));
                     }
                     last_app = app_now;
                     last_focus_key = None;

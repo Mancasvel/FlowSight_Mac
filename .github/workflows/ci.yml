@@ -32,6 +32,8 @@ jobs:
 
       - name: Rust stable
         uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
 
       - uses: swatinem/rust-cache@v2
         with:
@@ -48,8 +50,23 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Renderer tests
+        run: pnpm --filter @flowsight/agent exec node --test
+
+      - name: Production renderer
+        run: pnpm --filter @flowsight/agent exec vite build
+
+      - name: Formatting
+        run: cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --check
+
       - name: Cargo check
         run: cargo check --manifest-path apps/agent/src-tauri/Cargo.toml
 
       - name: Unit tests
         run: cargo test --manifest-path apps/agent/src-tauri/Cargo.toml --lib
+
+      - name: Clippy
+        run: cargo clippy --manifest-path apps/agent/src-tauri/Cargo.toml --lib -- -D warnings
+
+      - name: Native macOS application build
+        run: pnpm --filter @flowsight/agent exec tauri build --no-bundle
