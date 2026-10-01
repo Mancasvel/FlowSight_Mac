@@ -606,7 +606,7 @@ fn upload_session(
     let resp = client
         .post(&url)
         .header("apikey", supabase_anon_key())
-        .header("Authorization", format!("Bearer {}", &session.access_token))
+        .header("Authorization", format!("Bearer {}", session.access_token))
         .header("Content-Type", "application/json")
         .header("Prefer", "return=minimal")
         .json(&body)
@@ -636,7 +636,7 @@ fn post_activity_report_row(
     client
         .post(&url)
         .header("apikey", supabase_anon_key())
-        .header("Authorization", format!("Bearer {}", &session.access_token))
+        .header("Authorization", format!("Bearer {}", session.access_token))
         .header("Content-Type", "application/json")
         .header("Prefer", "return=minimal")
         .json(body)

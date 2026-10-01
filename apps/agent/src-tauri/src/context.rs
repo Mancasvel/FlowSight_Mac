@@ -18,9 +18,13 @@ pub(crate) fn file_hint_from_window_title(title: &str) -> Option<String> {
 }
 
 fn git_command() -> Command {
-    let mut c = Command::new("git");
+    let c = Command::new("git");
     #[cfg(windows)]
-    c.creation_flags(CREATE_NO_WINDOW);
+    let c = {
+        let mut c = c;
+        c.creation_flags(CREATE_NO_WINDOW);
+        c
+    };
     c
 }
 

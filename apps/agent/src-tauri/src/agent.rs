@@ -1211,7 +1211,7 @@ fn try_spawn_llama_process(
             true,
             None,
         )
-        .map_err(|msg| std::io::Error::new(std::io::ErrorKind::Other, msg))?;
+        .map_err(std::io::Error::other)?;
         // Own process group so we can kill the whole tree on stop (macOS/Linux
         // have no Windows Job Object equivalent).
         #[cfg(unix)]
