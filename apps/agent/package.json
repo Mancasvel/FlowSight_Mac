@@ -15,10 +15,10 @@
     "@fontsource/manrope": "5",
     "@fontsource/plus-jakarta-sans": "5",
     "@supabase/supabase-js": "^2.93.3",
-    "@tauri-apps/api": "2.11.0",
-    "@tauri-apps/plugin-dialog": "2.7.3",
-    "@tauri-apps/plugin-process": "^2.3.0",
-    "@tauri-apps/plugin-updater": "^2.9.0",
+    "@tauri-apps/api": "2.12.1",
+    "@tauri-apps/plugin-dialog": "2.8.1",
+    "@tauri-apps/plugin-process": "^2.4.0",
+    "@tauri-apps/plugin-updater": "^2.13.1",
     "jspdf": "^4.1.0"
   },
   "devDependencies": {
