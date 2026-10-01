@@ -3,6 +3,8 @@
 //! Collects only aggregate usage: daily minutes and weekly primary activity category.
 //! No account, email, or other personally identifiable information is sent.
 
+#[cfg(test)]
+use chrono::NaiveDate;
 use chrono::{Datelike, Local};
 use reqwest::blocking::Client;
 use rusqlite::{params, Connection, OptionalExtension};

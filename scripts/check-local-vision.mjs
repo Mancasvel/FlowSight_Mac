@@ -37,7 +37,7 @@ const args = [
   "--chat-template-kwargs", '{"enable_thinking":false}',
   "--host", "127.0.0.1",
   "--port", String(port),
-  "--ctx-size", "4096",
+  "--ctx-size", "8192",
   "--parallel", "2",
   "--threads", "2",
   "--n-gpu-layers", "0",

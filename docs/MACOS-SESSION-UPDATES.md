@@ -34,7 +34,7 @@ report renderer, and native window configuration.
 The PR runs on `macos-14`: native Metal runtime preparation and executable smoke
 audit, renderer unit tests, Vite production build, Rust formatting, Cargo check,
 Rust unit tests (including the isolated Keychain test), Clippy with warnings
-denied, and `tauri build --no-bundle`.
+denied, `tauri build --no-bundle`, and native MCP STDIO execution.
 
 Browser integration checks use the actual renderer with isolated synthetic
 native responses. They cover all four setup steps at 340×400, 370×700, and
@@ -47,3 +47,10 @@ do not claim to simulate macOS system notification presentation or a physical
 Mac user's Accessibility permissions.
 
 The PR must remain a draft until native verification on its final commit passes.
+
+The native Qwen probe extracts the actual planner core and request builder,
+records their SHA-256 hashes, and uses only synthetic context. It requires
+tool calls for the initial ADDA request and PLE-first revision, with all four
+topics, three correctly timed breaks, valid bounds, and no calendar writes.
+Both the production runtime and smoke checks allocate 8192 context tokens
+across two inference slots, avoiding the old 2048-token per-slot limit.
