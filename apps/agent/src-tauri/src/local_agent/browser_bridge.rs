@@ -1,4 +1,4 @@
-//! Loopback bridge for the optional Chrome/Edge extension. Only a bearer token
+//! Loopback bridge for the optional Chromium extension (including Arc). Only a bearer token
 //! shown inside FlowSight can enqueue or complete browser commands.
 
 use std::collections::{HashMap, VecDeque};
@@ -139,7 +139,7 @@ pub fn start() -> Result<(), String> {
                             let _ = super::total_focus::cancel_from_extension(id);
                         }
                         let mut queue = bridge.queue.lock().unwrap();
-                        queue.focus_status = json!({"sessionId":value["sessionId"],"applied":value["applied"] == true});
+                        queue.focus_status = json!({"sessionId":value["sessionId"],"applied":value["applied"],"extensionVersion":value["extensionVersion"]});
                         queue.focus_seen = Some(Instant::now());
                         json_response(json!({"received":true}), 200)
                     } else {
@@ -183,10 +183,18 @@ pub fn start() -> Result<(), String> {
     Ok(())
 }
 
+fn total_focus_available(queue: &Queue) -> bool {
+    queue
+        .focus_seen
+        .is_some_and(|seen| seen.elapsed() < PAIRING_TIMEOUT)
+        && queue.focus_status["applied"].is_boolean()
+}
+
 pub fn focus_status() -> Value {
     BRIDGE.get().and_then(|bridge| bridge.queue.lock().ok().map(|queue| {
         json!({"connected":queue.last_seen.is_some_and(|seen| seen.elapsed() < PAIRING_TIMEOUT),
             "fresh":queue.focus_seen.is_some_and(|seen| seen.elapsed() < PAIRING_TIMEOUT),
+            "totalFocusAvailable":total_focus_available(&queue),"extensionVersion":queue.focus_status["extensionVersion"],
             "sessionId":queue.focus_status["sessionId"],"applied":queue.focus_status["applied"] == true})
     })).unwrap_or_else(|| json!({"connected":false,"fresh":false,"applied":false}))
 }
@@ -199,6 +207,8 @@ pub fn get_browser_pairing() -> Result<Value, String> {
         "port": bridge.port,
         "token": bridge.token,
         "connected": queue.last_seen.is_some_and(|seen| seen.elapsed() < PAIRING_TIMEOUT),
+        "totalFocusAvailable": total_focus_available(&queue),
+        "extensionVersion": queue.focus_status["extensionVersion"],
         "chromeStoreAvailable": browser_store_url("chrome").is_some(),
         "edgeStoreAvailable": browser_store_url("edge").is_some(),
     }))
@@ -245,7 +255,35 @@ pub fn open_browser_extension_store(browser: String) -> Result<(), String> {
 
 #[cfg(test)]
 mod store_url_tests {
-    use super::valid_store_url;
+    use super::{total_focus_available, valid_store_url, Queue, PAIRING_TIMEOUT};
+    use serde_json::json;
+    use std::time::Instant;
+
+    #[test]
+    fn connection_requires_a_recent_valid_focus_acknowledgement() {
+        let mut queue = Queue {
+            last_seen: Some(Instant::now()),
+            ..Queue::default()
+        };
+        assert!(
+            !total_focus_available(&queue),
+            "The 1.0.0 heartbeat cannot enable total focus"
+        );
+        queue.focus_seen = Some(Instant::now());
+        queue.focus_status = json!({"applied": false});
+        assert!(
+            total_focus_available(&queue),
+            "1.1.0 remains compatible without a version field"
+        );
+        queue.focus_status = json!({"applied": "false"});
+        assert!(!total_focus_available(&queue));
+        queue.focus_status = json!({"applied": true, "extensionVersion": "1.1.1"});
+        queue.focus_seen = Some(Instant::now() - PAIRING_TIMEOUT);
+        assert!(
+            !total_focus_available(&queue),
+            "An expired acknowledgement is not readiness"
+        );
+    }
 
     #[test]
     fn accepts_only_canonical_official_listing_urls() {

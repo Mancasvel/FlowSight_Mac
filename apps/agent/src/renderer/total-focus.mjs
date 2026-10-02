@@ -39,7 +39,7 @@ export function messagingFuture() {
 export function mountTotalFocus({invoke}) {
   const host = document.getElementById('totalFocusSettings');
   host.innerHTML = html`<div class="card-header"><div class="card-title">Total focus</div></div>
-    <p class="profile-card-intro">Block distracting websites in your paired Chrome extension on Windows, macOS, or Linux.</p>
+    <p class="profile-card-intro">Block distracting websites with Browser Controls in Arc on Windows or macOS, and Chrome on Windows, macOS, or Linux.</p>
     <p class="session-help">FlowSight focus reminders are held in your local digest during this session.</p>
     <p id="totalFocusStatus" class="total-focus-status" role="status" aria-live="polite">Checking browser protection…</p>
     <p id="totalFocusActiveTask" class="total-focus-task" data-user-content></p>
@@ -63,6 +63,7 @@ export function mountTotalFocus({invoke}) {
     setText(document.getElementById('totalFocusStatus'), () => acknowledged ? t('Total focus active · browser block confirmed')
       : active ? t('Session active · browser protection not confirmed. Check the extension.')
       : released ? t('Session ended · waiting for the extension to release protection.')
+      : state?.browser?.connected && !state.browser.totalFocusAvailable ? t('Browser connected. Update Browser Controls to enable total focus. In Arc, open arc://extensions and update the extension; approve any requested site access.')
       : state?.browser?.connected ? t('Browser connected · ready to start') : t('Connect Browser Controls to activate total focus.'));
     document.getElementById('totalFocusStatus').dataset.active = String(Boolean(acknowledged));
     setText(document.getElementById('totalFocusActiveTask'), () => active ? `${session.intention} · ${t('Until')} ${new Date(session.expiresAt).toLocaleTimeString(getLocale(),{hour:'2-digit',minute:'2-digit'})}` : '');
@@ -71,7 +72,7 @@ export function mountTotalFocus({invoke}) {
     document.getElementById('totalFocusTask').disabled = Boolean(active) || busy;
     document.querySelectorAll('#totalFocusConfig input, #totalFocusConfig textarea').forEach(field => field.disabled = Boolean(active) || busy);
     for (const id of buttons) document.getElementById(id).disabled = busy || (id === 'totalFocusSave' && Boolean(active));
-    document.getElementById('totalFocusStart').disabled = busy || !state?.browser?.connected;
+    document.getElementById('totalFocusStart').disabled = busy || !state?.browser?.connected || !state?.browser?.totalFocusAvailable;
     setText(document.getElementById('todayTotalFocusLabel'), () => active ? t('Total focus active') : t('Total focus'));
   }
   async function refresh(fill = false) {

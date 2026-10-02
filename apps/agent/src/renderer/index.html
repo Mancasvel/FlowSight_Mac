@@ -1523,6 +1523,8 @@
     .pomodoro-panel p { margin: 10px 0 0; font-size: 11px; line-height: 1.5; color: hsl(var(--muted-foreground)); }
     .pomodoro-panel .pomodoro-status:empty { display: none; }
 
+    .timer-recording-note[hidden] { display: none; }
+
     .timer-recording-note {
       max-width: 22ch;
       margin-top: 8px;
@@ -3609,7 +3611,7 @@
             </svg>
             <div class="timer-inner">
               <div class="timer-display" id="timerDisplay">00:00:00</div>
-              <small class="timer-recording-note" id="timerRecordingNote">Live timer · pauses when tracking is paused.</small>
+              <small class="timer-recording-note" id="timerRecordingNote" hidden></small>
             </div>
             <div class="pomodoro-panel" id="pomodoroPanel" hidden>
               <details class="pomodoro-settings"><summary>Intervals</summary>
@@ -5494,7 +5496,10 @@
       const timerLabel = document.getElementById('timerKindLabel');
       if (timerLabel) setText(timerLabel, () => !isPomodoro ? tr('Recorded today') : tr(pomodoro.ready ? 'Ready for the next interval' : pomodoro.phase === 'work' ? 'Focus interval' : pomodoro.phase === 'long-break' ? 'Long break' : 'Break'));
       const note = document.getElementById('timerRecordingNote');
-      if (note) setText(note, () => isPomodoro ? formatMessage`${pomodoro.completed} completed intervals · ${formatTimerDisplay(total)} tracked today` : tr('Live timer · pauses when tracking is paused.'));
+      if (note) {
+        note.hidden = !isPomodoro;
+        setText(note, () => isPomodoro ? formatMessage`${pomodoro.completed} completed intervals · ${formatTimerDisplay(total)} tracked today` : '');
+      }
       const skip = document.getElementById('pomodoroSkipBreak');
       if (skip) skip.hidden = !isPomodoro || pomodoro.phase === 'work' || pomodoro.ready;
       const goalSec = getDailyGoalHours() * 3600;
@@ -7323,7 +7328,7 @@
         };
       } else if (step === 3) {
         body.innerHTML = html`<h1 class="onboarding-title" tabindex="-1">Make space for total focus</h1>
-          <p class="onboarding-subtitle">Choose the websites to block during a focus session. Browser Controls works with Chrome on Windows, macOS, and Linux.</p>
+          <p class="onboarding-subtitle">Choose the websites to block during a focus session. Browser Controls works with Arc on Windows and macOS, and Chrome on Windows, macOS, and Linux.</p>
           ${focusExample()}${focusFields('onboardingFocus', onboardingState.totalFocusPreferences || totalFocusController.preferences())}
           <div class="total-focus-pairing"><strong>Connect Browser Controls</strong>
           <p class="session-help">Install the extension, copy the pairing key, and choose Save and connect in its options.</p>
@@ -7343,7 +7348,7 @@
         };
         document.getElementById('onboardingFocusCheck').onclick = async () => {
           const state = await totalFocusController.refresh();
-          setText(document.getElementById('onboardingFocusConnection'), () => state?.browser?.connected ? tr('Browser connected · ready to start') : tr('Connect Browser Controls to activate total focus.'));
+          setText(document.getElementById('onboardingFocusConnection'), () => state?.browser?.connected && !state.browser.totalFocusAvailable ? tr('Browser connected. Update Browser Controls to enable total focus. In Arc, open arc://extensions and update the extension; approve any requested site access.') : state?.browser?.connected ? tr('Browser connected · ready to start') : tr('Connect Browser Controls to activate total focus.'));
         };
       } else if (step === 4) {
         body.innerHTML = html`<h1 class="onboarding-title" tabindex="-1">See what your week contained</h1>
@@ -8541,7 +8546,7 @@
       setText(document.getElementById('localAgentBrowserInstallStatus'), () => ((!browser ? tr('The local browser bridge is unavailable. Restart FlowSight and try again.') : ((chromeAvailable || edgeAvailable) ? tr('The store controls installation. If its page is not available yet, Google or Microsoft may still be reviewing the extension.') : tr('The official store listing is not available in this build yet. Other local tools still work.')))));
       const checkStatus = document.getElementById('localAgentBrowserCheckStatus');
       if (browser?.connected) {
-        setText(checkStatus, () => (tr('Ready. You can use browser actions from local automations.')));
+        setText(checkStatus, () => browser.totalFocusAvailable ? tr('Ready. Browser actions and total focus are available.') : tr('Browser connected. Update Browser Controls to enable total focus. In Arc, open arc://extensions and update the extension; approve any requested site access.'));
       } else if (wasConnected) {
         setText(checkStatus, () => (tr('The connection was lost. Reopen the extension and choose Save and connect.')));
       }

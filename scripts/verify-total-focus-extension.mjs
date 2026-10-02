@@ -31,6 +31,16 @@ try{
   await context.route('https://*.example.com/**',route=>route.fulfill({contentType:'text/html',body:'<h1>Synthetic work site</h1>'}));
   const worker=context.serviceWorkers()[0]||await context.waitForEvent('serviceworker');
   const extensionId=new URL(worker.url()).host;
+  const options=await context.newPage(); await options.goto(`chrome-extension://${extensionId}/options.html`);
+  await options.locator('#port').fill(String(server.address().port));
+  await options.locator('#token').fill('wrong-key');
+  await options.locator('button[type=submit]').click();
+  await options.locator('#status').filter({hasText:'pairing key was rejected'}).waitFor();
+  await options.locator('#token').fill('synthetic-key');
+  await options.locator('button[type=submit]').click();
+  await options.locator('#status').filter({hasText:'Connected to FlowSight'}).waitFor();
+  assert.equal(status.extensionVersion,'1.1.1');
+  await options.screenshot({path:join(output,'browser-pairing-confirmed.png')});
   const pollNow=()=>worker.evaluate(async()=>{while(polling)await new Promise(resolve=>setTimeout(resolve,20));await poll();});
   await worker.evaluate(async(port)=>{await chrome.storage.local.set({port,token:'synthetic-key'});},server.address().port);
   const page=await context.newPage();await page.goto('https://distraction.example.com/feed');

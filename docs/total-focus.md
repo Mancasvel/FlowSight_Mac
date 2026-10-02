@@ -73,3 +73,15 @@ light/dark themes. Native tests and builds run on the matching GitHub OS runners
 
 UI finish review and documentation were completed by the primary agent; additional
 review agents were omitted to respect the user's request to reduce PC load.
+
+## Arc and extension updates
+
+Arc uses the same MV3 extension on Windows and macOS. Linux uses Chrome or another
+compatible Chromium browser. Version 1.0.0 supports the older browser tools but
+does not apply total focus. Desktop 5.0.17 requires a recent valid focus-status
+acknowledgement before enabling total focus; connection alone is insufficient.
+Version 1.1.1 reports its version and returns an actual pairing result, including
+a rejected key or unreachable local app. Options can be opened in Arc from
+`arc://extensions` → FlowSight Browser Controls → Details → Extension options.
+Store updates may request approval for HTTP(S) site access. A GitHub ZIP does not
+automatically update a Chrome Web Store installation.

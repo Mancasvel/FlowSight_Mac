@@ -6,14 +6,14 @@ import { webcrypto } from 'node:crypto';
 
 const source = readFileSync(new URL('./worker.js', import.meta.url), 'utf8');
 
-function harness() {
+function harness(fetchResponse = async () => { throw new Error('offline'); }) {
   const stored = {};
   const changes = [];
   const listeners = { addListener() {} };
   const chrome = {
     action: { onClicked: listeners },
     alarms: { create() {}, clear() {}, onAlarm: listeners },
-    runtime: { onInstalled: listeners, onStartup: listeners, onMessage: listeners, openOptionsPage() {} },
+    runtime: { onInstalled: listeners, onStartup: listeners, onMessage: listeners, getManifest() { return { version: '1.1.1' }; }, getURL(path) { return `chrome-extension://test/${path}`; }, openOptionsPage() {} },
     storage: { local: {
       async get(names) {
         const keys = Array.isArray(names) ? names : [names];
@@ -27,9 +27,9 @@ function harness() {
       async updateDynamicRules(change) { changes.push(change); }
     },
   };
-  const context = { chrome, URL, crypto: webcrypto, fetch: async () => { throw new Error('offline'); },
+  const context = { chrome, URL, crypto: webcrypto, fetch: fetchResponse,
     AbortSignal, console, setTimeout, clearTimeout };
-  runInNewContext(`${source}\nglobalThis.__test = { ruleFor, runCommand, expireBlocks, reconcileFocus, focusStatus, cancelFocus, releaseBlocksAfterDisconnect, matchesFocus };`, context);
+  runInNewContext(`${source}\nglobalThis.__test = { ruleFor, runCommand, expireBlocks, reconcileFocus, focusStatus, cancelFocus, releaseBlocksAfterDisconnect, matchesFocus, poll };`, context);
   return { ...context.__test, stored, changes };
 }
 
@@ -109,4 +109,29 @@ test('total focus normalizes common www input and catches internal route changes
   assert.equal(h.matchesFocus('https://youtube.com/shorts/lesson/1',p),false);
   assert.equal(h.matchesFocus('https://www.youtube.com/watch?v=1',p),false);
   assert.equal(h.matchesFocus('https://notyoutube.com/shorts/1',p),false);
+});
+
+test('pairing reports a rejected key and a confirmed MV3 focus handshake', async () => {
+  let code = 401;
+  const h = harness(async () => ({ ok: code === 200, status: code, json: async () => ({command: null, focus: null}) }));
+  await h.poll();
+  Object.assign(h.stored, {port: 38547, token: 'fixture'});
+  const rejected = await h.poll();
+  assert.equal(rejected.connected, false);
+  assert.match(rejected.error, /pairing key was rejected/);
+  code = 200;
+  assert.equal((await h.poll()).connected, true);
+  const status = await h.focusStatus();
+  assert.equal(status.extensionVersion, '1.1.1');
+  assert.equal(status.applied, false);
+});
+
+test('simultaneous pairing checks share one authenticated poll', async () => {
+  let requests = 0;
+  const h = harness(async () => { requests++; return {ok: true, json: async () => ({command: null, focus: null})}; });
+  await h.poll();
+  Object.assign(h.stored, {port: 38547, token: 'fixture'});
+  const results = await Promise.all([h.poll(), h.poll(), h.poll()]);
+  assert.ok(results.every(result => result.connected));
+  assert.equal(requests, 2, 'One next request and one focus status acknowledgement');
 });

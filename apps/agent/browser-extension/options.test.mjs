@@ -44,7 +44,7 @@ test('installed extension loads and saves pairing details', async () => {
         set: async (value) => { saved = value; },
       },
     },
-    runtime: { sendMessage: async (value) => { message = value; } },
+    runtime: { sendMessage: async (value) => { message = value; return {connected: true}; } },
   };
   const { elements, handlers, submitButton } = page(chrome);
   await new Promise((resolve) => setImmediate(resolve));
@@ -56,7 +56,7 @@ test('installed extension loads and saves pairing details', async () => {
   assert.equal(saved.port, 38547);
   assert.equal(saved.token, 'new-key');
   assert.equal(message.type, 'poll-now');
-  assert.match(elements.status.textContent, /Saved/);
+  assert.match(elements.status.textContent, /Connected to FlowSight/);
 });
 
 test('store package has its runtime files and opens pairing options from the toolbar', () => {
@@ -71,4 +71,13 @@ test('store package has its runtime files and opens pairing options from the too
   const worker = readFileSync(new URL('./worker.js', import.meta.url), 'utf8');
   assert.match(worker, /reason === 'install'\) chrome\.runtime\.openOptionsPage\(\)/);
   assert.match(worker, /chrome\.action\.onClicked\.addListener/);
+});
+
+test('pairing failure is displayed without claiming success', async () => {
+  const {elements, handlers} = page({storage: {local: {get: async () => ({}), set: async () => {}}},
+    runtime: {sendMessage: async () => ({connected: false, error: 'The pairing key was rejected.'})}});
+  elements.token.value = 'invalid';
+  await handlers.get('submit')({preventDefault() {}});
+  assert.match(elements.status.textContent, /key was rejected/);
+  assert.doesNotMatch(elements.status.textContent, /Connected to FlowSight/);
 });

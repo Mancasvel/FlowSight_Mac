@@ -125,7 +125,6 @@ Timer mode|Modo del temporizador
 Normal|Normal
 Pomodoro|Pomodoro
 Tracked today|Tiempo de seguimiento hoy
-Live timer · pauses when tracking is paused.|Temporizador en directo · se detiene al pausar el seguimiento.
 Focus interval|Intervalo de concentración
 Ready for the next interval|Listo para el siguiente intervalo
 Long break|Descanso largo
@@ -1021,4 +1020,12 @@ Object.assign(spanish, {
   'Pairing key copied. Local port: 38547. Paste the key in the extension options.':'Clave copiada. Puerto local: 38547. Pega la clave en las opciones de la extensión.',
   'Could not copy the pairing key. Try again in Settings.':'No se pudo copiar la clave. Inténtalo otra vez en Ajustes.',
   'This step saves your settings. Start total focus from Today when you are ready. Tracking remains a separate choice.':'Este paso guarda tus ajustes. Inicia la concentración total desde Hoy cuando estés listo. El seguimiento se activa por separado.',
+});
+
+Object.assign(spanish, {
+  'Ready. Browser actions and total focus are available.': 'Listo. Las acciones del navegador y la concentración total están disponibles.',
+  'Browser connected. Update Browser Controls to enable total focus. In Arc, open arc://extensions and update the extension; approve any requested site access.': 'Navegador conectado. Actualiza Browser Controls para activar la concentración total. En Arc, abre arc://extensions y actualiza la extensión; acepta el acceso a los sitios si te lo solicita.',
+  'Block distracting websites with Browser Controls in Arc on Windows or macOS, and Chrome on Windows, macOS, or Linux.': 'Bloquea páginas que te distraen con Browser Controls en Arc para Windows o macOS, y en Chrome para Windows, macOS o Linux.',
+  'Choose the websites to block during a focus session. Browser Controls works with Arc on Windows and macOS, and Chrome on Windows, macOS, and Linux.': 'Elige las páginas que quieres bloquear durante una sesión. Browser Controls funciona con Arc en Windows y macOS, y con Chrome en Windows, macOS y Linux.',
+  'Update Browser Controls in your browser and reconnect it before starting total focus.': 'Actualiza Browser Controls en tu navegador y vuelve a conectarlo antes de iniciar la concentración total.',
 });

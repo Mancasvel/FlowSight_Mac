@@ -86,6 +86,8 @@ try {
     await page.goto(process.env.FLOWSIGHT_RENDERER_URL || 'http://127.0.0.1:1420', { waitUntil: 'networkidle' });
     await page.locator('#timerDisplay').filter({ hasText: '05:45:00' }).waitFor();
     assert.equal(await page.locator('#timerModeSelect').inputValue(), 'normal');
+    assert.equal(await page.locator('#timerRecordingNote').isVisible(), false);
+    assert.doesNotMatch(await page.locator('body').innerText(), /Live timer · pauses|Temporizador en directo · se detiene/);
     for (const expected of ['05:45:01', '05:45:02', '05:45:03']) {
       await page.clock.runFor(1000);
       assert.equal((await page.locator('#timerDisplay').innerText()).trim(), expected, 'Normal timer must advance every second.');

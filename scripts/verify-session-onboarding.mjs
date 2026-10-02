@@ -53,10 +53,10 @@ try {
           if(command==='save_total_focus_preferences'){totalFocus.preferences=args.preferences;return args.preferences;}
           if(command==='start_total_focus'){
             totalFocus.session={id:'synthetic-focus',intention:args.intention,expiresAt:'2026-10-01T09:00:00+02:00',...args.preferences};
-            totalFocus.browser={connected:true,fresh:true,applied:true,sessionId:'synthetic-focus'};return structuredClone(totalFocus);
+            totalFocus.browser={connected:true,totalFocusAvailable:true,fresh:true,applied:true,sessionId:'synthetic-focus'};return structuredClone(totalFocus);
           }
           if(command==='end_total_focus'){totalFocus.session=null;totalFocus.browser.applied=false;return {browserReleased:true};}
-          if(command==='test_focus_connection'){totalFocus.browser.connected=args.connected;return null;}
+          if(command==='test_focus_connection'){totalFocus.browser.connected=args.connected;totalFocus.browser.totalFocusAvailable=args.available ?? false;return null;}
           if(command==='save_user_preferences_command'){prefs=args.prefs;return prefs;}
           if(command==='get_desktop_preferences')return desktop;
           if(command==='set_focus_alerts_enabled'){desktop.focusAlertsEnabled=args.enabled;return args.enabled;}
@@ -209,7 +209,10 @@ try {
     await page.locator('#todayTotalFocus').click();
     await page.locator('#totalFocusSettings').waitFor({state:'visible'});
     assert.equal(await page.locator('#totalFocusStart').isDisabled(),true);
-    await page.evaluate(async()=>{await window.__TAURI_INTERNALS__.invoke('test_focus_connection',{connected:true});});
+    await page.evaluate(async()=>{await window.__TAURI_INTERNALS__.invoke('test_focus_connection',{connected:true,available:false});});
+    await page.locator('#totalFocusStatus').filter({hasText:'Update Browser Controls'}).waitFor();
+    assert.equal(await page.locator('#totalFocusStart').isDisabled(),true, 'Legacy extension must not start an unprotected session');
+    await page.evaluate(async()=>{await window.__TAURI_INTERNALS__.invoke('test_focus_connection',{connected:true,available:true});});
     await page.locator('#totalFocusStart').waitFor({state:'visible'});
     await page.waitForFunction(()=>!document.getElementById('totalFocusStart').disabled);
     await page.locator('#totalFocusTask').fill('ADDA · exercise 1');
