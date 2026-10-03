@@ -1,6 +1,6 @@
 {
   "name": "@flowsight/agent",
-  "version": "5.0.17",
+  "version": "5.0.18",
   "private": true,
   "description": "FlowSight Agent — Understand your own Workflows",
   "scripts": {
@@ -8,6 +8,7 @@
     "dev": "tauri dev",
     "fetch-models": "pnpm exec node ../../scripts/fetch-models.mjs",
     "build": "tauri build",
+    "test:renderer": "node --test",
     "test": "cargo test --manifest-path src-tauri/Cargo.toml --lib",
     "test:coverage": "cargo llvm-cov --manifest-path src-tauri/Cargo.toml --lib --summary-only"
   },

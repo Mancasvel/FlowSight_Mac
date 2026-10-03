@@ -4311,7 +4311,6 @@
       createStatusReportViewModel,
       renderStatusReportHtml,
     } from './status-report.mjs';
-    import { renderStatusReportPdf } from './status-report-pdf.mjs';
     import { isWeeklyReportDue } from './weekly-report-schedule.mjs';
     import { resolveTaskContext, transitionTaskDetail } from './today-task-context.mjs';
     import { captureReadingPosition, restoreReadingPosition, historyRenderKey } from './reading-position.mjs';
@@ -9291,7 +9290,10 @@
     });
 
     async function buildStatusReportPdf(payload, todayData) {
-      const { jsPDF } = await import('jspdf');
+      const [{ jsPDF }, { renderStatusReportPdf }] = await Promise.all([
+        import('jspdf'),
+        import('./status-report-pdf.mjs'),
+      ]);
       const doc = renderStatusReportPdf(new jsPDF(), statusReportViewModel(payload));
       return { doc, filename: buildStatusReportPdfFilename(payload, todayData) };
     }

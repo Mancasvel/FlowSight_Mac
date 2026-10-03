@@ -2,7 +2,7 @@ use chrono::Local;
 use reqwest::blocking::Client;
 use rusqlite::{params, Connection, OpenFlags};
 use serde::Serialize;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::time::Duration;
 use tauri::Emitter;
 
@@ -39,15 +39,6 @@ struct DailyRow {
     activity_count: i32,
 }
 
-#[derive(Serialize, Clone)]
-struct ActivityCandidateRow {
-    date: String,
-    category: String,
-    description: String,
-    duration_seconds: i32,
-    ticket: Option<String>,
-}
-
 #[derive(Serialize)]
 struct WorkThemeRow {
     label: String,
@@ -63,7 +54,7 @@ struct DayCategoryRow {
     total_hours: f64,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Clone)]
 struct ActivitySample {
     date: String,
     category: String,
@@ -149,23 +140,25 @@ fn build_local_insights_report_inner(
         )
         .map_err(|e| e.to_string())?;
 
-    let raw_rows: Vec<RawReportRow> = stmt
-        .query_map(params![start_str, end_str], |row| {
-            Ok((
-                row.get(0)?,
-                row.get(1)?,
-                row.get(2)?,
-                row.get(3)?,
-                row.get::<_, i64>(4).unwrap_or(0).max(0),
-                row.get(5)?,
-                row.get(6)?,
-                row.get(7)?,
-                row.get(8)?,
-            ))
-        })
+    let raw_rows = stmt
+        .query_map(
+            params![start_str, end_str],
+            |row| -> rusqlite::Result<RawReportRow> {
+                Ok((
+                    row.get(0)?,
+                    row.get(1)?,
+                    row.get(2)?,
+                    row.get(3)?,
+                    row.get::<_, i64>(4).unwrap_or(0).max(0),
+                    row.get(5)?,
+                    row.get(6)?,
+                    row.get(7)?,
+                    row.get(8)?,
+                ))
+            },
+        )
         .map_err(|e| e.to_string())?
-        .filter_map(|r| r.ok())
-        .collect();
+        .filter_map(|r| r.ok());
     let mut rows = Vec::<ClippedReportRow>::new();
     let mut activity_count = 0i32;
     for (timestamp, raw_category, description, ticket, duration, synced, _app, _title, theme) in
@@ -355,18 +348,7 @@ fn build_local_insights_report_inner(
     work_themes.sort_by_key(|row| std::cmp::Reverse(row.total_seconds));
     work_themes.truncate(12);
 
-    let mut longest_activity_rows: Vec<ActivityCandidateRow> = all_samples
-        .iter()
-        .map(|s| ActivityCandidateRow {
-            date: s.date.clone(),
-            category: s.category.clone(),
-            description: s.description.clone(),
-            duration_seconds: s.duration_seconds,
-            ticket: s.ticket.clone(),
-        })
-        .collect();
-    longest_activity_rows.sort_by_key(|row| std::cmp::Reverse(row.duration_seconds));
-    longest_activity_rows.truncate(12);
+    let longest_activity_rows = longest_activity_rows(&all_samples);
 
     let peak_day = daily_totals
         .iter()
@@ -2516,13 +2498,32 @@ fn query_prior_period_metrics(
     }))
 }
 
+/// Keep only the twelve longest observations, preserving input order for ties
+/// just as the former stable full sort did. Selection uses bounded storage and
+/// borrows narrative strings until the final report examples are retained.
+fn longest_activity_rows(samples: &[ActivitySample]) -> Vec<&ActivitySample> {
+    const LIMIT: usize = 12;
+    let mut longest: Vec<&ActivitySample> = Vec::with_capacity(LIMIT);
+    for sample in samples {
+        let position =
+            longest.partition_point(|kept| kept.duration_seconds >= sample.duration_seconds);
+        if position < LIMIT {
+            if longest.len() == LIMIT {
+                longest.pop();
+            }
+            longest.insert(position, sample);
+        }
+    }
+    longest
+}
+
 fn build_diverse_activity_samples(
     all: &[ActivitySample],
-    longest: &[ActivityCandidateRow],
+    longest: &[&ActivitySample],
 ) -> Vec<ActivitySample> {
     let mut picked: Vec<ActivitySample> = Vec::new();
-    let mut seen_dates: HashMap<String, bool> = HashMap::new();
-    let mut seen_keys: HashMap<String, bool> = HashMap::new();
+    let mut seen_dates = HashSet::new();
+    let mut seen_keys = HashSet::new();
 
     // The first ten samples feed the smallest section prompt. Reserve those
     // slots for representative dates across the entire period, not whichever
@@ -2570,7 +2571,7 @@ fn build_diverse_activity_samples(
         if picked.len() >= 40 {
             break;
         }
-        if !seen_dates.contains_key(&s.date) || s.ticket.is_some() {
+        if !seen_dates.contains(&s.date) || s.ticket.is_some() {
             try_push_activity_sample(s, &mut picked, &mut seen_dates, &mut seen_keys);
         }
     }
@@ -2623,8 +2624,8 @@ fn temporal_coverage_indices(len: usize, limit: usize) -> Vec<usize> {
 fn try_push_activity_sample(
     sample: &ActivitySample,
     picked: &mut Vec<ActivitySample>,
-    seen_dates: &mut HashMap<String, bool>,
-    seen_keys: &mut HashMap<String, bool>,
+    seen_dates: &mut HashSet<String>,
+    seen_keys: &mut HashSet<String>,
 ) {
     let key = format!(
         "{}|{}|{}",
@@ -2632,18 +2633,11 @@ fn try_push_activity_sample(
         sample.category,
         clamp_line(&sample.description, 40)
     );
-    if seen_keys.contains_key(&key) {
+    if !seen_keys.insert(key) {
         return;
     }
-    seen_keys.insert(key, true);
-    seen_dates.insert(sample.date.clone(), true);
-    picked.push(ActivitySample {
-        date: sample.date.clone(),
-        category: sample.category.clone(),
-        description: sample.description.clone(),
-        duration_seconds: sample.duration_seconds,
-        ticket: sample.ticket.clone(),
-    });
+    seen_dates.insert(sample.date.clone());
+    picked.push(sample.clone());
 }
 
 fn clamp_line(s: &str, max_chars: usize) -> String {
@@ -2970,18 +2964,7 @@ mod tests {
                 ticket: None,
             });
         }
-        let longest = activities
-            .iter()
-            .rev()
-            .take(8)
-            .map(|sample| ActivityCandidateRow {
-                date: sample.date.clone(),
-                category: sample.category.clone(),
-                description: sample.description.clone(),
-                duration_seconds: sample.duration_seconds,
-                ticket: sample.ticket.clone(),
-            })
-            .collect::<Vec<_>>();
+        let longest = activities.iter().rev().take(8).collect::<Vec<_>>();
         let samples = build_diverse_activity_samples(&activities, &longest);
         let sample_dates = samples
             .iter()
@@ -3057,6 +3040,50 @@ mod tests {
             16,
         );
         assert_eq!(packed, "PERIOD: Aug\nTAIL");
+    }
+
+    #[test]
+    fn bounded_longest_selection_matches_stable_sort_including_ties() {
+        for count in [0, 1, 11, 12, 13, 100, 10_000] {
+            let samples = (0..count)
+                .map(|index| ActivitySample {
+                    date: format!("day-{index}"),
+                    category: "Research".into(),
+                    description: format!("Observation {index}"),
+                    duration_seconds: index * 37 % 17,
+                    ticket: Some(format!("FS-{index}")),
+                })
+                .collect::<Vec<_>>();
+            let mut expected = samples.iter().collect::<Vec<_>>();
+            expected.sort_by_key(|sample| std::cmp::Reverse(sample.duration_seconds));
+            expected.truncate(12);
+            let actual = longest_activity_rows(&samples);
+            assert_eq!(actual.len(), expected.len());
+            for (actual, expected) in actual.iter().zip(expected) {
+                assert_eq!(actual.date, expected.date);
+                assert_eq!(actual.category, expected.category);
+                assert_eq!(actual.description, expected.description);
+                assert_eq!(actual.duration_seconds, expected.duration_seconds);
+                assert_eq!(actual.ticket, expected.ticket);
+            }
+        }
+    }
+
+    #[test]
+    fn screenshot_png_roundtrip_preserves_resized_pixels() {
+        let rgba = image::RgbaImage::from_fn(32, 18, |x, y| {
+            image::Rgba([(x * 7) as u8, (y * 11) as u8, ((x + y) * 5) as u8, 255])
+        });
+        let resized = image::DynamicImage::ImageRgba8(rgba).resize(
+            16,
+            9,
+            image::imageops::FilterType::Lanczos3,
+        );
+        let mut png = std::io::Cursor::new(Vec::new());
+        resized.write_to(&mut png, image::ImageFormat::Png).unwrap();
+        let decoded =
+            image::load_from_memory_with_format(png.get_ref(), image::ImageFormat::Png).unwrap();
+        assert_eq!(decoded.to_rgba8(), resized.to_rgba8());
     }
 
     fn utc_storage_timestamp(local: chrono::NaiveDateTime) -> String {

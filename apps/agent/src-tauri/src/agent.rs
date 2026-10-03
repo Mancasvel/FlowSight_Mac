@@ -130,6 +130,9 @@ impl FlowSightAgent {
                     let _ =
                         conn.execute(&format!("ALTER TABLE reports ADD COLUMN {column} TEXT"), []);
                 }
+                if let Err(error) = conn.execute_batch(crate::sync_pure::PENDING_REPORT_INDEX_SQL) {
+                    log::warn!("[Agent] Could not index pending reports: {error}");
+                }
             }
             Err(e) => log::error!(
                 "[Agent] SQLite open failed {:?} (init_db): {}",

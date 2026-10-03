@@ -139,12 +139,23 @@ fn normalized_category_key(value: &str) -> String {
         .collect()
 }
 
-pub fn canonical_category_label(value: &str) -> Option<&'static str> {
+fn category_policy(value: &str) -> Option<&'static (&'static str, &'static str, FocusRole)> {
+    // Captured and persisted samples already use canonical labels. Avoid
+    // allocating a normalized string every time the detector reads their role.
+    if let Some(policy) = CATEGORY_POLICIES
+        .iter()
+        .find(|(_, label, _)| *label == value)
+    {
+        return Some(policy);
+    }
     let normalized = normalized_category_key(value);
     CATEGORY_POLICIES
         .iter()
         .find(|(key, _, _)| *key == normalized)
-        .map(|(_, label, _)| *label)
+}
+
+pub fn canonical_category_label(value: &str) -> Option<&'static str> {
+    category_policy(value).map(|(_, label, _)| *label)
 }
 
 pub fn canonicalize_category(value: &str) -> String {
@@ -167,12 +178,7 @@ pub fn allowed_categories_prompt() -> String {
 }
 
 pub fn focus_role(category: &str) -> FocusRole {
-    let Some(label) = canonical_category_label(category) else {
-        return FocusRole::Unknown;
-    };
-    CATEGORY_POLICIES
-        .iter()
-        .find(|(_, candidate, _)| *candidate == label)
+    category_policy(category)
         .map(|(_, _, role)| *role)
         .unwrap_or(FocusRole::Unknown)
 }
@@ -591,21 +597,20 @@ fn split_into_hours(mut start: NaiveDateTime, mut seconds: i64, hourly: &mut [i6
 }
 
 fn flush_browsing_episode(
-    episodes: &mut Vec<Vec<usize>>,
-    active: &mut Vec<usize>,
+    episodes: &mut Vec<std::ops::Range<usize>>,
+    active: &mut std::ops::Range<usize>,
     seconds: &mut i64,
 ) {
     if *seconds >= BROWSING_DISTRACTION_MIN_SECS {
-        episodes.push(std::mem::take(active));
-    } else {
-        active.clear();
+        episodes.push(active.clone());
     }
+    active.start = active.end;
     *seconds = 0;
 }
 
-fn qualifying_browsing_episodes(samples: &[ActivitySample]) -> Vec<Vec<usize>> {
+fn qualifying_browsing_episodes(samples: &[ActivitySample]) -> Vec<std::ops::Range<usize>> {
     let mut episodes = Vec::new();
-    let mut active = Vec::new();
+    let mut active = 0..0;
     let mut active_seconds = 0i64;
     let mut last_end: Option<NaiveDateTime> = None;
 
@@ -624,7 +629,10 @@ fn qualifying_browsing_episodes(samples: &[ActivitySample]) -> Vec<Vec<usize>> {
         if !contiguous {
             flush_browsing_episode(&mut episodes, &mut active, &mut active_seconds);
         }
-        active.push(index);
+        if active.is_empty() {
+            active.start = index;
+        }
+        active.end = index + 1;
         active_seconds += sample.duration_seconds;
         last_end = Some(sample.end());
     }
@@ -636,8 +644,8 @@ fn summarize_distractions(samples: &[ActivitySample]) -> (usize, i64) {
     let episodes = qualifying_browsing_episodes(samples);
     let seconds = episodes
         .iter()
-        .flat_map(|episode| episode.iter())
-        .map(|index| samples[*index].duration_seconds)
+        .flat_map(|episode| episode.clone())
+        .map(|index| samples[index].duration_seconds)
         .sum();
     (episodes.len(), seconds)
 }
@@ -1053,6 +1061,58 @@ pub(crate) fn notification_destination(sample: &ActivitySample) -> Option<String
     Some(destination.label)
 }
 
+/// Prefix snapshots of the two most recent focus observations with distinct
+/// destinations. A revisit can check its intervening work in constant time,
+/// without rescanning the same timeline for each destination.
+struct WorkContextIndex<'a> {
+    destinations: &'a [Option<ForegroundDestination>],
+    // Store positions plus one; zero means absent. This halves the storage
+    // compared with a pair of Option<usize> per observation.
+    latest: Vec<(usize, usize)>,
+}
+
+impl<'a> WorkContextIndex<'a> {
+    fn new(samples: &[ActivitySample], destinations: &'a [Option<ForegroundDestination>]) -> Self {
+        let mut index = Self {
+            destinations,
+            latest: Vec::with_capacity(samples.len() + 1),
+        };
+        let (mut latest, mut different) = (None, None);
+        index.latest.push((0, 0));
+        for (position, sample) in samples.iter().enumerate() {
+            if sample.is_focus_eligible() {
+                if latest.is_some_and(|previous| {
+                    index.destination_key(previous) != index.destination_key(position)
+                }) {
+                    different = latest;
+                }
+                latest = Some(position);
+            }
+            index.latest.push((
+                latest.map_or(0, |position| position + 1),
+                different.map_or(0, |position| position + 1),
+            ));
+        }
+        index
+    }
+
+    fn destination_key(&self, position: usize) -> Option<&str> {
+        self.destinations[position]
+            .as_ref()
+            .map(|destination| destination.key.as_str())
+    }
+
+    fn has_other_destination(&self, start: usize, end: usize, key: &str) -> bool {
+        let (latest, different) = self.latest[end];
+        let candidate = if latest > 0 && self.destination_key(latest - 1) != Some(key) {
+            latest
+        } else {
+            different
+        };
+        candidate > start
+    }
+}
+
 fn analyze_context_detours(
     samples: &[ActivitySample],
     excluded: &BTreeSet<String>,
@@ -1078,6 +1138,7 @@ fn analyze_context_detours(
         .iter()
         .map(|sample| foreground_destination_identity(sample, excluded))
         .collect::<Vec<_>>();
+    let work_context = WorkContextIndex::new(samples, &destinations);
     for (index, sample) in samples.iter().enumerate() {
         let Some(destination) = destinations[index].as_ref() else {
             continue;
@@ -1183,13 +1244,11 @@ fn analyze_context_detours(
             let next = pair[1];
             if previous.date != next.date
                 || (next.start - previous.end).num_seconds() > 60 * 60
-                || !(previous.last_index + 1..next.first_index).any(|index| {
-                    samples[index].is_focus_eligible()
-                        && destinations[index]
-                            .as_ref()
-                            .map(|destination| destination.key.as_str())
-                            != Some(previous.key.as_str())
-                })
+                || !work_context.has_other_destination(
+                    previous.last_index + 1,
+                    next.first_index,
+                    &previous.key,
+                )
             {
                 continue;
             }
@@ -1284,7 +1343,7 @@ fn analyze_distraction_apps(
     let mut attributed_seconds = 0i64;
 
     for episode in &episodes {
-        let first_index = episode[0];
+        let first_index = episode.start;
         let first = &samples[first_index];
         let followed_focus = first_index > 0
             && samples[first_index - 1].is_focus_eligible()
@@ -1295,8 +1354,8 @@ fn analyze_distraction_apps(
         let first_app_key = app_identity(first.app_name.as_deref(), &excluded).map(|(key, _)| key);
         let mut seen = BTreeSet::new();
 
-        for index in episode {
-            let sample = &samples[*index];
+        for index in episode.clone() {
+            let sample = &samples[index];
             qualifying_seconds += sample.duration_seconds;
             let Some((key, label)) = app_identity(sample.app_name.as_deref(), &excluded) else {
                 continue;
@@ -1721,6 +1780,74 @@ fn load_samples_from_db(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn category_fast_path_preserves_aliases_and_unknown_values() {
+        for (key, label, role) in CATEGORY_POLICIES {
+            for value in [
+                label.to_string(),
+                key.to_string(),
+                format!("  {}  ", label.to_uppercase()),
+                label
+                    .chars()
+                    .map(|character| format!("{character}-_"))
+                    .collect(),
+            ] {
+                assert_eq!(canonical_category_label(&value), Some(*label), "{value}");
+                assert_eq!(focus_role(&value), *role, "{value}");
+            }
+        }
+        for value in ["", " ", "Custom category", "研发", "códing"] {
+            assert_eq!(canonical_category_label(value), None);
+            assert_eq!(focus_role(value), FocusRole::Unknown);
+        }
+    }
+
+    #[test]
+    fn indexed_work_context_matches_scanning_every_interval() {
+        // All four-observation timelines with focus/non-focus and known/unknown
+        // destinations, including same-destination work that must not count.
+        for mut pattern in 0..6usize.pow(4) {
+            let mut samples = Vec::new();
+            let mut destinations = Vec::new();
+            for position in 0..4 {
+                let state = pattern % 6;
+                pattern /= 6;
+                samples.push(sample(
+                    22,
+                    9,
+                    position,
+                    60,
+                    if state < 3 { "Research" } else { "Browsing" },
+                    None,
+                ));
+                destinations.push(match state % 3 {
+                    0 => None,
+                    key => Some(ForegroundDestination {
+                        key: key.to_string(),
+                        label: key.to_string(),
+                        kind: "other",
+                        strong_identity: true,
+                    }),
+                });
+            }
+            let index = WorkContextIndex::new(&samples, &destinations);
+            for start in 0..=samples.len() {
+                for end in start..=samples.len() {
+                    for key in ["1", "2", "absent"] {
+                        let scanned = (start..end).any(|position| {
+                            samples[position].is_focus_eligible()
+                                && destinations[position]
+                                    .as_ref()
+                                    .map(|destination| destination.key.as_str())
+                                    != Some(key)
+                        });
+                        assert_eq!(index.has_other_destination(start, end, key), scanned);
+                    }
+                }
+            }
+        }
+    }
 
     fn at(day: u32, hour: u32, minute: u32) -> NaiveDateTime {
         chrono::NaiveDate::from_ymd_opt(2026, 8, day)
