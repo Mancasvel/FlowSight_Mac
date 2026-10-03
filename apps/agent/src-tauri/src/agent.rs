@@ -2106,7 +2106,7 @@ mod repetition_tests {
 
     #[test]
     fn truncate_collapses_many_repeated_words() {
-        let spam: String = std::iter::repeat("spam ").take(25).collect();
+        let spam = "spam ".repeat(25);
         let out = truncate_repetition(spam.trim());
         assert!(out.len() < spam.len());
     }
