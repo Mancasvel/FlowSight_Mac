@@ -161,10 +161,15 @@ fn build_local_insights_report_inner(
         .filter_map(|r| r.ok());
     let mut rows = Vec::<ClippedReportRow>::new();
     let mut activity_count = 0i32;
-    for (timestamp, raw_category, description, ticket, duration, synced, _app, _title, theme) in
+    for (timestamp, raw_category, description, ticket, duration, synced, app, title, theme) in
         raw_rows
     {
-        let category = crate::agent_pure::resolve_persisted_category(&raw_category);
+        let category = crate::agent_pure::resolve_activity_category(
+            &raw_category,
+            &description,
+            app.as_deref(),
+            title.as_deref(),
+        );
         let ticket = crate::focus_semantics::canonical_ticket_value(ticket.as_deref());
         let slices = window.slices_for_observation(&timestamp, duration);
         if slices.is_empty() {
@@ -210,6 +215,7 @@ fn build_local_insights_report_inner(
     let mut all_samples: Vec<ActivitySample> = Vec::with_capacity(rows.len());
 
     let canonical_focus = crate::focus_semantics::summarize_from_db(&conn, &start_str, &end_str)?;
+    let task_progress = crate::task_progress::summarize_from_db(&conn, &start_str, &end_str)?;
 
     for row in &rows {
         total_seconds = total_seconds.saturating_add(row.duration_seconds);
@@ -441,6 +447,7 @@ fn build_local_insights_report_inner(
             "avg_session_minutes": avg_session_minutes,
             "deep_focus_sessions": deep_focus_sessions,
             "focus_semantics": canonical_focus,
+            "task_progress": task_progress,
             "unsynced_reports": unsynced_count,
             "peak_day": peak_day,
             "quiet_day": quiet_day,
@@ -488,44 +495,39 @@ pub fn generate_local_status_report(
         crate::language::copy("Preparing model…", "Preparando el modelo…"),
         "start",
     );
-    crate::agent::ensure_local_llm_ready(app, state)?;
+    let ai_ready = if local_data["total_seconds"].as_i64().unwrap_or(0) > 0 {
+        crate::agent::ensure_local_llm_ready(app, state)
+    } else {
+        Ok(())
+    };
     emit_report_progress(
         &app_handle,
         0,
         "warmup",
         crate::language::copy("Starting local AI engine", "Iniciando la IA local"),
-        crate::language::copy("Local AI ready", "IA local lista"),
+        if local_data["total_seconds"].as_i64().unwrap_or(0) <= 0 {
+            crate::language::copy(
+                "No activity recorded; preparing an empty report",
+                "Sin actividad registrada; preparando un informe vacío",
+            )
+        } else if ai_ready.is_ok() {
+            crate::language::copy("Local AI ready", "IA local lista")
+        } else {
+            crate::language::copy(
+                "Local AI unavailable; using rules",
+                "IA local no disponible; usando reglas",
+            )
+        },
         "done",
     );
 
     let user_prefs = crate::user_preferences::load_user_preferences(&db_path).unwrap_or_default();
     let prefs_block = crate::user_preferences::preferences_llm_block(&user_prefs);
 
-    let (report, generation_passes) = match generate_report_by_sections(
-        &app_handle,
-        &local_data,
-        &prefs_block,
-    ) {
-        Ok(result) => result,
-        Err(err) => {
-            log::warn!(
-                "[LocalReport] Pipeline incomplete ({}), merging partial + structured fallback",
-                err
-            );
-            let fallback = build_rule_based_report(&local_data);
-            (
-                fallback,
-                vec![serde_json::json!({
-                    "id": "fallback",
-                    "label": crate::language::copy("Structured summary", "Resumen estructurado"),
-                    "detail": crate::language::copy(
-                        "Full AI pipeline could not finish; showing a report from verified local data.",
-                        "La IA no pudo terminar; se muestra un informe basado en datos locales verificados."
-                    )
-                })],
-            )
-        }
-    };
+    let (report, generation_passes) = report_with_fallback(&local_data, || {
+        ai_ready?;
+        generate_report_by_sections(&app_handle, &local_data, &prefs_block)
+    });
 
     let mut report = report;
     // The model selects indices only. Host templates and user text must remain
@@ -579,6 +581,32 @@ pub fn generate_local_status_report(
         "ai_powered": ai_powered,
         "generation_passes": generation_passes,
     }))
+}
+
+fn report_with_fallback(
+    local_data: &serde_json::Value,
+    generate: impl FnOnce() -> Result<(serde_json::Value, Vec<serde_json::Value>), String>,
+) -> (serde_json::Value, Vec<serde_json::Value>) {
+    if local_data["total_seconds"].as_i64().unwrap_or(0) <= 0 {
+        return (build_rule_based_report(local_data), Vec::new());
+    }
+    match generate() {
+        Ok(result) => result,
+        Err(error) => {
+            log::warn!("[LocalReport] AI unavailable ({error}); showing structured fallback");
+            (
+                build_rule_based_report(local_data),
+                vec![serde_json::json!({
+                    "id": "fallback",
+                    "label": crate::language::copy("Structured summary", "Resumen estructurado"),
+                    "detail": crate::language::copy(
+                        "Local AI is unavailable; showing a report from recorded activity.",
+                        "La IA local no está disponible; se muestra un informe de la actividad registrada."
+                    )
+                })],
+            )
+        }
+    }
 }
 
 fn call_local_llm_with_system(
@@ -1069,7 +1097,7 @@ Return JSON: {\"potential_risks\":[\"specific risk with evidence\"]}",
         &mut passes,
     );
 
-    let progress = llm_section(
+    let mut progress = llm_section(
         app,
         7,
         "progress_tasks",
@@ -1086,6 +1114,8 @@ Return JSON: {\"work_progress\":[\"daily or thematic highlight with date/hours\"
         }),
         &mut passes,
     );
+
+    preserve_task_progress(&mut progress, local_data);
 
     let lessons = llm_section(
         app,
@@ -1188,6 +1218,13 @@ fn build_section_stats_snapshot(
             append_top_tickets(&mut lines, local_data, 5);
         }
         "progress_tasks" => {
+            if local_data["task_progress"]["observed_seconds"]
+                .as_u64()
+                .unwrap_or(0)
+                > 0
+            {
+                lines.push(format!("OBSERVABLE_SCREEN_PROGRESS (not task completion, no input/absence inference, no automatic grade penalty): {}", local_data["task_progress"]));
+            }
             append_daily_detail(&mut lines, local_data);
             append_activity_samples(&mut lines, local_data, 10, 80);
             append_top_tickets(&mut lines, local_data, 8);
@@ -2230,7 +2267,7 @@ fn build_work_progress_for(
     local_data: &serde_json::Value,
     language: ReportLanguage,
 ) -> Vec<String> {
-    let mut progress = Vec::new();
+    let mut progress = build_task_progress_for(local_data, language);
 
     if let Some(days) = local_data["day_category_breakdown"].as_array() {
         for index in temporal_coverage_indices(days.len(), 7) {
@@ -2294,6 +2331,78 @@ fn build_work_progress_for(
     }
 
     progress
+}
+
+fn build_task_progress_for(
+    local_data: &serde_json::Value,
+    language: ReportLanguage,
+) -> Vec<String> {
+    let mut progress = Vec::new();
+    let evidence = &local_data["task_progress"];
+    if evidence["observed_seconds"].as_u64().unwrap_or(0) > 0 {
+        progress.push(report_format!(
+            language,
+            "Observable progression: {} meaningful screen changes. Screen changes do not confirm completed tasks.",
+            "Progresión observable: {} cambios relevantes en pantalla. Los cambios no confirman tareas terminadas.",
+            evidence["visible_change_observations"].as_u64().unwrap_or(0)
+        ));
+        let longest = evidence["longest_unchanged_seconds"].as_u64().unwrap_or(0);
+        if longest > crate::task_progress::STAGNATION_THRESHOLD_SECONDS {
+            progress.push(report_format!(
+                language,
+                "Longest interval without observable changes: {:.1} min. The following durations count only time beyond the 20-minute threshold.",
+                "Tramo más largo sin cambios observables: {:.1} min. Los tiempos siguientes cuentan solo lo que supera el umbral de 20 minutos.",
+                longest as f64 / 60.0
+            ));
+        }
+        for (key, en, es) in [
+            (
+                "possible_stagnation_seconds",
+                "Possible stagnation",
+                "Posible estancamiento",
+            ),
+            (
+                "passive_unchanged_seconds",
+                "No observable changes (possible reading, live meeting or playback)",
+                "Sin cambios observables (posible lectura, reunión en curso o reproducción)",
+            ),
+            (
+                "uncertain_unchanged_seconds",
+                "No observable changes (uncertain activity)",
+                "Sin cambios observables (actividad incierta)",
+            ),
+        ] {
+            let seconds = evidence[key].as_u64().unwrap_or(0);
+            if seconds > 0 {
+                progress.push(report_format!(
+                    language,
+                    "{}: {:.1} min without meaningful screen changes after 20 continuous minutes. No absence or lack of input is inferred.",
+                    "{}: {:.1} min sin cambios relevantes en pantalla tras 20 minutos continuos. No se infiere ausencia ni falta de inputs.",
+                    language.text(en, es), seconds as f64 / 60.0
+                ));
+            }
+        }
+    }
+
+    progress
+}
+
+fn preserve_task_progress(section: &mut serde_json::Value, local_data: &serde_json::Value) {
+    // Evidence and its uncertainty must survive optional model ranking.
+    let pinned = build_task_progress_for(local_data, ReportLanguage::English);
+    if pinned.is_empty() {
+        return;
+    }
+    let mut items: Vec<serde_json::Value> =
+        pinned.into_iter().map(serde_json::Value::String).collect();
+    if let Some(selected) = section["work_progress"].as_array() {
+        for item in selected {
+            if !items.contains(item) {
+                items.push(item.clone());
+            }
+        }
+    }
+    section["work_progress"] = serde_json::Value::Array(items);
 }
 
 fn build_lessons_learned_for(
@@ -2383,6 +2492,9 @@ fn default_recommendations_for(
     local_data: &serde_json::Value,
     language: ReportLanguage,
 ) -> Vec<String> {
+    if local_data["total_seconds"].as_i64().unwrap_or(0) <= 0 {
+        return Vec::new();
+    }
     let mut recs = Vec::new();
     let focus = &local_data["focus_semantics"];
     let distraction_events = focus["distraction_events"].as_i64().unwrap_or(0);
@@ -2467,7 +2579,9 @@ fn query_prior_period_metrics(
     days: i32,
     current_total_seconds: i32,
 ) -> Result<serde_json::Value, String> {
-    let prior_end = period_start - chrono::Duration::days(1);
+    // A daily review compares the same weekday last week. Longer reviews use
+    // the immediately preceding, non-overlapping window of equal length.
+    let prior_end = period_start - chrono::Duration::days(if days == 1 { 7 } else { 1 });
     let prior_start = prior_end - chrono::Duration::days((days - 1) as i64);
     let start_str = prior_start.format("%Y-%m-%d").to_string();
     let end_str = prior_end.format("%Y-%m-%d").to_string();
@@ -2477,13 +2591,14 @@ fn query_prior_period_metrics(
     let prior_focus = crate::focus_semantics::summarize_from_db(conn, &start_str, &end_str)?;
     let deep_focus_seconds = prior_focus.deep_focus_seconds as i32;
 
-    let change_pct = if current_total_seconds > 0 && total_seconds > 0 {
-        ((current_total_seconds - total_seconds) as f64 / total_seconds as f64 * 1000.0).round()
-            / 10.0
-    } else if current_total_seconds > 0 && total_seconds == 0 {
-        100.0
+    let change_pct = if total_seconds > 0 {
+        Some(
+            ((current_total_seconds - total_seconds) as f64 / total_seconds as f64 * 1000.0)
+                .round()
+                / 10.0,
+        )
     } else {
-        0.0
+        None
     };
 
     Ok(serde_json::json!({
@@ -2493,6 +2608,10 @@ fn query_prior_period_metrics(
         "total_hours": round_hours(total_seconds),
         "deep_focus_seconds": deep_focus_seconds,
         "deep_focus_hours": round_hours(deep_focus_seconds),
+        "period_days": days,
+        "focus_eligible_seconds": prior_focus.focus_eligible_seconds,
+        "distraction_seconds": prior_focus.distraction_seconds,
+        "longest_focus_seconds": prior_focus.longest_focus_seconds,
         "activity_count": activity_count,
         "change_pct": change_pct,
     }))
@@ -2652,6 +2771,51 @@ fn clamp_line(s: &str, max_chars: usize) -> String {
 mod tests {
     use super::*;
     use chrono::TimeZone;
+
+    #[test]
+    fn prior_review_uses_matching_week_and_canonical_focus_measures() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch("CREATE TABLE reports (id INTEGER PRIMARY KEY, created_at TEXT NOT NULL, activity_type TEXT NOT NULL, description TEXT NOT NULL, jira_ticket_id TEXT, duration_seconds INTEGER NOT NULL, active_app TEXT, window_title TEXT, theme_hint TEXT);").unwrap();
+        let start = chrono::NaiveDate::from_ymd_opt(2026, 10, 12).unwrap();
+        for (date, duration) in [
+            (start - chrono::Duration::days(7), 1800),
+            (start - chrono::Duration::days(1), 900),
+        ] {
+            conn.execute("INSERT INTO reports (created_at, activity_type, description, duration_seconds, theme_hint) VALUES (?1, 'Writing', 'Fixture', ?2, 'Report')",
+                params![utc_storage_timestamp(date.and_hms_opt(12, 30, 0).unwrap()), duration]).unwrap();
+        }
+        let daily = query_prior_period_metrics(&conn, start, 1, 3600).unwrap();
+        assert_eq!(daily["period_start"], "2026-10-05");
+        assert_eq!(daily["period_end"], "2026-10-05");
+        assert_eq!(daily["total_seconds"], 1800);
+        assert_eq!(daily["focus_eligible_seconds"], 1800);
+        assert_eq!(daily["deep_focus_seconds"], 1800);
+        assert_eq!(daily["longest_focus_seconds"], 1800);
+        assert_eq!(daily["distraction_seconds"], 0);
+        let week = query_prior_period_metrics(&conn, start, 7, 3600).unwrap();
+        assert_eq!(week["period_start"], "2026-10-05");
+        assert_eq!(week["period_end"], "2026-10-11");
+        assert_eq!(week["total_seconds"], 2700);
+        let month = query_prior_period_metrics(&conn, start, 30, 3600).unwrap();
+        assert_eq!(month["period_end"], "2026-10-11");
+        assert_eq!(month["period_start"], "2026-09-12");
+    }
+
+    #[test]
+    fn empty_report_skips_inference_and_startup_failure_uses_rules() {
+        let empty = serde_json::json!({"total_seconds": 0});
+        let (report, passes) =
+            report_with_fallback(&empty, || panic!("Empty reports must not invoke AI"));
+        assert!(report["recommendations"].as_array().unwrap().is_empty());
+        assert!(passes.is_empty());
+        let observed = serde_json::json!({"total_seconds": 1800});
+        let (report, passes) =
+            report_with_fallback(&observed, || Err("Local model unavailable".into()));
+        assert_eq!(report, build_rule_based_report(&observed));
+        assert!(!passes
+            .iter()
+            .any(|pass| pass["source"] == "local_ai_selection"));
+    }
 
     fn bilingual_report_fixture() -> serde_json::Value {
         let mut days = Vec::new();
@@ -2935,7 +3099,7 @@ mod tests {
         );
         assert_eq!(
             payload["es"]["recommendations"].as_array().unwrap().len(),
-            1
+            0
         );
         assert_same_report_evidence(&payload["en"], &payload["es"]);
     }
@@ -3163,6 +3327,51 @@ mod tests {
         );
         assert_eq!(report["work_themes"].as_array().unwrap().len(), 1);
         assert_eq!(report["work_themes"][0]["label"], "Task Policy brief");
+    }
+
+    #[test]
+    fn historic_eclipse_categories_match_focus_metrics_in_the_report_payload() {
+        let dir = tempfile::tempdir().unwrap();
+        let db_path = dir.path().join("eclipse-insights.sqlite");
+        let conn = Connection::open(&db_path).unwrap();
+        conn.execute_batch(
+            "CREATE TABLE reports (
+                id INTEGER PRIMARY KEY, created_at TEXT NOT NULL,
+                activity_type TEXT NOT NULL, description TEXT NOT NULL,
+                jira_ticket_id TEXT, duration_seconds INTEGER NOT NULL,
+                synced INTEGER DEFAULT 0, active_app TEXT,
+                window_title TEXT, theme_hint TEXT
+            );",
+        )
+        .unwrap();
+        let day = Local::now().date_naive();
+        for (minute, category, duration) in [(15, "Browsing", 900), (30, "General", 900)] {
+            conn.execute(
+                "INSERT INTO reports (created_at, activity_type, description, duration_seconds, active_app, window_title)
+                 VALUES (?1, ?2, 'Interacting with editing controls', ?3, 'eclipse.exe', 'workspace - Main.java - Eclipse IDE')",
+                params![utc_storage_timestamp(day.and_hms_opt(12, minute, 0).unwrap()), category, duration],
+            ).unwrap();
+        }
+        let (report, apps) = build_local_insights_report_inner(&db_path, 1, Some(&[])).unwrap();
+        assert_eq!(report["category_breakdown"].as_array().unwrap().len(), 1);
+        assert_eq!(report["category_breakdown"][0]["category"], "Coding");
+        assert_eq!(report["category_breakdown"][0]["total_seconds"], 1800);
+        assert_eq!(
+            report["day_category_breakdown"][0]["top_category"],
+            "Coding"
+        );
+        assert_eq!(report["deep_focus_seconds"], 1800);
+        assert_eq!(report["focus_semantics"]["distraction_seconds"], 0);
+        assert!(apps.unwrap().unwrap().detours.is_empty());
+        assert_eq!(
+            conn.query_row(
+                "SELECT activity_type FROM reports ORDER BY id LIMIT 1",
+                [],
+                |row| row.get::<_, String>(0)
+            )
+            .unwrap(),
+            "Browsing",
+        );
     }
 
     #[test]
@@ -3470,5 +3679,47 @@ mod tests {
         ] {
             assert!(apply_grounded_selection(&fallback, &invalid).is_none());
         }
+    }
+
+    #[test]
+    fn observable_progress_and_passive_uncertainty_survive_selection_and_localization() {
+        let data = serde_json::json!({
+            "total_seconds": 3600, "total_hours": 1.0,
+            "task_progress": {
+                "observed_seconds": 1800, "visible_change_observations": 7,
+                "longest_unchanged_seconds": 1260, "possible_stagnation_seconds": 60,
+                "passive_unchanged_seconds": 120, "uncertain_unchanged_seconds": 180
+            },
+            "daily_totals": [{"date":"2026-10-22", "total_seconds":3600, "activity_count":30}]
+        });
+        let all = build_rule_based_report(&data);
+        let mut selected = serde_json::json!({"work_progress":[all["work_progress"].as_array().unwrap().last().unwrap()]});
+        preserve_task_progress(&mut selected, &data);
+        preserve_task_progress(&mut selected, &data);
+        assert_eq!(selected["work_progress"].as_array().unwrap().len(), 6);
+        let bilingual = build_localized_report(&selected, &data);
+        let es = bilingual["es"]["work_progress"].as_array().unwrap();
+        assert!(es[0].as_str().unwrap().contains("7 cambios"));
+        assert!(es[1].as_str().unwrap().contains("21.0 min"));
+        assert!(es[2].as_str().unwrap().contains("1.0 min"));
+        assert!(es[3]
+            .as_str()
+            .unwrap()
+            .contains("Sin cambios observables (posible lectura"));
+        assert!(es[3].as_str().unwrap().contains("2.0 min"));
+        assert!(es[4].as_str().unwrap().contains("actividad incierta"));
+        assert!(es[4].as_str().unwrap().contains("3.0 min"));
+        let stats = build_section_stats_snapshot("progress_tasks", &data, "");
+        assert!(stats.contains("OBSERVABLE_SCREEN_PROGRESS"));
+    }
+
+    #[test]
+    fn legacy_reports_do_not_invent_observable_progress() {
+        let data = serde_json::json!({"daily_totals":[{"date":"2026-10-22", "total_seconds":1200, "activity_count":20}]});
+        assert!(build_task_progress_for(&data, ReportLanguage::Spanish).is_empty());
+        let mut section = serde_json::json!({"work_progress":["Known highlight"]});
+        let before = section.clone();
+        preserve_task_progress(&mut section, &data);
+        assert_eq!(section, before);
     }
 }

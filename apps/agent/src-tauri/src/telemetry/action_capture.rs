@@ -9,7 +9,7 @@
 //! off to a fresh thread that captures the screen, sends it to the local
 //! vision model together with the textual action context, and persists the
 //! result as its own `reports` row — independent of, and in addition to, the
-//! 60s aggregator cycle (action-log review + periodic vision snapshot).
+//! configured-interval aggregator cycle (action-log review + periodic vision snapshot).
 
 use super::{SharedFlag, TaskContext};
 use std::path::PathBuf;
@@ -27,7 +27,7 @@ use tauri::Emitter;
 const COOLDOWN: Duration = Duration::from_secs(15);
 
 /// Action-triggered reports mark a point-in-time event rather than an
-/// observed interval, unlike the 60s aggregator's rows.
+/// observed interval, unlike the periodic aggregator's rows.
 const ACTION_REPORT_DURATION_SECS: u64 = 0;
 
 pub struct ActionCaptureTrigger {
@@ -82,6 +82,15 @@ impl ActionCaptureTrigger {
     }
 
     fn run_capture(&self, action_context: String) {
+        let foreground = crate::context::get_system_context();
+        if crate::privacy::application_is_excluded(&self.db_path, foreground.app_name.as_deref()) {
+            return;
+        }
+        let action_context = if crate::privacy::store_window_titles(&self.db_path) {
+            action_context
+        } else {
+            "The user opened or closed a window in the foreground application.".to_string()
+        };
         let (user_task, jira_ticket) = {
             let ctx = self.task_ctx.lock().unwrap();
             (ctx.user_task.clone(), ctx.jira_ticket.clone())
@@ -90,30 +99,42 @@ impl ActionCaptureTrigger {
             .clone()
             .or_else(|| user_task.clone())
             .unwrap_or_else(|| "General".to_string());
+        let theme_hint = jira_ticket
+            .clone()
+            .or_else(|| user_task.clone())
+            .filter(|theme| !theme.trim().is_empty() && !theme.eq_ignore_ascii_case("general"));
 
-        let (description, category) =
-            match crate::agent::capture_and_analyze_action(&task_label, &action_context) {
-                Ok(result) => result,
-                Err(e) => {
-                    log::warn!("[Telemetry][ActionCapture] capture/analysis failed: {e}");
-                    return;
-                }
-            };
-        let category = crate::agent_pure::resolve_persisted_category(&category);
+        let capture = match crate::agent::capture_and_analyze_action(
+            &self.db_path,
+            &task_label,
+            &action_context,
+        ) {
+            Ok(result) => result,
+            Err(e) => {
+                log::warn!("[Telemetry][ActionCapture] capture/analysis failed: {e}");
+                return;
+            }
+        };
+        let category = crate::agent_pure::resolve_persisted_category(&capture.category);
 
         match crate::agent::insert_report(
             &self.db_path,
-            &description,
+            &capture.description,
             &category,
             jira_ticket.clone(),
             ACTION_REPORT_DURATION_SECS,
+            "action_capture",
+            theme_hint,
+            Some(capture.window),
+            Some(capture.observed_at_utc),
+            None,
         ) {
             Some(id) => {
                 let _ = self.app_handle.emit(
                     "activity-report",
                     serde_json::json!({
                         "id": id,
-                        "description": description,
+                        "description": capture.description,
                         "category": category,
                         "jiraTicket": jira_ticket,
                     }),

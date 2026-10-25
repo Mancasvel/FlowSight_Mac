@@ -19,8 +19,10 @@ pub struct AgentData {
     pub preferences: BTreeMap<String, SavedPreference>,
     pub focus: Option<FocusBlock>,
     pub quiet: Option<SystemQuiet>,
+    pub total_focus_quiet: Option<SystemQuiet>,
     pub total_focus_preferences: super::total_focus::Preferences,
     pub total_focus: Option<super::total_focus::Session>,
+    pub total_focus_clock_stop_pending: bool,
     pub calendar_provider: Option<String>,
     pub email_provider: Option<String>,
     pub notification_digest: Vec<DigestItem>,
@@ -118,6 +120,8 @@ pub struct FocusBlock {
 pub struct SystemQuiet {
     pub original: Option<u32>,
     pub until_at: Option<String>,
+    #[serde(default)]
+    pub policy_based: bool,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -148,6 +152,16 @@ pub struct ConversationMessage {
 }
 
 fn connection() -> Result<Connection, String> {
+    #[cfg(test)]
+    if let Some(path) = TEST_DB.with(|path| path.borrow().clone()) {
+        let conn = Connection::open(path).map_err(|error| error.to_string())?;
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS config (key TEXT PRIMARY KEY, value TEXT)",
+            [],
+        )
+        .map_err(|error| error.to_string())?;
+        return Ok(conn);
+    }
     let conn = Connection::open(crate::paths::db_path()?).map_err(|error| error.to_string())?;
     conn.execute(
         "CREATE TABLE IF NOT EXISTS config (key TEXT PRIMARY KEY, value TEXT)",
@@ -155,6 +169,32 @@ fn connection() -> Result<Connection, String> {
     )
     .map_err(|error| error.to_string())?;
     Ok(conn)
+}
+
+#[cfg(test)]
+thread_local! {
+    static TEST_DB: std::cell::RefCell<Option<std::path::PathBuf>> = const { std::cell::RefCell::new(None) };
+}
+
+#[cfg(test)]
+pub struct TestStore(std::path::PathBuf);
+
+#[cfg(test)]
+impl TestStore {
+    pub fn new() -> Self {
+        let path =
+            std::env::temp_dir().join(format!("flowsight-focus-{}.db", uuid::Uuid::new_v4()));
+        TEST_DB.with(|target| *target.borrow_mut() = Some(path.clone()));
+        Self(path)
+    }
+}
+
+#[cfg(test)]
+impl Drop for TestStore {
+    fn drop(&mut self) {
+        TEST_DB.with(|target| *target.borrow_mut() = None);
+        let _ = std::fs::remove_file(&self.0);
+    }
 }
 
 fn load(conn: &Connection) -> Result<AgentData, String> {
@@ -226,19 +266,29 @@ pub fn append_conversation(role: &str, content: &str) -> Result<(), String> {
     })
 }
 
-pub fn hold_notification(title: &str, body: &str) -> Result<bool, String> {
-    fn holding(data: &AgentData) -> bool {
-        data.quiet.is_some()
-            || data.total_focus.as_ref().is_some_and(|session| {
-                chrono::DateTime::parse_from_rfc3339(&session.expires_at)
-                    .is_ok_and(|until| until > chrono::Utc::now())
-            })
+pub fn holding_notifications(data: &AgentData) -> bool {
+    data.quiet.is_some()
+        || data.total_focus_quiet.is_some()
+        || data
+            .total_focus
+            .as_ref()
+            .is_some_and(|session| session.is_active())
+}
+
+pub fn take_released_digest(data: &mut AgentData) -> Vec<DigestItem> {
+    if holding_notifications(data) {
+        Vec::new()
+    } else {
+        std::mem::take(&mut data.notification_digest)
     }
-    if !holding(&read()?) {
+}
+
+pub fn hold_notification(title: &str, body: &str) -> Result<bool, String> {
+    if !holding_notifications(&read()?) {
         return Ok(false);
     }
     update(|data| {
-        if !holding(data) {
+        if !holding_notifications(data) {
             return Ok(false);
         }
         data.notification_digest.push(DigestItem {

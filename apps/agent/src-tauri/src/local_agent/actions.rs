@@ -86,6 +86,15 @@ fn total_preferences(args: &Value) -> Result<super::total_focus::Preferences, St
             .filter_map(|value| value.as_str().map(str::to_string))
             .collect();
     }
+    if let Some(quiet) = args["quiet_notifications"].as_bool() {
+        preferences.quiet_notifications = quiet;
+    }
+    if let Some(enabled) = args["music_enabled"].as_bool() {
+        preferences.music_enabled = enabled;
+    }
+    if let Some(url) = args["music_url"].as_str() {
+        preferences.music_url = url.into();
+    }
     super::total_focus::validate(preferences)
 }
 
@@ -136,6 +145,21 @@ fn release_focus_protection(focus: &FocusBlock) -> Vec<String> {
         }
     }
     warnings
+}
+
+pub(super) fn clear_focus_for_context_change() -> Result<Vec<String>, String> {
+    let _guard = FOCUS_ACTION_LOCK
+        .lock()
+        .map_err(|error| error.to_string())?;
+    let focus = state::update(|data| {
+        // Do not deliver a personal digest into a different account or team.
+        data.notification_digest.clear();
+        Ok(data.focus.take())
+    })?;
+    Ok(focus
+        .as_ref()
+        .map(release_focus_protection)
+        .unwrap_or_default())
 }
 
 fn elapsed_focus_seconds(focus: &FocusBlock) -> Result<i64, String> {
@@ -208,8 +232,34 @@ fn paired(english: String, spanish: String) -> Result<(String, String), String> 
 pub fn preview(name: &str, args: &Value) -> Result<(String, String), String> {
     if name == "focus.total_start" {
         let prefs = total_preferences(args)?;
-        return paired(format!("Total focus: {} · {} minutes. Block: {}. Exceptions: {}. No automatic messages.", text_arg(args,"intention")?,prefs.duration_minutes,prefs.patterns.join(", "),prefs.exceptions.join(", ")),
-            format!("Concentración total: {} · {} minutos. Bloquear: {}. Excepciones: {}. Sin mensajes automáticos.", text_arg(args,"intention")?,prefs.duration_minutes,prefs.patterns.join(", "),prefs.exceptions.join(", ")));
+        let intention = super::total_focus::normalize_intention(
+            args["intention"].as_str().unwrap_or_default(),
+        )?;
+        let quiet = if prefs.quiet_notifications {
+            "Silence Windows app notification banners."
+        } else {
+            "Keep Windows app notification banners unchanged."
+        };
+        let quiet_es = if prefs.quiet_notifications {
+            "Silenciar los avisos de aplicaciones de Windows."
+        } else {
+            "Mantener el ajuste de avisos de Windows."
+        };
+        let music = if prefs.music_enabled {
+            format!(" Open music in a background tab: {}.", prefs.music_url)
+        } else {
+            String::new()
+        };
+        let music_es = if prefs.music_enabled {
+            format!(
+                " Abrir música en una pestaña en segundo plano: {}.",
+                prefs.music_url
+            )
+        } else {
+            String::new()
+        };
+        return paired(format!("Total focus: {intention} · {} minutes. Block: {}. Exceptions: {}. {quiet}{music} No automatic messages.", prefs.duration_minutes,prefs.patterns.join(", "),prefs.exceptions.join(", ")),
+            format!("Concentración total: {intention} · {} minutos. Bloquear: {}. Excepciones: {}. {quiet_es}{music_es} Sin mensajes automáticos.", prefs.duration_minutes,prefs.patterns.join(", "),prefs.exceptions.join(", ")));
     }
     if name == "focus.total_end" {
         return paired(
@@ -586,6 +636,7 @@ pub fn execute(
     app: AppHandle,
     agent_state: State<'_, AgentState>,
 ) -> Result<Value, String> {
+    super::require_profile_tool(name, args)?;
     if !super::registry::is_enabled_name(name) {
         return Err("Connected-service writes are unavailable in this release.".into());
     }
@@ -599,11 +650,14 @@ pub fn execute(
         None
     };
     match name {
-        "focus.total_start" => super::total_focus::activate(
-            text_arg(args, "intention")?.into(),
+        "focus.total_start" => super::total_focus::activate_linked(
+            &app,
+            super::total_focus::normalize_intention(
+                args["intention"].as_str().unwrap_or_default(),
+            )?,
             total_preferences(args)?,
         ),
-        "focus.total_end" => super::total_focus::end(),
+        "focus.total_end" => super::total_focus::end_linked(&app),
         "focus.total_status" => super::total_focus::get_total_focus(),
         "focus.start" => {
             if state::read()?
@@ -745,7 +799,7 @@ pub fn execute(
             let focus = state::update(|data| {
                 let mut focus = data.focus.take().ok_or("No focus block is active.")?;
                 focus.status = "ended".into();
-                let digest = std::mem::take(&mut data.notification_digest);
+                let digest = state::take_released_digest(data);
                 Ok((focus, digest))
             })?;
             let _ = app.emit("local-agent-focus-changed", &focus.0);

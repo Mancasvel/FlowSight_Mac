@@ -8,6 +8,7 @@ pub(crate) const PENDING_REPORT_INDEX_SQL: &str =
     "CREATE INDEX IF NOT EXISTS reports_pending_by_id ON reports(id) WHERE synced = 0";
 
 /// Batch of unsynced rows (oldest first) for `perform_sync`. `limit` is clamped to 1..=5000.
+#[cfg(test)]
 pub(crate) fn select_unsynced_pending_sql(limit: usize) -> String {
     let lim = limit.clamp(1, 5000);
     format!(
@@ -18,6 +19,10 @@ pub(crate) fn select_unsynced_pending_sql(limit: usize) -> String {
          LIMIT {}",
         lim
     )
+}
+
+pub(crate) fn select_owned_pending_sql(limit: usize) -> String {
+    format!("SELECT r.id,r.description,r.activity_type,r.duration_seconds,r.jira_ticket_id FROM reports r JOIN cloud_observation_owner o ON o.report_id=r.id WHERE r.synced=0 AND o.user_id=?1 AND o.team_id=?2 AND o.sharing_epoch=?3 AND date(r.created_at)=?4 ORDER BY r.id LIMIT {}",limit.clamp(1,5000))
 }
 
 pub(crate) fn jwt_exp(token: &str) -> i64 {
@@ -185,5 +190,17 @@ mod tests {
         assert_eq!(rows.len(), 2);
         assert_eq!(rows[0], "old");
         assert_eq!(rows[1], "new");
+    }
+
+    #[test]
+    fn shared_day_uses_utc_capture_even_when_local_clock_has_advanced() {
+        let captured = chrono::DateTime::parse_from_rfc3339("2026-10-24T23:30:00Z").unwrap();
+        let madrid = captured.with_timezone(&chrono::FixedOffset::east_opt(7200).unwrap());
+        assert_eq!(madrid.format("%Y-%m-%d").to_string(), "2026-10-25");
+        let conn = Connection::open_in_memory().unwrap();
+        let day: String = conn
+            .query_row("SELECT date(?1)", [captured.to_rfc3339()], |row| row.get(0))
+            .unwrap();
+        assert_eq!(day, "2026-10-24");
     }
 }

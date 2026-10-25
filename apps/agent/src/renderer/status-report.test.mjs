@@ -1,4 +1,4 @@
-import { setLanguagePreference } from './i18n.mjs';
+import { setLanguagePreference, t } from './i18n.mjs';
 setLanguagePreference('en',{persist:false});
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -15,11 +15,35 @@ test('Spanish screen and PDF use the paired narrative while preserving user name
     assert.equal(model.summary,'Trabajo registrado.');assert.equal(model.statusTone,'positive');assert.equal(model.userName,'Review · María');assert.equal(model.categories[0].label,'Programación');
     const output=renderStatusReportHtml(model);assert.match(output,/Tiempo registrado/);assert.match(output,/Review · María/);assert.doesNotMatch(output,/>Tracked time</);
     const doc=new jsPDF(),drawn=[];const original=doc.text.bind(doc);doc.text=(value,...args)=>{drawn.push(String(value));return original(value,...args);};renderStatusReportPdf(doc,model);
-    assert.ok(drawn.some(line=>line.includes('Revisa el siguiente bloque.')));assert.ok(drawn.some(line=>line.includes('CONCENTRACIÓN SOSTENIDA')));assert.ok(drawn.some(line=>line.includes('Review · María')));
+    assert.ok(drawn.some(line=>line.includes('Ajusta tu tiempo a tus prioridades')));assert.ok(drawn.some(line=>line.includes(t('Sustained focus'))));assert.ok(drawn.some(line=>line.includes('Review · María')));
+    assert.match(output, /Revisa el siguiente bloque\./); // Paired source remains in the disclosure.
   } finally {setLanguagePreference('en',{persist:false});}
 });
 
 // Synthetic activity only: these numbers are fixtures, not a customer report.
+test('focus grade, prior grade and improvements lead the screen and PDF and use identical Spanish values', () => {
+  const payload = syntheticReport();
+  Object.assign(payload.local_data, { focus_eligible_seconds: 18000, distraction_seconds: 1800, focus_semantics: { longest_focus_seconds: 2700 },
+    prior_period: { period_start: '2026-09-14', period_end: '2026-09-20', total_seconds: 36000, focus_eligible_seconds: 18000, deep_focus_seconds: 7200, distraction_seconds: 3600, longest_focus_seconds: 1800 } });
+  setLanguagePreference('es', { persist: false });
+  try {
+    const model = createStatusReportViewModel(payload);
+    const output = renderStatusReportHtml(model);
+    assert.ok(output.indexOf('sr-grade-number') < output.indexOf('sr-overview'));
+    assert.match(output, /6,9/); assert.match(output, /5,3/); assert.match(output, /\+1,6/);
+    assert.match(output, /En qué has mejorado/); assert.match(output, /En qué puedes mejorar/);
+    assert.doesNotMatch(output, />Previous</);
+    const doc = new jsPDF(), drawn = []; const original = doc.text.bind(doc);
+    doc.text = (value, ...args) => { drawn.push(String(value)); return original(value, ...args); };
+    renderStatusReportPdf(doc, model);
+    assert.ok(drawn.some(value => value.includes('6,9/10')));
+    assert.ok(drawn.some(value => value.includes('5,3/10')));
+    assert.ok(drawn.some(value => value.includes('+1,6')));
+    assert.ok(drawn.indexOf('En qué has mejorado') < drawn.indexOf(t('What to do next')));
+    assert.ok(drawn.some(value => value.includes('Más tiempo en foco sostenido')));
+  } finally { setLanguagePreference('en', { persist: false }); }
+});
+
 function syntheticReport() {
   return {
     generated_at: '2026-09-27 12:00',
@@ -68,14 +92,16 @@ test('the review and PDF model use the report period, including days with zero r
   assert.equal(model.activeDays, 2);
 });
 
-test('actions lead the evidence and untrusted report text is escaped', () => {
+test('visual evidence leads decisions and untrusted source text stays escaped in a closed disclosure', () => {
   const payload = syntheticReport();
   payload.report.recommendations[0] = 'Review <script>alert(1)</script> breaks.';
   const html = renderStatusReportHtml(createStatusReportViewModel(payload));
-  assert.ok(html.indexOf('What to do next') < html.indexOf('The week in view'));
+  assert.ok(html.indexOf('The week in view') < html.indexOf('What to do next'));
   assert.ok(html.includes('&lt;script&gt;'));
   assert.ok(!html.includes('<script>'));
-  assert.ok(html.includes('2026-09-22: 0.0 hours'));
+  assert.ok(html.includes('2026-09-22: 0 min'));
+  assert.match(html, /<details class="sr-report-details"><summary>/);
+  assert.doesNotMatch(html, /<details class="sr-report-details" open/);
 });
 
 test('an empty period does not invent positive signals or actions', () => {
@@ -128,12 +154,12 @@ test('a one-day report uses daily headings and shows short categories in minutes
   assert.ok(drawn.some((line) => line.includes('2.1 min')));
 });
 
-test('missing AI lessons recover from recorded evidence in the review and PDF', () => {
+test('missing AI lessons recover in the source disclosure while the main review follows chart data', () => {
   const payload = syntheticReport();
   payload.report.lessons_learned = [{ title: '', body: 'Incomplete AI item' }];
   const model = createStatusReportViewModel(payload);
 
-  assert.ok(model.lessons.some((lesson) => lesson.body.includes('6.0h (60% of tracked time)')));
+  assert.ok(model.lessons.some((lesson) => lesson.body.includes('6.0 h (60% of tracked time)')));
   assert.ok(model.lessons.some((lesson) => lesson.body.includes('2 of 7 days')));
   const html = renderStatusReportHtml(model);
   assert.ok(html.includes('The work mix had a clear centre'));
@@ -147,7 +173,8 @@ test('missing AI lessons recover from recorded evidence in the review and PDF', 
     return originalText(value, ...args);
   };
   renderStatusReportPdf(doc, model);
-  assert.ok(drawn.some((line) => line.includes('The work mix had a clear centre')));
+  assert.ok(drawn.some((line) => line.includes('Planning')));
+  assert.ok(drawn.some((line) => line.includes('6.0 h')));
   assert.ok(!drawn.some((line) => line.includes('No lessons were generated')));
 
   delete payload.report.lessons_learned;
@@ -209,7 +236,7 @@ test('named destinations and work-interleaved revisits appear in the review and 
   assert.ok(!model.distractions.caveat.includes('Privacy-excluded'));
 
   const html = renderStatusReportHtml(model);
-  assert.ok(html.indexOf('Attention detours') < html.indexOf('The week in view'));
+  assert.ok(html.indexOf('The week in view') < html.indexOf('App changes, with context'));
   assert.ok(html.includes('Apple &lt;Music&gt;'));
   assert.ok(!html.includes('Apple <Music>'));
   assert.ok(html.includes('2026-09-24: 2 foreground sightings'));
@@ -222,10 +249,11 @@ test('named destinations and work-interleaved revisits appear in the review and 
     return originalText(value, ...args);
   };
   renderStatusReportPdf(doc, model);
-  assert.ok(drawn.some((line) => line.includes('Attention detours')));
+  assert.ok(drawn.some((line) => line.includes('App changes, with context')));
   assert.ok(drawn.some((line) => line.includes('Apple <Music>')));
-  assert.ok(drawn.some((line) => line.includes('Next session:')));
-  assert.ok(doc.internal.getNumberOfPages() <= 2);
+  assert.ok(drawn.some((line) => line.includes('observations, not proof of distraction')));
+  assert.ok(!drawn.some((line) => line.includes('11:21') || line.includes('Next session:')));
+  assert.equal(doc.internal.getNumberOfPages(), 3);
 });
 
 test('older and empty destination evidence never fall back to a generic browser process', () => {
@@ -300,7 +328,7 @@ test('PDF marks app names its core font cannot render instead of silently corrup
   assert.ok(!drawn.some((line) => line.includes('视频播放器')));
 });
 
-test('PDF keeps each app section heading with its first app across page boundaries', () => {
+test('app context and its first app stay together despite excessive generated recommendations', () => {
   for (const actionCount of [1, 3, 5, 7, 9]) {
     const payload = syntheticReport();
     payload.report.recommendations = Array.from({ length: actionCount }, (_, index) =>
@@ -320,17 +348,17 @@ test('PDF keeps each app section heading with its first app across page boundari
     const originalText = doc.text.bind(doc);
     doc.text = (value, ...args) => {
       const line = String(value);
-      if (line === 'Attention detours' || line === 'Sample service') {
+      if (line === 'App changes, with context' || line === 'Sample service') {
         pages[line] = doc.internal.getCurrentPageInfo().pageNumber;
       }
       return originalText(value, ...args);
     };
     renderStatusReportPdf(doc, createStatusReportViewModel(payload));
-    assert.equal(pages['Attention detours'], pages['Sample service']);
+    assert.equal(pages['App changes, with context'], pages['Sample service']);
   }
 });
 
-test('PDF keeps the distraction methodology note together at a page boundary', () => {
+test('PDF states app uncertainty once and does not expand verbose generated caveats', () => {
   const model = createStatusReportViewModel(syntheticReport());
   model.distractions = {
     apps: Array.from({ length: 3 }, (_, index) => ({
@@ -343,25 +371,34 @@ test('PDF keeps the distraction methodology note together at a page boundary', (
     caveat: 'APP_CAVEAT '.repeat(55),
   };
   const doc = new jsPDF();
-  const caveatPages = new Set();
+  const caveatPages = new Set(), drawn = [];
   const originalText = doc.text.bind(doc);
   doc.text = (value, ...args) => {
-    if (String(value).includes('APP_CAVEAT')) {
+    drawn.push(String(value));
+    if (String(value).includes('observations, not proof of distraction')) {
       caveatPages.add(doc.internal.getCurrentPageInfo().pageNumber);
     }
     return originalText(value, ...args);
   };
   renderStatusReportPdf(doc, model);
   assert.equal(caveatPages.size, 1);
+  assert.ok(!drawn.some(value => value.includes('APP_CAVEAT')));
 });
 
-test('a concise review keeps its charts and findings within two PDF pages', () => {
+test('the reader review has three purposeful pages and both charts on the opening page', () => {
   const model = createStatusReportViewModel(syntheticReport());
-  const doc = renderStatusReportPdf(new jsPDF(), model);
-  assert.ok(doc.internal.getNumberOfPages() <= 2);
+  const doc = new jsPDF(), chartPages = [];
+  const original = doc.text.bind(doc);
+  doc.text = (value, ...args) => {
+    if (['Activity by day', 'Time by category'].includes(String(value))) chartPages.push(doc.internal.getCurrentPageInfo().pageNumber);
+    return original(value, ...args);
+  };
+  renderStatusReportPdf(doc, model);
+  assert.equal(doc.internal.getNumberOfPages(), 3);
+  assert.deepEqual(chartPages, [1, 1]);
 });
 
-test('PDF paginates long report copy without drawing text below the footer', () => {
+test('dense source copy stays available on screen without creating a long or technical PDF', () => {
   const payload = syntheticReport();
   const long = 'Review each observed block before changing the schedule. '.repeat(23);
   payload.report.recommendations = Array.from({ length: 5 }, (_, index) => `Action ${index + 1}: ${long} END_ACTION_${index + 1}`);
@@ -394,8 +431,65 @@ test('PDF paginates long report copy without drawing text below the footer', () 
     return originalText(value, x, y, ...rest);
   };
   renderStatusReportPdf(doc, model);
-  assert.ok(doc.internal.getNumberOfPages() >= 3);
-  assert.ok(doc.output('arraybuffer').byteLength > 20_000);
-  assert.ok(drawn.some((entry) => entry.value.includes('END_ACTION_5')));
-  assert.ok(drawn.some((entry) => entry.value.includes('END_AREA_6')));
+  assert.equal(doc.internal.getNumberOfPages(), 3);
+  assert.ok(doc.output('arraybuffer').byteLength > 10_000);
+  assert.ok(!drawn.some((entry) => entry.value.includes('END_ACTION_5') || entry.value.includes('END_AREA_6')));
+  const screen = renderStatusReportHtml(model);
+  assert.ok(screen.includes('END_ACTION_5') && screen.includes('END_AREA_6'));
+});
+
+test('the category visual accounts for the full distribution and uses one localized duration convention', () => {
+  const payload = syntheticReport();
+  payload.local_data.category_breakdown = Array.from({ length: 10 }, (_, index) => ({ category: `Area ${index}`, total_seconds: (10 - index) * 60 }));
+  payload.local_data.total_seconds = 3300;
+  setLanguagePreference('es', { persist: false });
+  try {
+    const model = createStatusReportViewModel(payload);
+    assert.equal(model.editorial.chartCategories.length, 6);
+    assert.equal(model.editorial.chartCategories.at(-1).label, 'Otras categorías');
+    assert.equal(model.editorial.chartCategories.reduce((sum, row) => sum + row.seconds, 0), 3300);
+    assert.equal(model.totalDuration, '55 min');
+    assert.equal(model.days[0].displayDuration, '4,0 h');
+    assert.equal(model.editorial.actions.length <= 3, true);
+    assert.ok(model.editorial.actions.some(action => action.evidence.includes('Area 0')));
+  } finally { setLanguagePreference('en', { persist: false }); }
+});
+
+test('empty reports give one honest page without a grade or decisions', () => {
+  const payload = syntheticReport();
+  Object.assign(payload.local_data, { total_seconds: 0, deep_focus_seconds: 0, active_days: 0, daily_totals: [], category_breakdown: [] });
+  const model = createStatusReportViewModel(payload);
+  const doc = renderStatusReportPdf(new jsPDF(), model);
+  assert.equal(doc.internal.getNumberOfPages(), 1);
+  assert.deepEqual(model.editorial.actions, []);
+  assert.equal(model.progress.score, null);
+});
+
+test('a 30-day review retains each date and keeps content above the page footer', () => {
+  const payload = syntheticReport();
+  Object.assign(payload.local_data, { period_start: '2026-09-01', period_end: '2026-09-30', period_days: 30,
+    daily_totals: Array.from({ length: 30 }, (_, index) => ({ date: `2026-09-${String(index + 1).padStart(2, '0')}`, total_seconds: (index + 1) * 60 })) });
+  const model = createStatusReportViewModel(payload), doc = new jsPDF(), drawn = [];
+  const original = doc.text.bind(doc);
+  doc.text = (value, x, y, ...rest) => { drawn.push({ value: String(value), y, page: doc.internal.getCurrentPageInfo().pageNumber }); return original(value, x, y, ...rest); };
+  renderStatusReportPdf(doc, model);
+  assert.equal(model.days.length, 30);
+  assert.equal(doc.internal.getNumberOfPages(), 3);
+  for (let day = 1; day <= 30; day++) assert.ok(drawn.some(row => row.page === 1 && row.value === String(day).padStart(2, '0')));
+  assert.ok(drawn.every(row => row.y <= 291));
+});
+
+test('ambiguous work tools remain in local details and never become an app-closing recommendation', () => {
+  const payload = syntheticReport();
+  payload.local_data.distraction_app_analysis = { detours: [{ label: 'Windows Explorer', kind: 'other', seconds: 4000, visits: 20, days: 4 }] };
+  const model = createStatusReportViewModel(payload), doc = new jsPDF(), drawn = [];
+  const original = doc.text.bind(doc);
+  doc.text = (value, ...args) => { drawn.push(String(value)); return original(value, ...args); };
+  renderStatusReportPdf(doc, model);
+  assert.equal(model.editorial.appContexts.length, 0);
+  assert.match(model.editorial.appMessage, /need context/);
+  assert.ok(!drawn.some(value => value.includes('Windows Explorer')));
+  const screen = renderStatusReportHtml(model);
+  assert.ok(screen.indexOf('Windows Explorer') > screen.indexOf('Read the full local analysis'));
+  assert.ok(model.actions.every(action => !action.includes('close') && !action.includes('Windows Explorer')));
 });

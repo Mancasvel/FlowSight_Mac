@@ -1,6 +1,6 @@
 use crate::sync_env::{supabase_anon_key, supabase_url};
 use crate::sync_pure::{
-    clamp_line_for_summary, jwt_exp, select_unsynced_pending_sql, truncate_tasks_for_summary,
+    clamp_line_for_summary, jwt_exp, select_owned_pending_sql, truncate_tasks_for_summary,
 };
 use crate::vision_model::LLAMA_CHAT_MODEL_ID;
 use reqwest::blocking::{Client, Response};
@@ -16,6 +16,7 @@ const CLOUDSYNC_BATCH_LIMIT_DEFAULT: u64 = 500;
 const JWT_REFRESH_MARGIN_SECS: i64 = 300;
 /// Background poll interval for proactive JWT renewal.
 const TOKEN_REFRESH_POLL_SECS: u64 = 120;
+pub(crate) static SESSION_REFRESH_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 /// Max Unicode characters of TASKS text sent to the local `/v1/chat/completions` endpoint.
 /// Default llama.cpp servers often use `n_ctx=2048`; prompt = instructions + tasks must stay under that.
 /// Override with env `FLOWSIGHT_SUMMARY_MAX_CHARS` (same unit: Unicode chars).
@@ -38,6 +39,62 @@ pub struct PublicUserSession {
     pub user_id: String,
     pub team_id: Option<String>,
     pub email: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct CloudCaptureOwner {
+    pub user_id: String,
+    pub team_id: String,
+    pub sharing_epoch: String,
+}
+
+pub(crate) fn ensure_capture_schema(conn: &Connection) -> Result<(), String> {
+    // Legacy report tables can lack the modern id alias. Retention/erasure
+    // explicitly prune bindings instead of requiring a new foreign key.
+    conn.execute_batch("CREATE TABLE IF NOT EXISTS cloud_observation_owner(report_id INTEGER PRIMARY KEY,user_id TEXT NOT NULL,team_id TEXT NOT NULL,sharing_epoch TEXT NOT NULL); CREATE INDEX IF NOT EXISTS cloud_owner_scope ON cloud_observation_owner(user_id,team_id,sharing_epoch,report_id);").map_err(|e| e.to_string())
+}
+
+fn cloud_owner_from_conn(conn: &Connection) -> Option<CloudCaptureOwner> {
+    let session = get_user_session_from_conn(conn)?;
+    let entitlements = crate::entitlements::load_entitlements(conn);
+    if !entitlements.can_sync || entitlements.usage_profile.is_none() {
+        return None;
+    }
+    let raw = conn
+        .query_row(
+            "SELECT value FROM config WHERE key='privacy_settings'",
+            [],
+            |row| row.get::<_, String>(0),
+        )
+        .ok()?;
+    let settings: crate::privacy::PrivacySettings = serde_json::from_str(&raw).ok()?;
+    if !settings.cloud_sync_enabled {
+        return None;
+    }
+    Some(CloudCaptureOwner {
+        user_id: session.user_id,
+        team_id: session.team_id?,
+        sharing_epoch: settings.cloud_sync_enabled_at?,
+    })
+}
+
+pub(crate) fn cloud_capture_owner(path: &std::path::Path) -> Option<CloudCaptureOwner> {
+    cloud_owner_from_conn(&Connection::open(path).ok()?)
+}
+
+pub(crate) fn bind_cloud_observation(
+    conn: &Connection,
+    report_id: i64,
+    captured: Option<&CloudCaptureOwner>,
+) {
+    if ensure_capture_schema(conn).is_err() {
+        return;
+    }
+    if let Some(owner) =
+        captured.filter(|owner| cloud_owner_from_conn(conn).as_ref() == Some(*owner))
+    {
+        let _=conn.execute("INSERT OR IGNORE INTO cloud_observation_owner(report_id,user_id,team_id,sharing_epoch) VALUES(?1,?2,?3,?4)",rusqlite::params![report_id,owner.user_id,owner.team_id,owner.sharing_epoch]);
+    }
 }
 
 pub fn start_sync_thread(db_path: std::path::PathBuf) {
@@ -174,14 +231,45 @@ fn get_user_session(conn: &Connection) -> Option<UserSession> {
 // Save user session to local config
 #[tauri::command]
 pub fn save_user_session(
+    app: tauri::AppHandle,
     user_id: String,
     team_id: Option<String>,
     access_token: String,
     refresh_token: Option<String>,
     email: String,
 ) -> Result<(), String> {
+    use tauri::Manager;
+    let conn = Connection::open(crate::paths::db_path()?).map_err(|e| e.to_string())?;
+    let previous = get_user_session_from_conn(&conn);
+    if previous.as_ref().map(|s| s.user_id.as_str()) != Some(user_id.as_str())
+        || previous.as_ref().and_then(|s| s.team_id.as_ref()) != team_id.as_ref()
+    {
+        crate::agent::stop_monitoring(app.state::<crate::agent::AgentState>())?;
+        crate::local_agent::end_personal_context()?;
+    }
+    save_user_session_local(user_id, team_id, access_token, refresh_token, email)
+}
+
+fn save_user_session_local(
+    user_id: String,
+    team_id: Option<String>,
+    access_token: String,
+    refresh_token: Option<String>,
+    email: String,
+) -> Result<(), String> {
+    let _guard = SESSION_REFRESH_LOCK
+        .lock()
+        .map_err(|_| "Session unavailable")?;
     let db_path = crate::paths::db_path()?;
     let conn = Connection::open(&db_path).map_err(|e| e.to_string())?;
+    if get_user_session_from_conn(&conn)
+        .as_ref()
+        .map(|s| s.user_id.as_str())
+        != Some(user_id.as_str())
+    {
+        crate::privacy::disable_cloud_for_context_change(&conn)?;
+        crate::privacy::forget_monitoring_acknowledgement(&conn)?;
+    }
 
     let session = UserSession {
         user_id,
@@ -190,6 +278,11 @@ pub fn save_user_session(
         refresh_token,
         email,
     };
+    if let Some(previous) = get_user_session_from_conn(&conn) {
+        if previous.user_id != session.user_id || previous.team_id != session.team_id {
+            crate::privacy::disable_cloud_for_context_change(&conn)?;
+        }
+    }
     let json = serde_json::to_string(&session).map_err(|e| e.to_string())?;
 
     crate::secure_config::save_secret(&conn, "user_session", &json)?;
@@ -198,14 +291,51 @@ pub fn save_user_session(
     Ok(())
 }
 
-fn refresh_supabase_token(session: &UserSession) -> Result<UserSession, String> {
+pub(crate) fn refresh_supabase_token(session: &UserSession) -> Result<UserSession, String> {
+    let _guard = SESSION_REFRESH_LOCK
+        .lock()
+        .map_err(|_| "Session unavailable")?;
+    let conn = Connection::open(crate::paths::db_path()?).map_err(|e| e.to_string())?;
+    recover_session(&conn, session, request_refreshed_session)
+}
+
+/// An in-flight request cannot restore an account after logout or donate a token
+/// to another account. Concurrent callers reuse an already rotated session.
+fn recover_session(
+    conn: &Connection,
+    rejected: &UserSession,
+    refresh: impl FnOnce(&UserSession) -> Result<UserSession, String>,
+) -> Result<UserSession, String> {
+    let current = get_user_session_from_conn(conn).ok_or("Sign in again to use online leagues")?;
+    if current.user_id != rejected.user_id {
+        return Err("The FlowSight account changed. Retry with the current account".into());
+    }
+    if current.access_token != rejected.access_token {
+        return Ok(current);
+    }
+    let refreshed = refresh(&current)?;
+    if refreshed.user_id != current.user_id {
+        return Err("Session identity could not be verified".into());
+    }
+    crate::secure_config::save_secret(
+        conn,
+        "user_session",
+        &serde_json::to_string(&refreshed).map_err(|e| e.to_string())?,
+    )?;
+    Ok(refreshed)
+}
+
+fn request_refreshed_session(session: &UserSession) -> Result<UserSession, String> {
     let refresh_token = session
         .refresh_token
         .as_ref()
         .ok_or("No refresh token available in session")?;
 
     println!("[Sync] Attempting token refresh");
-    let client = Client::new();
+    let client = Client::builder()
+        .timeout(Duration::from_secs(20))
+        .build()
+        .map_err(|_| "Could not reconnect to FlowSight. Check your connection and retry")?;
     let url = format!("{}/auth/v1/token?grant_type=refresh_token", supabase_url());
 
     let resp = client
@@ -213,15 +343,22 @@ fn refresh_supabase_token(session: &UserSession) -> Result<UserSession, String> 
         .header("apikey", supabase_anon_key())
         .json(&serde_json::json!({ "refresh_token": refresh_token }))
         .send()
-        .map_err(|e| e.to_string())?;
+        .map_err(|_| "Could not reconnect to FlowSight. Check your connection and retry")?;
 
     let status = resp.status();
     if !status.is_success() {
         println!("[Sync] Refresh failed with HTTP {}", status);
-        return Err(format!("Refresh failed (HTTP {})", status));
+        return Err(if status.as_u16() == 400 || status.as_u16() == 401 {
+            "Sign in again to use online leagues".to_string()
+        } else {
+            "FlowSight could not renew the session. Retry shortly".to_string()
+        });
     }
 
     let json: serde_json::Value = resp.json().map_err(|e| e.to_string())?;
+    if json["user"]["id"].as_str() != Some(session.user_id.as_str()) {
+        return Err("Session identity could not be verified".into());
+    }
     let new_access = json["access_token"]
         .as_str()
         .ok_or("Missing access_token in refresh response")?;
@@ -233,26 +370,28 @@ fn refresh_supabase_token(session: &UserSession) -> Result<UserSession, String> 
         new_session.refresh_token = Some(r.to_string());
     }
 
-    // Save updated session
-    save_user_session(
-        new_session.user_id.clone(),
-        new_session.team_id.clone(),
-        new_session.access_token.clone(),
-        new_session.refresh_token.clone(),
-        new_session.email.clone(),
-    )?;
-
     Ok(new_session)
 }
 
 // Clear user session (logout)
 #[tauri::command]
-pub fn clear_user_session() -> Result<(), String> {
+pub fn clear_user_session(state: tauri::State<'_, crate::agent::AgentState>) -> Result<(), String> {
+    let team = !crate::entitlements::personal_features_allowed(&crate::paths::db_path()?);
+    crate::agent::stop_monitoring(state)?;
+    crate::local_agent::end_personal_context()?;
     crate::calendar_companion::on_cloud_logout();
+    let _guard = SESSION_REFRESH_LOCK
+        .lock()
+        .map_err(|_| "Session unavailable")?;
     let db_path = crate::paths::db_path()?;
     let conn = Connection::open(&db_path).map_err(|e| e.to_string())?;
+    crate::privacy::disable_cloud_for_context_change(&conn)?;
+    if team {
+        crate::privacy::forget_monitoring_acknowledgement(&conn)?;
+    }
 
     crate::secure_config::delete_secret(&conn, "user_session")?;
+    crate::secure_config::delete_secret(&conn, "auth_session")?;
     crate::entitlements::clear_entitlements(&conn)?;
 
     println!("[Sync] User session cleared");
@@ -281,7 +420,7 @@ fn perform_sync(db_path: &std::path::PathBuf) -> Result<String, String> {
     let conn = Connection::open(db_path).map_err(|e| e.to_string())?;
 
     // Check if user is logged in
-    let session = match get_user_session(&conn) {
+    let mut session = match get_user_session(&conn) {
         Some(s) => s,
         None => {
             println!("[CloudSync] No user session found. Sync disabled.");
@@ -294,16 +433,22 @@ fn perform_sync(db_path: &std::path::PathBuf) -> Result<String, String> {
         return Ok(reason);
     }
 
-    if let Ok(entitlements) = crate::entitlements::refresh_entitlements_from_supabase(
+    let entitlements = crate::entitlements::refresh_entitlements_from_supabase(
         &session.access_token,
         &session.user_id,
-    ) {
-        let _ = crate::entitlements::save_entitlements(&conn, &entitlements);
+    )?;
+    {
+        crate::entitlements::save_entitlements(&conn, &entitlements)?;
         if !entitlements.can_sync {
             println!("[CloudSync] License inactive — sync disabled.");
             return Ok("License inactive — sync disabled".to_string());
         }
     }
+    session = get_user_session(&conn).ok_or("Account signed out while preparing sync")?;
+    ensure_capture_schema(&conn)?;
+    let Some(owner) = cloud_owner_from_conn(&conn) else {
+        return Ok("Sharing is off for the current profile".into());
+    };
 
     let batch_limit = std::env::var("FLOWSIGHT_SYNC_BATCH_LIMIT")
         .ok()
@@ -313,7 +458,7 @@ fn perform_sync(db_path: &std::path::PathBuf) -> Result<String, String> {
         .min(5000) as usize;
 
     let total_unsynced: i64 = conn
-        .query_row("SELECT COUNT(*) FROM reports WHERE synced = 0", [], |r| {
+        .query_row("SELECT COUNT(*) FROM reports r JOIN cloud_observation_owner o ON o.report_id=r.id WHERE r.synced=0 AND o.user_id=?1 AND o.team_id=?2 AND o.sharing_epoch=?3", rusqlite::params![owner.user_id,owner.team_id,owner.sharing_epoch], |r| {
             r.get::<_, i64>(0)
         })
         .unwrap_or(0);
@@ -322,19 +467,29 @@ fn perform_sync(db_path: &std::path::PathBuf) -> Result<String, String> {
         total_unsynced, batch_limit
     );
 
-    let sql = select_unsynced_pending_sql(batch_limit);
+    let session_date: String=conn.query_row("SELECT date(r.created_at) FROM reports r JOIN cloud_observation_owner o ON o.report_id=r.id WHERE r.synced=0 AND o.user_id=?1 AND o.team_id=?2 AND o.sharing_epoch=?3 ORDER BY r.id LIMIT 1",rusqlite::params![owner.user_id,owner.team_id,owner.sharing_epoch],|row| row.get(0)).unwrap_or_default();
+    let captured_at: String=conn.query_row("SELECT r.created_at FROM reports r JOIN cloud_observation_owner o ON o.report_id=r.id WHERE r.synced=0 AND o.user_id=?1 AND o.team_id=?2 AND o.sharing_epoch=?3 ORDER BY r.id LIMIT 1",rusqlite::params![owner.user_id,owner.team_id,owner.sharing_epoch],|row| row.get(0)).unwrap_or_default();
+    let sql = select_owned_pending_sql(batch_limit);
     let mut stmt = conn.prepare(&sql).map_err(|e| e.to_string())?;
 
     let rows = stmt
-        .query_map([], |row| {
-            Ok((
-                row.get::<_, i64>(0)?,
-                row.get::<_, String>(1)?,
-                row.get::<_, String>(2)?,
-                row.get::<_, i32>(3)?,
-                row.get::<_, Option<String>>(4)?,
-            ))
-        })
+        .query_map(
+            rusqlite::params![
+                owner.user_id,
+                owner.team_id,
+                owner.sharing_epoch,
+                session_date
+            ],
+            |row| {
+                Ok((
+                    row.get::<_, i64>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, i32>(3)?,
+                    row.get::<_, Option<String>>(4)?,
+                ))
+            },
+        )
         .map_err(|e| e.to_string())?;
 
     let mut ids = Vec::new();
@@ -378,24 +533,61 @@ fn perform_sync(db_path: &std::path::PathBuf) -> Result<String, String> {
 
     // 2. Generate summary with local vision model
     println!("[CloudSync] Summarizing {} reports...", ids.len());
-    let summary = summarize_with_vision_model(&full_text).unwrap_or_else(|e| {
-        println!("[CloudSync] Summary generation failed: {}", e);
-        "Summary generation failed".to_string()
-    });
+    let personal = crate::entitlements::personal_features_allowed(db_path);
+    if !personal {
+        categories = team_category_totals(&categories);
+        let allowed = entitlements
+            .usage_profile
+            .as_ref()
+            .and_then(|p| p["allowed_project_keys"].as_array());
+        tickets.retain(|ticket, _| {
+            allowed.is_some_and(|keys| {
+                keys.iter()
+                    .any(|key| key.as_str() == ticket.split_once('-').map(|(project, _)| project))
+            })
+        });
+    }
+    let summary = if personal {
+        summarize_with_vision_model(&full_text).unwrap_or_else(|e| {
+            println!("[CloudSync] Summary generation failed: {}", e);
+            "Summary generation failed".to_string()
+        })
+    } else {
+        "Shared work totals. Detailed activity stays on the device.".into()
+    };
     println!("[CloudSync] Summary generated ({} chars)", summary.len());
 
+    // Recheck consent and the capture context after any local inference work.
+    if cloud_owner_from_conn(&conn).as_ref() != Some(&owner) {
+        return Ok("Sharing context changed; upload cancelled".into());
+    }
     // 3. Upload to Supabase with user authentication (retry on JWT expired)
-    let upload_result = upload_session(&session, total_duration, &summary, &categories, &tickets);
+    let upload_result = upload_session(
+        db_path,
+        &owner,
+        &session,
+        &session_date,
+        total_duration,
+        &summary,
+        &categories,
+        &tickets,
+    );
     let upload_result = match &upload_result {
         Err(e) if e.contains("401") || e.contains("PGRST3") => {
             println!("[CloudSync] Authentication failed; attempting JWT refresh");
             let conn_refresh = Connection::open(db_path).map_err(|e| e.to_string())?;
-            let session_for_refresh =
-                get_user_session(&conn_refresh).unwrap_or_else(|| session.clone());
-            match refresh_supabase_token(&session_for_refresh) {
-                Ok(refreshed) => {
-                    upload_session(&refreshed, total_duration, &summary, &categories, &tickets)
-                }
+            require_cloud_owner(&conn_refresh, &owner, &session)?;
+            match refresh_supabase_token(&session) {
+                Ok(refreshed) => upload_session(
+                    db_path,
+                    &owner,
+                    &refreshed,
+                    &session_date,
+                    total_duration,
+                    &summary,
+                    &categories,
+                    &tickets,
+                ),
                 Err(ref_err) => {
                     println!("[CloudSync] Token refresh failed: {}", ref_err);
                     upload_result
@@ -429,10 +621,10 @@ fn perform_sync(db_path: &std::path::PathBuf) -> Result<String, String> {
                 "category": primary_category,
                 "jira_ticket_id": primary_jira,
                 "duration_seconds": total_duration,
-                "captured_at": chrono::Utc::now().to_rfc3339()
+                "captured_at": chrono::NaiveDateTime::parse_from_str(&captured_at,"%Y-%m-%d %H:%M:%S").map(|date| date.and_utc().to_rfc3339()).unwrap_or_else(|_| chrono::Utc::now().to_rfc3339())
             });
 
-            match post_activity_report_with_refresh(db_path, &session, &activity_body) {
+            match post_activity_report_with_refresh(db_path, &owner, &session, &activity_body) {
                 Ok(()) => println!("[CloudSync] activity_reports: AI window summary saved"),
                 Err(_) => println!(
                     "[CloudSync] activity_reports insert failed after work_sessions was saved"
@@ -547,13 +739,36 @@ fn summarize_with_vision_model(text: &str) -> Result<String, String> {
     Ok(content.to_string())
 }
 
-fn upload_session(
+fn require_cloud_owner(
+    conn: &Connection,
+    owner: &CloudCaptureOwner,
     session: &UserSession,
+) -> Result<(), String> {
+    if session.user_id != owner.user_id
+        || session.team_id.as_deref() != Some(owner.team_id.as_str())
+        || cloud_owner_from_conn(conn).as_ref() != Some(owner)
+    {
+        return Err("Sharing context changed; upload cancelled".into());
+    }
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)] // Explicit capture/recipient boundary, rechecked before every retry.
+fn upload_session(
+    path: &std::path::Path,
+    owner: &CloudCaptureOwner,
+    session: &UserSession,
+    session_date: &str,
     duration: i32,
     summary: &str,
     categories: &std::collections::HashMap<String, i32>,
     tickets: &std::collections::HashMap<String, i32>,
 ) -> Result<(), String> {
+    require_cloud_owner(
+        &Connection::open(path).map_err(|e| e.to_string())?,
+        owner,
+        session,
+    )?;
     let client = Client::new();
     let url = format!("{}/rest/v1/work_sessions", supabase_url());
 
@@ -564,7 +779,7 @@ fn upload_session(
         "summary": summary,
         "category_breakdown": categories,
         "jira_breakdown": tickets,
-        "session_date": chrono::Local::now().format("%Y-%m-%d").to_string(),
+        "session_date": session_date,
         "created_at": chrono::Utc::now().to_rfc3339()
     });
 
@@ -611,16 +826,18 @@ fn post_activity_report_row(
 /// Retries once with a refreshed JWT if the first POST returns 401/403.
 fn post_activity_report_with_refresh(
     db_path: &std::path::PathBuf,
+    owner: &CloudCaptureOwner,
     session: &UserSession,
     body: &serde_json::Value,
 ) -> Result<(), String> {
+    let conn = Connection::open(db_path).map_err(|e| e.to_string())?;
+    require_cloud_owner(&conn, owner, session)?;
     let mut resp = post_activity_report_row(session, body)?;
     if resp.status().as_u16() == 401 || resp.status().as_u16() == 403 {
-        let conn = Connection::open(db_path).map_err(|e| e.to_string())?;
-        if let Some(s) = get_user_session(&conn) {
-            if let Ok(new_s) = refresh_supabase_token(&s) {
-                resp = post_activity_report_row(&new_s, body)?;
-            }
+        require_cloud_owner(&conn, owner, session)?;
+        if let Ok(new_s) = refresh_supabase_token(session) {
+            require_cloud_owner(&conn, owner, &new_s)?;
+            resp = post_activity_report_row(&new_s, body)?;
         }
     }
     let status = resp.status();
@@ -690,25 +907,7 @@ fn get_user_teams_blocking() -> Result<serde_json::Value, String> {
     // usuario ya tiene membresía(s) pero nunca tocó el dropdown (el navegador
     // muestra la primera opción sin disparar `change`, por eso `set_active_team`
     // no se invocaba).
-    let active_team_id = match session.team_id.clone() {
-        Some(id) => Some(id),
-        None => {
-            let first = teams
-                .first()
-                .and_then(|t| t["team_id"].as_str().map(|s| s.to_string()));
-            if let Some(id) = first.clone() {
-                println!("[Team] No active team in session; auto-selecting first membership");
-                save_user_session(
-                    session.user_id.clone(),
-                    Some(id.clone()),
-                    current_token.clone(),
-                    session.refresh_token.clone(),
-                    session.email.clone(),
-                )?;
-            }
-            first
-        }
-    };
+    let active_team_id = session.team_id.clone();
 
     println!("[Team] Found {} team memberships", teams.len());
 
@@ -720,245 +919,240 @@ fn get_user_teams_blocking() -> Result<serde_json::Value, String> {
 
 // Set the active team for the current user (persists to SQLite)
 #[tauri::command]
-pub fn set_active_team(team_id: String) -> Result<(), String> {
-    let db_path = crate::paths::db_path()?;
-    let conn = Connection::open(&db_path).map_err(|e| e.to_string())?;
-
-    let session = get_user_session(&conn).ok_or("Not logged in")?;
-
-    println!("[Team] Updating the active team");
-
-    save_user_session(
-        session.user_id,
-        Some(team_id),
-        session.access_token,
-        session.refresh_token,
-        session.email,
-    )
+pub async fn set_active_team(team_id: String, app: tauri::AppHandle) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        crate::entitlements::set_usage_profile_blocking("team".into(), Some(team_id), &app)
+            .map(|_| ())
+    })
+    .await
+    .map_err(|_| "Team change interrupted".to_string())?
 }
 
 // Join a team using an invitation token.
 // Async so Tauri dispatches it off the main/UI thread (see crash_guard.rs module docs).
 #[tauri::command]
-pub async fn join_team(token: String) -> Result<serde_json::Value, String> {
-    tauri::async_runtime::spawn_blocking(move || join_team_blocking(token))
+pub async fn join_team(token: String, app: tauri::AppHandle) -> Result<serde_json::Value, String> {
+    tauri::async_runtime::spawn_blocking(move || join_team_blocking(token, &app))
         .await
         .map_err(|e| format!("Task join error: {}", e))?
 }
 
-fn join_team_blocking(token: String) -> Result<serde_json::Value, String> {
-    let db_path = crate::paths::db_path()?;
-    crate::entitlements::require_feature(&db_path, "sync")?;
-    refresh_session_if_expiring(&db_path);
-
-    let conn = Connection::open(&db_path).map_err(|e| e.to_string())?;
-
-    let mut session = get_user_session(&conn).ok_or("Not logged in. Please sign in first.")?;
-
-    let client = Client::new();
-    let mut current_token = session.access_token.clone();
-
-    // 1. Fetch current user info (Retry on 401)
-    println!("[Team] Fetching user info for profile sync...");
-    let mut user_resp = client
-        .get(format!("{}/auth/v1/user", supabase_url()))
-        .header("apikey", supabase_anon_key())
-        .header("Authorization", format!("Bearer {}", current_token))
-        .send()
-        .map_err(|e| e.to_string())?;
-
-    if user_resp.status().as_u16() == 401 || user_resp.status().as_u16() == 403 {
-        println!(
-            "[Team] JWT might be expired (HTTP {}), attempting refresh...",
-            user_resp.status()
-        );
-        if let Ok(new_s) = refresh_supabase_token(&session) {
-            session = new_s;
-            current_token = session.access_token.clone();
-            user_resp = client
-                .get(format!("{}/auth/v1/user", supabase_url()))
-                .header("apikey", supabase_anon_key())
-                .header("Authorization", format!("Bearer {}", current_token))
-                .send()
-                .map_err(|e| e.to_string())?;
-        }
+fn join_team_blocking(token: String, app: &tauri::AppHandle) -> Result<serde_json::Value, String> {
+    use tauri::Manager;
+    let path = crate::paths::db_path()?;
+    refresh_session_if_expiring(&path);
+    let conn = Connection::open(&path).map_err(|e| e.to_string())?;
+    let session = get_user_session(&conn).ok_or("Sign in before joining a team")?;
+    let send = |active: &UserSession| -> Result<(reqwest::StatusCode, serde_json::Value), String> {
+        let response = Client::builder()
+            .timeout(Duration::from_secs(20))
+            .build()
+            .map_err(|e| e.to_string())?
+            .post(format!(
+                "{}/rest/v1/rpc/join_flowsight_team",
+                supabase_url()
+            ))
+            .header("apikey", supabase_anon_key())
+            .bearer_auth(&active.access_token)
+            .json(&serde_json::json!({"p_token":token}))
+            .send()
+            .map_err(|_| "Could not connect to FlowSight. Check your connection and retry")?;
+        let status = response.status();
+        Ok((
+            status,
+            response
+                .json()
+                .map_err(|_| "Team invitation response unavailable")?,
+        ))
+    };
+    let (mut status, mut result) = send(&session)?;
+    if status.as_u16() == 401 {
+        (status, result) = send(&refresh_supabase_token(&session)?)?;
     }
-
-    if !user_resp.status().is_success() {
-        return Err("Your session has expired. Please sign out and sign in again.".to_string());
+    if !status.is_success() {
+        return Err(result["message"]
+            .as_str()
+            .unwrap_or("Team invitation could not be accepted")
+            .to_string());
     }
-
-    let user_json: serde_json::Value = user_resp.json().map_err(|e| e.to_string())?;
-    let meta = &user_json["user_metadata"];
-    let display_name = meta["full_name"]
-        .as_str()
-        .or(meta["name"].as_str())
-        .unwrap_or("User");
-    let avatar_url = meta["avatar_url"].as_str();
-
-    let user_id_from_jwt_owned = user_json["id"]
-        .as_str()
-        .unwrap_or(&session.user_id)
-        .to_string();
-    let user_id_from_jwt = &user_id_from_jwt_owned;
-    println!("[Team] Syncing the signed-in profile");
-
-    // 2. Ensure profile exists (Upsert)
-    let profile_url = format!("{}/rest/v1/profiles", supabase_url());
-    let prof_resp = client
-        .post(&profile_url)
-        .header("apikey", supabase_anon_key())
-        .header("Authorization", format!("Bearer {}", current_token))
-        .header("Content-Type", "application/json")
-        .header("Prefer", "resolution=merge-duplicates,return=minimal")
-        .json(&serde_json::json!({
-            "id": user_id_from_jwt,
-            "display_name": display_name,
-            "avatar_url": avatar_url
-        }))
-        .send();
-
-    match prof_resp {
-        Ok(r) if !r.status().is_success() => {
-            println!("[Team] Profile upsert failed (HTTP {})", r.status());
-        }
-        Err(e) => println!("[Team] Profile upsert request error: {}", e),
-        _ => println!("[Team] Profile synced successfully"),
+    if get_user_session(&conn).as_ref().map(|s| s.user_id.as_str())
+        != Some(session.user_id.as_str())
+    {
+        return Err("Account changed while joining the team".into());
     }
+    crate::agent::stop_monitoring(app.state::<crate::agent::AgentState>())?;
+    crate::local_agent::end_personal_context()?;
+    crate::entitlements::refresh_entitlements()?;
+    Ok(result)
+}
 
-    // 3. Verify invitation (Retry on 401)
-    println!("[Team] Validating invitation token");
-    let inv_url = format!(
-        "{}/rest/v1/invitations?token=eq.{}&select=team_id,expires_at,used_at,created_by,email",
-        supabase_url(),
-        token
-    );
-
-    let mut inv_resp = client
-        .get(&inv_url)
-        .header("apikey", supabase_anon_key())
-        .header("Authorization", format!("Bearer {}", current_token))
-        .send()
-        .map_err(|e| e.to_string())?;
-
-    if inv_resp.status().as_u16() == 401 || inv_resp.status().as_u16() == 403 {
-        println!(
-            "[Team] Invitation request unauthorized, attempting refresh with latest session..."
-        );
-        if let Ok(new_s) = refresh_supabase_token(&session) {
-            session = new_s;
-            current_token = session.access_token.clone();
-            inv_resp = client
-                .get(&inv_url)
-                .header("apikey", supabase_anon_key())
-                .header("Authorization", format!("Bearer {}", current_token))
-                .send()
-                .map_err(|e| e.to_string())?;
-        }
+fn team_category_totals(
+    categories: &std::collections::HashMap<String, i32>,
+) -> std::collections::HashMap<String, i32> {
+    let mut totals = std::collections::HashMap::new();
+    for (category, seconds) in categories {
+        let bucket = match category.to_ascii_lowercase().as_str() {
+            "meeting" | "meetings" | "clientcalls" => "meetings",
+            "coding" | "debugging" | "testing" | "devops" | "database" | "design"
+            | "prototyping" | "uxdesign" | "writing" | "editing" | "contentcreation"
+            | "copywriting" | "campaignmanagement" | "seo" | "documentation" | "deep_work"
+            | "deep work" | "focus work" | "work" => "work",
+            _ => "other",
+        };
+        let count: &mut i32 = totals.entry(bucket.to_string()).or_insert(0);
+        *count = count.saturating_add((*seconds).max(0));
     }
-
-    let inv_status = inv_resp.status();
-    if !inv_status.is_success() {
-        if inv_status.as_u16() == 401 || inv_status.as_u16() == 403 {
-            return Err(
-                "Your session has expired. Please sign out, sign in again, then join the team."
-                    .to_string(),
-            );
-        }
-        return Err(format!(
-            "Error validating invitation (HTTP {}).",
-            inv_status
-        ));
-    }
-
-    let invitations: Vec<serde_json::Value> = inv_resp.json().map_err(|e| e.to_string())?;
-    let invitation = invitations.first().ok_or("Invalid invitation token")?;
-
-    println!("[Team] Checking invitation recipient");
-
-    if !invitation["used_at"].is_null() {
-        return Err("This invitation has already been used".to_string());
-    }
-
-    let team_id = invitation["team_id"]
-        .as_str()
-        .ok_or("Malformed invitation (missing team_id)")?;
-    let _inviter_id = invitation["created_by"].as_str();
-
-    // 4. Add to team_members (Retry on 401)
-    println!("[Team] Adding the signed-in account to the invited team");
-    let member_url = format!("{}/rest/v1/team_members", supabase_url());
-    let member_body = serde_json::json!({
-        "team_id": team_id,
-        "user_id": user_id_from_jwt,
-        "role": "member",
-        "joined_at": chrono::Utc::now().to_rfc3339()
-    });
-
-    let mut member_resp = client
-        .post(&member_url)
-        .header("apikey", supabase_anon_key())
-        .header("Authorization", format!("Bearer {}", current_token))
-        .header("Content-Type", "application/json")
-        .header("Prefer", "return=minimal")
-        .json(&member_body)
-        .send()
-        .map_err(|e| e.to_string())?;
-
-    if member_resp.status().as_u16() == 401 || member_resp.status().as_u16() == 403 {
-        if let Ok(new_s) = refresh_supabase_token(&session) {
-            session = new_s;
-            current_token = session.access_token.clone();
-            member_resp = client
-                .post(&member_url)
-                .header("apikey", supabase_anon_key())
-                .header("Authorization", format!("Bearer {}", current_token))
-                .header("Content-Type", "application/json")
-                .header("Prefer", "return=minimal")
-                .json(&member_body)
-                .send()
-                .map_err(|e| e.to_string())?;
-        }
-    }
-
-    let member_status = member_resp.status();
-    if !member_status.is_success() {
-        if member_status.as_u16() == 409 {
-            // Already a member
-        } else {
-            return Err(format!("Failed to join team (HTTP {}).", member_status));
-        }
-    }
-
-    // 5. Mark invitation as used
-    let mark_url = format!("{}/rest/v1/invitations?token=eq.{}", supabase_url(), token);
-    let _ = client
-        .patch(&mark_url)
-        .header("apikey", supabase_anon_key())
-        .header("Authorization", format!("Bearer {}", current_token))
-        .header("Content-Type", "application/json")
-        .json(&serde_json::json!({ "used_at": chrono::Utc::now().to_rfc3339() }))
-        .send();
-
-    // 6. Get final state for local session
-    let updated_session = get_user_session(&conn).unwrap_or(session);
-    save_user_session(
-        updated_session.user_id.clone(),
-        Some(team_id.to_string()),
-        updated_session.access_token.clone(),
-        updated_session.refresh_token.clone(),
-        updated_session.email.clone(),
-    )?;
-
-    Ok(serde_json::json!({ "success": true, "team_id": team_id }))
+    totals
 }
 
 #[cfg(test)]
 mod user_session_tests {
     use super::UserSession;
 
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     use super::get_user_session_from_conn;
+
+    #[cfg(any(windows, target_os = "macos"))]
+    fn session_fixture() -> (rusqlite::Connection, UserSession) {
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        conn.execute_batch("CREATE TABLE config(key TEXT PRIMARY KEY,value TEXT); CREATE TABLE reports(id INTEGER PRIMARY KEY,description TEXT,activity_type TEXT,duration_seconds INTEGER,jira_ticket_id TEXT,created_at TEXT,synced INTEGER);").unwrap();
+        let user = UserSession {
+            user_id: "owner-a".into(),
+            team_id: Some("team-a".into()),
+            access_token: "old-access".into(),
+            refresh_token: Some("old-refresh".into()),
+            email: "fixture@example.test".into(),
+        };
+        crate::secure_config::save_secret(
+            &conn,
+            "user_session",
+            &serde_json::to_string(&user).unwrap(),
+        )
+        .unwrap();
+        (conn, user)
+    }
+
+    #[cfg(any(windows, target_os = "macos"))]
+    #[test]
+    fn session_recovery_reuses_rotation_and_never_restores_logged_out_or_other_account() {
+        let (conn, user) = session_fixture();
+        let mut rotated = user.clone();
+        rotated.access_token = "rotated-access".into();
+        rotated.refresh_token = Some("rotated-refresh".into());
+        crate::secure_config::save_secret(
+            &conn,
+            "user_session",
+            &serde_json::to_string(&rotated).unwrap(),
+        )
+        .unwrap();
+        let reused =
+            super::recover_session(&conn, &user, |_| panic!("Must reuse the rotated token"))
+                .unwrap();
+        assert_eq!(reused.refresh_token, rotated.refresh_token);
+        let mut other = rotated.clone();
+        other.user_id = "owner-b".into();
+        crate::secure_config::save_secret(
+            &conn,
+            "user_session",
+            &serde_json::to_string(&other).unwrap(),
+        )
+        .unwrap();
+        assert!(super::recover_session(&conn, &user, |_| panic!(
+            "Must not refresh another identity"
+        ))
+        .is_err());
+        crate::secure_config::delete_secret(&conn, "user_session").unwrap();
+        assert!(
+            super::recover_session(&conn, &user, |_| panic!("Must not restore logout")).is_err()
+        );
+    }
+
+    #[cfg(any(windows, target_os = "macos"))]
+    #[test]
+    fn session_recovery_persists_the_rotated_pair() {
+        let (conn, user) = session_fixture();
+        let recovered = super::recover_session(&conn, &user, |s| {
+            let mut next = s.clone();
+            next.access_token = "new-access".into();
+            next.refresh_token = Some("new-refresh".into());
+            Ok(next)
+        })
+        .unwrap();
+        let saved = get_user_session_from_conn(&conn).unwrap();
+        assert_eq!(saved.access_token, recovered.access_token);
+        assert_eq!(saved.refresh_token, recovered.refresh_token);
+    }
+
+    #[cfg(any(windows, target_os = "macos"))]
+    #[test]
+    fn cloud_queue_is_scoped_and_retries_reject_changed_recipient_or_grant() {
+        let (conn, user) = session_fixture();
+        let entitlements = crate::entitlements::Entitlements {
+            owner_user_id: Some(user.user_id.clone()),
+            plan: Some("team".into()),
+            status: "active".into(),
+            active_team_id: user.team_id.clone(),
+            can_sync: true,
+            usage_profile: Some(serde_json::json!({"id":"team_employee"})),
+            ..Default::default()
+        };
+        crate::entitlements::save_entitlements(&conn, &entitlements).unwrap();
+        conn.execute("INSERT INTO config VALUES('privacy_settings',?1)",[serde_json::json!({"noticeVersion":"2026-08-23","cloudSyncEnabled":true,"cloudSyncEnabledAt":"grant-a"}).to_string()]).unwrap();
+        super::ensure_capture_schema(&conn).unwrap();
+        conn.execute_batch("INSERT INTO reports VALUES(1,'old private','Coding',60,NULL,'2026-10-01 12:00:00',0),(2,'shared','Coding',60,NULL,'2026-10-02 12:00:00',0),(3,'other day','Coding',60,NULL,'2026-10-03 12:00:00',0),(4,'other user','Coding',60,NULL,'2026-10-02 12:00:00',0),(5,'old grant','Coding',60,NULL,'2026-10-02 12:00:00',0); INSERT INTO cloud_observation_owner VALUES(2,'owner-a','team-a','grant-a'),(3,'owner-a','team-a','grant-a'),(4,'owner-b','team-a','grant-a'),(5,'owner-a','team-a','grant-old');").unwrap();
+        let owner = super::cloud_owner_from_conn(&conn).unwrap();
+        let day: String = conn
+            .query_row("SELECT date(created_at) FROM reports WHERE id=2", [], |r| {
+                r.get(0)
+            })
+            .unwrap();
+        let batch: Vec<i64> = conn
+            .prepare(&crate::sync_pure::select_owned_pending_sql(500))
+            .unwrap()
+            .query_map(
+                rusqlite::params![owner.user_id, owner.team_id, owner.sharing_epoch, day],
+                |r| r.get(0),
+            )
+            .unwrap()
+            .collect::<Result<_, _>>()
+            .unwrap();
+        assert_eq!(batch, [2]);
+        assert!(super::require_cloud_owner(&conn, &owner, &user).is_ok());
+        let mut changed = user.clone();
+        changed.team_id = Some("team-b".into());
+        assert!(super::require_cloud_owner(&conn, &owner, &changed).is_err());
+        conn.execute("UPDATE config SET value=?1 WHERE key='privacy_settings'",[serde_json::json!({"noticeVersion":"2026-08-23","cloudSyncEnabled":true,"cloudSyncEnabledAt":"grant-b"}).to_string()]).unwrap();
+        assert!(super::require_cloud_owner(&conn, &owner, &user).is_err());
+        super::bind_cloud_observation(&conn, 1, Some(&owner));
+        assert_eq!(
+            conn.query_row(
+                "SELECT count(*) FROM cloud_observation_owner WHERE report_id=1",
+                [],
+                |r| r.get::<_, i64>(0)
+            )
+            .unwrap(),
+            0
+        );
+    }
+
+    #[test]
+    fn team_categories_are_neutral_and_preserve_recorded_duration() {
+        let source = std::collections::HashMap::from([
+            ("Coding".into(), 300),
+            ("Meetings".into(), 180),
+            ("Browsing".into(), 60),
+            ("Private window name".into(), 60),
+        ]);
+        let totals = super::team_category_totals(&source);
+        assert_eq!(
+            totals,
+            std::collections::HashMap::from([
+                ("work".into(), 300),
+                ("meetings".into(), 180),
+                ("other".into(), 120)
+            ])
+        );
+    }
 
     #[test]
     fn user_session_json_roundtrip() {
@@ -975,7 +1169,7 @@ mod user_session_tests {
         assert_eq!(back.team_id, s.team_id);
     }
 
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     #[test]
     fn never_merge_supabase_tokens_from_a_different_user() {
         let conn = rusqlite::Connection::open_in_memory().unwrap();

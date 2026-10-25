@@ -6,16 +6,20 @@
 
 use super::{push_event, ActionEvent, SharedAppInfo, SharedFlag, SharedRing, SharedTarget};
 use active_win_pos_rs::get_active_window;
+use std::path::PathBuf;
 use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant};
 
 const POLL_INTERVAL: Duration = Duration::from_millis(400);
 
 pub fn spawn(
+    app_handle: tauri::AppHandle,
     ring: SharedRing,
     running: SharedFlag,
+    privacy_blocked: SharedFlag,
     uia_target: SharedTarget,
     current_app: SharedAppInfo,
+    db_path: PathBuf,
 ) {
     std::thread::spawn(move || {
         let mut last_key: Option<(String, String)> = None;
@@ -24,6 +28,18 @@ pub fn spawn(
                 match get_active_window() {
                     Ok(window) => {
                         let app_name = window.app_name.clone();
+                        let blocked =
+                            crate::privacy::application_is_excluded(&db_path, Some(&app_name));
+                        privacy_blocked.store(blocked, Ordering::Relaxed);
+                        if blocked {
+                            crate::focus_alerts::excluded_app_entered();
+                            lock_or_recover(&ring).clear();
+                            *lock_or_recover(&uia_target) = None;
+                            *lock_or_recover(&current_app) = None;
+                            last_key = None;
+                            std::thread::sleep(POLL_INTERVAL);
+                            continue;
+                        }
                         let window_title = window.title.clone();
                         let key = (app_name.clone(), window_title.clone());
                         if last_key.as_ref() != Some(&key) {
@@ -31,7 +47,7 @@ pub fn spawn(
                             // Store a stable-ish process id for AX observers (best-effort).
                             *lock_or_recover(&uia_target) = Some(window.process_id as isize);
                             *lock_or_recover(&current_app) = Some(app_name.clone());
-                            super::record_foreground_for_reminder(&app_name);
+                            crate::focus_alerts::record_app_switch(&app_handle, &app_name);
                             push_event(
                                 &ring,
                                 ActionEvent::ForegroundChanged {
@@ -43,10 +59,15 @@ pub fn spawn(
                         }
                     }
                     Err(_) => {
-                        // Permissions missing or no focused window — stay quiet.
+                        privacy_blocked.store(true, Ordering::Relaxed);
+                        lock_or_recover(&ring).clear();
+                        *lock_or_recover(&uia_target) = None;
+                        *lock_or_recover(&current_app) = None;
+                        last_key = None;
                     }
                 }
             } else {
+                privacy_blocked.store(true, Ordering::Relaxed);
                 last_key = None;
             }
             std::thread::sleep(POLL_INTERVAL);

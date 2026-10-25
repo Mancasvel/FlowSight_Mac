@@ -83,7 +83,7 @@ jobs:
         run: pnpm --filter @flowsight/agent exec vite build
 
       - name: Install browser for renderer integration checks
-        run: pnpm exec playwright install chromium
+        run: pnpm exec playwright install chromium webkit
 
       - name: Onboarding and ADDA renderer checks
         shell: bash
@@ -104,6 +104,8 @@ jobs:
           node scripts/verify-localization.mjs
           node scripts/verify-coach-conversation.mjs
           node scripts/verify-linked-session.mjs
+          FLOWSIGHT_USAGE_EVIDENCE=.impeccable/review/profiles-chromium node scripts/verify-usage-profiles.mjs
+          FLOWSIGHT_USAGE_EVIDENCE=.impeccable/review/profiles-webkit FLOWSIGHT_E2E_BROWSER=webkit node scripts/verify-usage-profiles.mjs
 
       - name: Upload renderer evidence
         if: always()

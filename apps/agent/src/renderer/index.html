@@ -3044,8 +3044,8 @@
 
     .sr-review-hero {
       padding: 30px 36px 24px;
-      background: #242033;
-      color: #faf8ff;
+      background: #182a34;
+      color: #f3faf9;
     }
 
     .sr-review-heading {
@@ -3065,7 +3065,7 @@
 
     .sr-review-heading p {
       margin: 8px 0 0;
-      color: #d9cdec;
+      color: #c8dedd;
       font-size: 13px;
       font-variant-numeric: tabular-nums;
     }
@@ -3088,7 +3088,7 @@
     .sr-review-meta {
       margin: 21px 0 0;
       font-size: 11px;
-      color: #d9cdec;
+      color: #c8dedd;
     }
 
     .sr-review-meta span { padding: 0 5px; }
@@ -3167,7 +3167,9 @@
     }
 
     .sr-action-list { list-style: none; padding: 0; margin: 0; }
-    .sr-action-list li { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 12px; align-items: start; padding: 12px 0; }
+    .sr-action-list li { display: block; padding: 17px 0; }
+    .sr-action-list li strong { display: block; margin-bottom: 6px; font-size: 15px; }
+    .sr-action-list li .sr-progress-evidence { display: block; margin-bottom: 8px; }
     .sr-action-list li + li { border-top: 1px solid hsl(var(--border)); }
     .sr-action-number { color: hsl(var(--primary)); font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; padding-top: 3px; }
     .sr-action-list p { margin: 0; max-width: 72ch; font-size: 13px; line-height: 1.55; }
@@ -3191,14 +3193,16 @@
     .sr-figure { margin: 0; min-width: 0; }
     .sr-figure + .sr-figure { padding-left: 30px; border-left: 1px solid hsl(var(--border)); }
     .sr-figure figcaption { margin-bottom: 16px; font-size: 12px; font-weight: 700; }
-    .sr-day-chart { display: flex; align-items: stretch; gap: 7px; min-height: 151px; }
+    .sr-day-chart { display: flex; align-items: stretch; gap: 7px; min-height: 190px; }
+    .sr-day-chart:has(.sr-day:nth-child(8)) { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); row-gap: 15px; }
     .sr-day { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; text-align: center; }
     .sr-day-value { min-height: 16px; font-size: 10px; font-weight: 650; font-variant-numeric: tabular-nums; }
-    .sr-day-track { width: 100%; height: 102px; display: flex; align-items: flex-end; background: hsl(var(--muted) / 0.7); border-radius: 5px 5px 0 0; overflow: hidden; }
+    .sr-day-track { width: 100%; height: 140px; display: flex; align-items: flex-end; background: hsl(var(--muted) / 0.7); border-radius: 5px 5px 0 0; overflow: hidden; }
+    .sr-day-chart:has(.sr-day:nth-child(8)) .sr-day-track { height: 60px; }
     .sr-day-track span { width: 100%; background: hsl(var(--primary)); border-radius: 5px 5px 0 0; }
     .sr-day-label { padding-top: 8px; font-size: 10px; font-weight: 600; }
     .sr-day-label small { display: block; margin-top: 1px; color: hsl(var(--muted-foreground)); font-size: 9px; font-weight: 400; }
-    .sr-category-row { display: grid; grid-template-columns: minmax(75px, 1fr) minmax(70px, 1.5fr) 38px; gap: 10px; align-items: center; min-height: 27px; font-size: 11px; }
+    .sr-category-row { display: grid; grid-template-columns: minmax(75px, 1fr) minmax(50px, 1.2fr) 54px; gap: 10px; align-items: center; min-height: 32px; font-size: 12px; }
     .sr-category-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .sr-category-track { height: 8px; border-radius: 8px; background: hsl(var(--muted)); overflow: hidden; }
     .sr-category-track span { display: block; height: 100%; border-radius: inherit; background: hsl(var(--primary)); }
@@ -3223,6 +3227,12 @@
     .sr-plain-list li { margin-bottom: 8px; font-size: 11px; line-height: 1.55; }
     .sr-plain-list li::marker { color: hsl(var(--primary)); }
     .sr-muted { margin: 0; font-size: 11px; line-height: 1.5; color: hsl(var(--muted-foreground)); }
+    .sr-report-details { border-top: 1px solid hsl(var(--border)); }
+    .sr-report-details > summary { padding: 22px 36px; font-size: 13px; font-weight: 650; cursor: pointer; }
+    .sr-app-evidence { margin-top: 8px; font-size: 11px; color: hsl(var(--muted-foreground)); }
+    .sr-app-evidence summary { cursor: pointer; }
+    .sr-app-evidence p { margin-top: 8px; }
+    .sr-report-details > summary:focus-visible, .sr-app-evidence summary:focus-visible { outline: 2px solid hsl(var(--primary)); outline-offset: 4px; }
     .sr-lessons { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px 28px; }
     .sr-lessons strong { font-size: 12px; }
     .sr-lessons p { margin: 6px 0 0; font-size: 11px; line-height: 1.55; color: hsl(var(--muted-foreground)); }
@@ -3236,6 +3246,7 @@
     @media (max-width: 670px) {
       .sr-review-hero { padding: 25px 22px 21px; }
       .sr-overview, .sr-section, .sr-review-footer { padding-left: 22px; padding-right: 22px; }
+      .sr-report-details > summary { padding-left: 22px; padding-right: 22px; }
       .sr-evidence-grid, .sr-detail-grid { grid-template-columns: 1fr; gap: 25px; }
       .sr-distraction-row { grid-template-columns: 1fr; gap: 11px; }
       .sr-figure + .sr-figure, .sr-detail-grid > div + div { padding: 23px 0 0; border-left: 0; border-top: 1px solid hsl(var(--border)); }
@@ -3267,20 +3278,25 @@
   </style>
   <link rel="stylesheet" href="/theme-dark-base.css" id="themeDarkBase" media="(prefers-color-scheme: dark)">
   <link rel="stylesheet" href="./mobile-theme.css">
+  <link rel="stylesheet" href="./daily-flow.css">
   <link rel="stylesheet" href="/theme-dark-mobile.css" id="themeDarkMobile" media="(prefers-color-scheme: dark)">
   <link rel="stylesheet" href="./profile-redesign.css">
+  <link rel="stylesheet" href="./usage-profiles.css">
   <link rel="stylesheet" href="./local-agent.css">
   <link rel="stylesheet" href="./total-focus.css">
   <link rel="stylesheet" href="./calendar-companion.css">
   <link rel="stylesheet" href="./coach.css">
+  <link rel="stylesheet" href="./online-leagues.css">
+  <link rel="stylesheet" href="./build-in-public.css">
   <style>
     .platform-macos .app-titlebar { padding-left: 82px; }
     .platform-macos .titlebar-btn[hidden] { display: none !important; }
   </style>
 </head>
 
-<body>
+<body data-usage-profile="pending">
   <script src="/theme-preference.js"></script>
+  <p id="usageProfileLoading" class="usage-profile-loading" role="status">Checking your profile…</p>
   <!--
     THESIS: FlowSight desktop is the focused companion to the mobile app, not a dark Ratio-style instrument or a stretched phone screenshot.
     OWN-WORLD: The mobile family's pale 56px grid, slate typography, Manrope and Plus Jakarta Sans, teal signals, softly layered white surfaces, and one indigo-to-teal tracking action adapt to a compact desktop window.
@@ -3331,6 +3347,22 @@
   </header>
 
   <div class="app-viewport">
+  <div class="consent-overlay usage-choice-overlay" id="usageChoiceOverlay" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="usageChoiceTitle">
+    <div class="consent-card usage-choice-card">
+      <h1 id="usageChoiceTitle">How will you use FlowSight?</h1>
+      <p>Start in Individual. Connect a work team if you have an employee invitation.</p>
+      <button type="button" class="usage-start-choice" id="chooseIndividualUsage">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21v-3a8 8 0 0 1 16 0v3"/></svg>
+        <span><strong>For myself</strong><small>The default on this device. Personal goals, insights and optional focus tools.</small></span>
+      </button>
+      <button type="button" class="usage-start-choice usage-start-personal" id="chooseTeamUsage">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M3 7h18v13H3zM8 7V4h8v3M3 12h18M10 12v3h4v-3"/></svg>
+        <span><strong>For my team</strong><small>For invited employees. A simple recording screen with Stop and Continue.</small></span>
+      </button>
+      <a class="usage-dashboard-link" href="https://app.flowsight.site/dashboard/team" target="_blank" rel="noopener noreferrer">Project managers use the web dashboard</a>
+      <button type="button" class="button button-ghost" id="skipUsageChoice">Skip setup</button>
+    </div>
+  </div>
   <!-- ONBOARDING WIZARD (first-run work preferences) -->
   <div class="onboarding-overlay" id="onboardingOverlay" aria-hidden="true" role="dialog" aria-modal="true" aria-label="Set up FlowSight">
     <div class="onboarding-top">
@@ -3430,6 +3462,7 @@
       <p>Effective 23 August 2026 · Controller legal identity and address: must be completed in the published notice before production · Privacy contact: manuel@flowsight.site.</p>
       <h3>Local tracking</h3>
       <p>When you start tracking, the app processes images of the active window, active app and interface context on your device to create activity summaries. Images and raw interaction events stay in volatile memory and are discarded after local analysis. Excluded applications are skipped. This processing provides the feature you request. Summaries remain on your device for your selected retention period. If you enable focus reminders, local Qwen receives only verified aggregate counts of app switches or non-work browsing episodes. It can propose a reminder through an internal tool; FlowSight checks permission and cooldown before showing it. Reminders use generic wording by default. If you separately enable contextual reminders in Profile, the system notification may show a public app or site name and your selected task, but never a window title or URL. Those names stay on your device and are not sent to Qwen for reminder decisions.</p>
+      <p id="teamPrivacyNoticeText" class="team-sharing-explanation" hidden></p>
       <h3>Optional cloud purposes</h3>
       <ul>
         <li><strong>Activity sync:</strong> sends locally generated aggregate summaries, categories, durations, ticket references and team/account IDs to FlowSight's Supabase service.</li>
@@ -3449,7 +3482,7 @@
   </div>
 
   <!-- CLOUD ACTIVATION / LOGIN SPLASH -->
-  <div class="cloud-activation-overlay" id="loginScreen">
+  <div class="cloud-activation-overlay" id="loginScreen" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="loginTitle">
     <div class="login-splash">
       <div class="login-splash-hero">
         <div class="login-preview-stage" role="img" aria-label="Illustrative local activity preview using sample data">
@@ -3594,6 +3627,12 @@
           <p class="today-intro" id="todayIntro">Start a block. Activity is measured only while tracking runs.</p>
         </div>
 
+        <div id="teamTodayContext" class="team-today-context" hidden>
+          <p id="teamTodayName" data-user-content></p>
+          <p id="teamTodaySharing"></p>
+          <button type="button" class="button button-ghost" id="teamTodayPrivacy">Privacy and sharing</button>
+        </div>
+        <p class="usage-state-announcement" id="trackingStateAnnouncement" role="status" aria-live="polite" aria-atomic="true"></p>
         <div class="today-timer-section">
           <div class="today-timer-ring">
             <div class="timer-mode-row">
@@ -3647,10 +3686,10 @@
             </div>
             <div class="timer-meta-row">
               <div class="timer-meta-item"><span class="timer-meta-label">Daily goal</span><span class="timer-goal-label" id="timerGoalLabel">No goal</span></div>
-              <div class="timer-meta-item timer-streak" id="timerStreak"><span class="timer-meta-label">Streak</span><span id="streakText">0 days</span></div>
             </div>
+            <div class="timer-goal-progress" id="timerGoalProgress" role="progressbar" aria-label="Daily goal progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span id="timerGoalProgressFill"></span></div>
             <div class="timer-actions">
-              <button type="button" class="play-timer-btn" id="playTimerBtn" disabled title="Start tracking" aria-label="Start tracking">
+              <button type="button" class="play-timer-btn timer-primary-btn" id="playTimerBtn" disabled title="Start tracking" aria-label="Start tracking">
                 <svg id="playIcon" viewBox="0 0 24 24" fill="currentColor">
                   <polygon points="8,5 19,12 8,19"/>
                 </svg>
@@ -3669,6 +3708,11 @@
                 </button>
               </div>
             </div>
+            <button type="button" class="today-focus-start timer-primary-btn" id="todayTotalFocusStart" disabled>
+              <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><polygon points="8,5 19,12 8,19"/></svg>
+              <span id="todayTotalFocusStartLabel">Start total focus</span>
+            </button>
+            <p id="todayTotalFocusFeedback" class="session-help today-focus-feedback" role="status" aria-live="polite" hidden></p>
           </div>
         </div>
 
@@ -3731,7 +3775,7 @@
             <span class="checkbox-label">Sync time to Jira</span>
           </label>
         </div>
-        <button type="button" class="button button-secondary today-total-focus" id="todayTotalFocus"><span id="todayTotalFocusLabel">Total focus</span><span aria-hidden="true">→</span></button>
+        <button type="button" class="button button-secondary today-total-focus" id="todayTotalFocus"><span id="todayTotalFocusLabel">Total focus settings</span><span aria-hidden="true">→</span></button>
         <div class="today-goal-row">
           <div class="form-group" style="margin-bottom: 0;">
             <label class="label" for="dailyGoalSelect">Daily goal</label>
@@ -3767,6 +3811,8 @@
 
       <!-- TAB: Summary -->
       <div id="tabSummary" class="tab-panel">
+        <details class="daily-flow" id="dailyFlow" aria-label="Daily Flow" data-reading-key="daily-flow"></details>
+        <p id="dailyFlowAnnouncement" class="daily-flow-announcement" role="status" aria-live="polite" aria-atomic="true"></p>
         <div id="summaryBody">
           <div class="empty-state"><span class="loading"></span> Loading summary...</div>
         </div>
@@ -3824,6 +3870,21 @@
           <h1>You</h1>
           <p>Make FlowSight work the way you do.</p>
         </div>
+        <section class="card usage-profile-card" id="usageProfileCard" aria-labelledby="usageProfileTitle">
+          <div class="card-header"><h2 class="card-title" id="usageProfileTitle">Your FlowSight profile</h2></div>
+          <p class="usage-current-profile" id="usageCurrentProfile">Checking your profile…</p>
+          <p class="privacy-detail" id="usageProfileExplanation"></p>
+          <div class="usage-profile-options" role="group" aria-label="Predefined profiles">
+            <button type="button" class="usage-profile-option" data-usage-choice="team_employee" aria-pressed="false" disabled><strong>Team member</strong><span>Recording, Stop and Continue, and control over your data.</span></button>
+            <button type="button" class="usage-profile-option" data-usage-choice="individual" aria-pressed="false" disabled><strong>Individual</strong><span>Personal insights, planning, focus tools and optional Online features.</span></button>
+          </div>
+          <div class="form-group" id="usageTeamSelectGroup" hidden><label class="label" for="usageTeamSelect">Work team</label><select class="select" id="usageTeamSelect"></select></div>
+          <p id="usageProfileStatus" class="profile-form-status" role="status" aria-live="polite"></p>
+          <button type="button" class="button button-secondary profile-full-button" id="usageConnectTeam">Connect my team</button>
+          <button type="button" class="button button-ghost profile-full-button" id="usageRefreshProfile" hidden>Refresh my profile</button>
+          <a class="usage-dashboard-link" id="usageManagerDashboard" href="https://app.flowsight.site/dashboard/team" target="_blank" rel="noopener noreferrer" hidden>Project managers use the web dashboard</a>
+          <details id="usageJoinTeam" class="usage-join-team"><summary>Join with a team code</summary><div id="usageTeamCodeSlot"></div></details>
+        </section>
         <div class="card" id="languageSettingsCard">
           <div class="card-header"><div class="card-title">Language</div></div>
           <label class="label" for="languageSelect">App language</label>
@@ -3834,6 +3895,11 @@
           </select>
           <p class="privacy-detail profile-field-note">Language changes immediately. Your current tracking session and drafts stay open.</p>
           <p id="languageStatus" class="profile-form-status" role="status" aria-live="polite"></p>
+        </div>
+        <div class="card" id="dailyFlowSettings">
+          <div class="card-header"><div class="card-title">Daily Flow</div></div>
+          <label class="checkbox-wrapper" for="dailyFlowVisible"><input type="checkbox" class="checkbox" id="dailyFlowVisible" checked><span class="checkbox-label">Show Daily Flow and personal milestones</span></label>
+          <p class="privacy-detail profile-field-note">A daily win takes 15 recorded minutes. Aim for 3 days a week. Progress stays on this device and is erased with your local data.</p>
         </div>
         <div class="card" id="profileAccountCard">
           <div class="card-header">
@@ -3950,6 +4016,8 @@
                   <button type="button" id="localAgentInstallEdgeBtn" class="button button-secondary" hidden>Open Edge Add-ons</button>
                 </div>
                 <p id="localAgentBrowserInstallStatus" class="local-agent-helper" role="status" aria-live="polite"></p>
+                <button type="button" id="localAgentOpenExtensionBtn" class="button button-secondary">Open compatible extension folder</button>
+                <p class="local-agent-helper">If the store version cannot start total focus, open your browser's extensions page, turn off the older Browser Controls, enable Developer mode, and choose Load unpacked with this folder.</p>
               </li>
               <li>
                 <div class="local-agent-browser-step-copy">
@@ -4065,6 +4133,8 @@
             <div class="card-title">Privacy &amp; data</div>
           </div>
           <p class="upgrade-hint profile-card-intro">Optional sharing is off by default. Each purpose can be changed independently.</p>
+          <p id="teamSharingExplanation" class="privacy-detail team-sharing-explanation" hidden></p>
+          <details id="teamLocalHistory" class="team-local-history" hidden><summary>Review my local history</summary><p>Activity recorded on this device today. This is your local history, not a team report or billable time.</p><div id="teamLocalHistoryRows"></div></details>
           <div class="profile-settings-group">
           <label class="consent-toggle-row" for="cloudSyncToggle">
             <input type="checkbox" id="cloudSyncToggle">
@@ -4212,21 +4282,32 @@
         </div>
       </div>
 
+      <section class="tab-panel" id="tabOnline" aria-label="Online">
+        <div class="online-mode-tabs" role="tablist" aria-label="Online">
+          <button type="button" role="tab" id="onlineLeaguesTab" aria-selected="true" aria-controls="onlineLeaguesPanel">Leagues</button>
+          <button type="button" role="tab" id="onlineContentTab" tabindex="-1" aria-selected="false" aria-controls="buildInPublic">Build in public</button>
+        </div>
+        <div id="onlineLeaguesPanel" role="tabpanel" aria-labelledby="onlineLeaguesTab"></div>
+        <div id="buildInPublic" role="tabpanel" aria-labelledby="onlineContentTab" hidden></div>
+      </section>
     </div>
 
     <!-- Bottom Navigation -->
     <nav class="bottom-nav" aria-label="Primary navigation">
-      <button class="nav-item active" data-tab="tabToday" id="navToday" aria-current="page">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
-        </svg>
-        <span class="nav-label">Today</span>
+      <button class="nav-item" data-tab="tabOnline" id="navOnline" aria-label="Online">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c5 5 5 13 0 18M12 3c-5 5-5 13 0 18"/></svg><span class="nav-label">Online</span>
       </button>
       <button class="nav-item" data-tab="tabSummary" id="navSummary">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>
         </svg>
         <span class="nav-label">Insights</span>
+      </button>
+      <button class="nav-item active" data-tab="tabToday" id="navToday" aria-current="page" aria-label="Clock">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+        </svg>
+        <span class="nav-label">Clock</span>
       </button>
       <button class="nav-item nav-pro nav-pro-locked" data-tab="tabCloudInsights" id="navCloudInsights" aria-label="Coach, Pro">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -4275,12 +4356,18 @@
     console.log('[FlowSight] Script starting...');
 
     import { invoke } from '@tauri-apps/api/core';
+    import { monitoringNoticeAccepted } from './privacy-notice.mjs';
+    import { resolveUsageProfile, isTeamProfile, profileAllowsTab, profileChoice, createDialogFocusController } from './usage-profiles.mjs';
     import { createInstallationRepairController } from './installation-repair.mjs';
     import { mountSessionPlanner } from './session-planner.mjs';
     import { mountTotalFocus, focusFields, readFocusFields, focusExample, messagingFuture } from './total-focus.mjs';
     const totalFocusController = mountTotalFocus({ invoke });
     import { renderCoachMarkdown } from './coach-markdown.mjs';
     import './session-planner.css';
+    import './work-review.css';
+    import './report-progress.css';
+    import { createWorkReviewController } from './work-review.mjs';
+    const workReview = createWorkReviewController(invoke);
     import { listen } from '@tauri-apps/api/event';
     import { getCurrentWindow } from '@tauri-apps/api/window';
     import { getVersion } from '@tauri-apps/api/app';
@@ -4288,10 +4375,7 @@
     import { open as openFolderDialog } from '@tauri-apps/plugin-dialog';
     import { relaunch } from '@tauri-apps/plugin-process';
     import {
-      claimLicenseCode,
-      ensurePersonalTeam,
       getFriendlyAuthError,
-      getSupabaseClient,
       signInForCloudFeatures,
       signOutWorker,
     } from './auth-service.js';
@@ -4306,6 +4390,10 @@
       LiveTrackingClock,
     } from './tracking-session.mjs';
     import { loadTimerPreferences, saveTimerPreferences, PomodoroTimer } from './timer-modes.mjs';
+    import { mountEsp32Companion } from './esp32-companion.mjs';
+    import { mountDailyFlow } from './daily-flow-ui.mjs';
+    import { mountOnlineLeagues } from './online-leagues-ui.mjs';
+    import { mountBuildInPublic } from './build-in-public.mjs';
     import {
       cleanReportText as extractEnglishText,
       createStatusReportViewModel,
@@ -4450,6 +4538,21 @@
     let currentUser = null;
     let authSession = null;
     let currentEntitlements = null;
+    let usageProfileHydrated = false;
+    let currentUsageProfile = resolveUsageProfile(null, { hydrated: false });
+    let usageProfileKey = null;
+    let usageProfileRevision = 0;
+    let usageProfileSaving = false;
+    let usageChoiceShown = false;
+    let teamSetupVisible = false;
+    let lastTrackingAnnouncement = null;
+    const dialogFocus = createDialogFocusController(document, { onEscape: {
+      usageChoiceOverlay: hideUsageChoice,
+      onboardingOverlay: hideOnboardingWizard,
+      privacyNoticeOverlay: hidePrivacyNotice,
+      monitoringNoticeOverlay: () => document.getElementById('monitoringNoticeCancelBtn').click(),
+      loginScreen: hideCloudActivationPanel,
+    } });
     let calendarStatus = null;
     let calendarConnectPending = null;
     let calendarConnectionPoll = null;
@@ -4462,6 +4565,261 @@
     let notionConnectionPoll = null;
     // Temporarily unavailable in this desktop release. Keep provider state intact.
     const NOTION_INTEGRATION_ENABLED = false;
+
+    function usageProfileLabel(id = currentUsageProfile.id) {
+      return tr(id === 'team_employee' ? 'Team member' : 'Individual');
+    }
+
+    function teamSharingCopy() {
+      if (!currentUsageProfile.verified || !currentUsageProfile.team_name) return tr('Team sharing is unavailable until your profile is verified.');
+      return privacySettings?.cloudSyncEnabled
+        ? formatMessage`Sharing on — structured work totals go to ${currentUsageProfile.team_name}.`
+        : formatMessage`Sharing off — no new activity is sent to ${currentUsageProfile.team_name}.`;
+    }
+
+    function renderTeamSharing() {
+      const team = isTeamProfile(currentUsageProfile);
+      const copy = tr('Optional team sharing sends dates, work, meeting and other activity totals, and recognized project references. Personal descriptions, screenshots, app and site names, browsing and distraction signals, and focus grades are not shared. Shared totals may also appear in weekly reports emailed to verified team managers.');
+      for (const id of ['teamTodayContext', 'teamSharingExplanation', 'teamPrivacyNoticeText', 'teamLocalHistory']) document.getElementById(id).hidden = !team;
+      setText(document.getElementById('teamTodayName'), () => currentUsageProfile.team_name || tr('Team profile awaiting verification'));
+      setText(document.getElementById('teamTodaySharing'), teamSharingCopy);
+      setText(document.getElementById('teamSharingExplanation'), () => copy);
+      setText(document.getElementById('teamPrivacyNoticeText'), () => copy);
+      const label = document.querySelector('label[for="cloudSyncToggle"] span');
+      setText(label, () => team ? tr('Share structured work totals with my team') : tr('Sync aggregate activity to FlowSight Cloud'));
+    }
+
+    function announceTrackingState() {
+      const value = `${currentUsageProfile.id}:${isMonitoring ? 'recording' : 'stopped'}`;
+      if (lastTrackingAnnouncement === value) return;
+      lastTrackingAnnouncement = value;
+      setText(document.getElementById('trackingStateAnnouncement'), () => isTeamProfile(currentUsageProfile) ? tr(isMonitoring ? 'Recording started on this device.' : 'Recording stopped on this device.') : '');
+    }
+
+    function applyUsageProfile() {
+      const previous = currentUsageProfile;
+      const previousFocus = document.activeElement;
+      currentUsageProfile = resolveUsageProfile(currentEntitlements, { accountId: currentUser?.id, signedIn: Boolean(authSession || currentUser), hydrated: usageProfileHydrated });
+      const team = isTeamProfile(currentUsageProfile);
+      document.body.dataset.usageProfile = usageProfileHydrated ? currentUsageProfile.id : 'pending';
+      const personalIds = ['dailyFlowSettings', 'workPreferencesCard', 'calendarCompanionCard', 'totalFocusSettings', 'localAgentSettingsCard', 'weeklyReportCard', 'mcpConnectionCard', 'integrationsCard', 'sessionPlanner', 'todayTaskCard', 'dailyFlow', 'dailyFlowAnnouncement', 'todayTotalFocusStart', 'todayTotalFocusFeedback', 'todayTotalFocus', 'sessionCalendar'];
+      for (const id of personalIds) {
+        const element = document.getElementById(id);
+        if (!element) continue;
+        element.dataset.personalSurface = ''; element.inert = team;
+      }
+      const todayPreferences = document.querySelector('.today-preferences');
+      if (todayPreferences) { todayPreferences.dataset.personalSurface = ''; todayPreferences.inert = team; }
+      for (const id of ['autoMonitorToggle', 'focusAlertsToggle', 'contextualFocusAlertsToggle', 'cloudAiToggle']) {
+        const row = document.querySelector(`label[for="${id}"]`);
+        if (row) { row.dataset.personalSurface = ''; row.inert = team; }
+        const detail = row?.nextElementSibling;
+        if (detail?.tagName === 'P') { detail.dataset.personalSurface = ''; detail.inert = team; }
+      }
+      for (const nav of document.querySelectorAll('.nav-item')) {
+        const allowed = profileAllowsTab(currentUsageProfile, nav.dataset.tab);
+        nav.hidden = !allowed; nav.inert = !allowed;
+      }
+      for (const panel of document.querySelectorAll('.tab-panel')) panel.inert = !profileAllowsTab(currentUsageProfile, panel.id);
+      const selected = document.querySelector('.tab-panel.active');
+      const stranded = previousFocus?.closest('[data-personal-surface], .tab-panel[inert], .nav-item[hidden]');
+      if (selected && !profileAllowsTab(currentUsageProfile, selected.id)) switchTab('tabToday');
+      if (stranded) document.getElementById('navToday').focus({ preventScroll: true });
+      setText(document.querySelector('#navToday .nav-label'), () => tr(team ? 'Clock' : 'Today'));
+      setText(document.querySelector('#navProfile .nav-label'), () => tr(team ? 'Settings' : 'You'));
+      setText(document.querySelector('#tabProfile .profile-heading h1'), () => tr(team ? 'Settings' : 'You'));
+      setAttributeText(document.getElementById('navToday'), 'aria-label', () => tr(team ? 'Clock' : 'Today'));
+      setAttributeText(document.getElementById('navProfile'), 'aria-label', () => tr(team ? 'Settings' : 'You'));
+      setText(document.querySelector('#desktopPresenceCard .card-title'), () => tr(team ? 'Startup' : 'Startup & focus reminders'));
+      for (const button of document.querySelectorAll('[data-usage-choice]')) {
+        button.disabled = usageProfileSaving || !profileChoice(currentUsageProfile, button.dataset.usageChoice, currentUsageProfile.team_id);
+        button.setAttribute('aria-pressed', String(button.dataset.usageChoice === currentUsageProfile.id));
+      }
+      setText(document.getElementById('usageCurrentProfile'), () => currentUsageProfile.verified
+        ? `${usageProfileLabel()}${currentUsageProfile.team_name ? ` · ${currentUsageProfile.team_name}` : ''}`
+        : currentUsageProfile.local ? tr('Individual · on this device') : tr('Simple recording · profile not verified'));
+      setText(document.getElementById('usageProfileExplanation'), () => currentUsageProfile.local
+        ? tr('Connect your team to use its licensed profile. Personal features stay available locally.')
+        : !currentUsageProfile.verified ? tr('We could not verify your licensed profile. Recording and privacy remain available. Refresh your profile, activate a license or join your team.')
+        : tr('Your license and verified role determine these choices. Changing profile or team stops recording and turns optional sharing off.'));
+      const selector = document.getElementById('usageTeamSelect');
+      const employeeTeams = currentUsageProfile.teams.filter(item => !item.manager);
+      const options = employeeTeams.map(item => `${item.id}:${item.name}`).join('|');
+      if (selector.dataset.options !== options) {
+        selector.replaceChildren(...employeeTeams.map(item => { const option = document.createElement('option'); option.value = item.id; option.textContent = item.name; return option; }));
+        selector.dataset.options = options;
+      }
+      selector.value = currentUsageProfile.team_id || '';
+      selector.disabled = usageProfileSaving;
+      document.getElementById('usageTeamSelectGroup').hidden = !team || employeeTeams.length < 2;
+      document.getElementById('usageManagerDashboard').hidden = !currentUsageProfile.can_manage_team;
+      document.getElementById('usageConnectTeam').hidden = Boolean(authSession && currentUsageProfile.teams.length);
+      document.getElementById('usageRefreshProfile').hidden = !authSession;
+      document.getElementById('usageRefreshProfile').disabled = usageProfileSaving;
+      document.getElementById('usageJoinTeam').hidden = !authSession;
+      const teamCode = document.getElementById('teamCodeGroup');
+      if (teamCode.parentElement.id !== 'usageTeamCodeSlot') document.getElementById('usageTeamCodeSlot').appendChild(teamCode);
+      teamCode.style.display = authSession ? '' : 'none';
+      const runtime = document.querySelector('#profileAccountCard .status-indicator') || document.querySelector('#teamRuntimeDiagnostics .status-indicator');
+      if (runtime) {
+        let details = document.getElementById('teamRuntimeDiagnostics');
+        if (!details) {
+          details = document.createElement('details'); details.id = 'teamRuntimeDiagnostics'; details.className = 'team-runtime-diagnostics';
+          const summary = document.createElement('summary'); setText(summary, () => tr('Recording diagnostics')); details.appendChild(summary);
+          runtime.before(details);
+        }
+        if (team) details.appendChild(runtime); else details.after(runtime);
+        details.hidden = !team;
+      }
+      renderTeamSharing();
+      const key = `${currentUser?.id || 'guest'}:${currentUsageProfile.id}:${currentUsageProfile.team_id || ''}:${currentUsageProfile.verified}`;
+      const changed = usageProfileKey !== null && usageProfileKey !== key;
+      usageProfileKey = key;
+      if (changed && usageProfileHydrated) {
+        const revision = ++usageProfileRevision;
+        if (team && document.getElementById('onboardingOverlay').classList.contains('visible') && !teamSetupVisible) hideOnboardingWizard();
+        pendingMonitoringStart = false; pendingTotalFocusStart = null; pendingAutoMonitorConsent = false;
+        hideMonitoringNotice();
+        Promise.all([invoke('get_status'), invoke('get_privacy_settings')]).then(([status, privacy]) => {
+          if (revision !== usageProfileRevision) return;
+          if (isMonitoring && !status?.isRunning) commitSessionTime();
+          isMonitoring = Boolean(status?.isRunning); isPaused = !isMonitoring && (isPaused || previous.id !== currentUsageProfile.id);
+          privacySettings = privacy; renderPrivacySettings(); renderTrackingStatus(); updateTimerDisplay(); persistTrackingState();
+        }).catch(error => console.warn('[Profile] Current recording state unavailable:', error));
+      }
+    }
+
+    async function pauseBeforeProfileChange() {
+      if (trackingTransitionInProgress || setupInProgress) throw new Error(tr('Wait for recording to finish changing, then try again.'));
+      if (isMonitoring) {
+        await pauseMonitoring();
+        if (isMonitoring) throw new Error(tr('Recording could not stop. Try again before changing profile.'));
+      }
+    }
+
+    async function changeUsageProfile(id, selectedTeamId = null) {
+      if (usageProfileSaving) return;
+      const choice = profileChoice(currentUsageProfile, id, selectedTeamId);
+      if (!choice) return;
+      if (choice.mode === 'local' || (id === currentUsageProfile.id && choice.teamId === currentUsageProfile.team_id)) {
+        rememberUsageChoice(id === 'individual' ? 'individual' : 'team');
+        if (!userPreferences?.onboardingCompleted) {
+          if (id === 'individual') showOnboardingWizard(false);
+          else if (currentUsageProfile.verified) showTeamSetup();
+        }
+        return;
+      }
+      usageProfileSaving = true;
+      applyUsageProfile();
+      setText(document.getElementById('usageProfileStatus'), () => tr('Changing profile…'));
+      try {
+        await pauseBeforeProfileChange();
+        currentEntitlements = await invoke('set_usage_profile', choice);
+        rememberUsageChoice(id === 'individual' ? 'individual' : 'team');
+        await loadPrivacySettings();
+        updatePlanBadge(); updateTimerDisplay(); renderTrackingStatus();
+        setText(document.getElementById('usageProfileStatus'), () => tr('Profile changed. Recording is stopped; optional sharing is off.'));
+      } catch (error) {
+        setText(document.getElementById('usageProfileStatus'), () => `${tr('Could not change profile.')} ${localizeStatus(String(error))}`);
+      } finally {
+        usageProfileSaving = false; applyUsageProfile(); updatePlayButtonState();
+      }
+    }
+
+    async function continueTeamRecording() {
+      await loadPrivacySettings();
+      if (!privacySettings) throw new Error(tr('Could not load saved privacy settings. Try again.'));
+      if (!monitoringNoticeAccepted(privacySettings)) { pendingMonitoringStart = true; showMonitoringNotice(); return; }
+      if (isPaused) await resumeMonitoring(); else await startMonitoringFull();
+    }
+
+    let teamConnectionRequested = false;
+    function showUsageChoice() { usageChoiceShown = true; dialogFocus.open(document.getElementById('usageChoiceOverlay')); }
+    function hideUsageChoice() { dialogFocus.close(document.getElementById('usageChoiceOverlay')); }
+    function rememberUsageChoice(choice) { try { localStorage.setItem('flowsight_usage_onboarding_choice', choice); } catch { /* Session-only setup works. */ } }
+
+    function showTeamSetup() {
+      teamSetupVisible = true;
+      const overlay = document.getElementById('onboardingOverlay'); overlay.classList.add('team-setup');
+      renderTeamSetup(); dialogFocus.open(overlay);
+    }
+
+    function renderTeamSetup() {
+      const body = document.getElementById('onboardingBody');
+      body.innerHTML = html`<h1 class="onboarding-title" tabindex="-1">A simple work session</h1>
+        <p class="onboarding-subtitle">${escapeHtml(currentUsageProfile.team_name || tr('Your work team'))} · ${usageProfileLabel()}</p>
+        <p>Continue starts recording on this device. Stop ends recording; today’s recorded time is kept. Closing the window keeps FlowSight in the system tray.</p>
+        <h2>What is observed locally</h2><p>While recording, FlowSight processes the active app, selected interface elements and periodic images of the active window on this device. Images are not saved. Short activity summaries stay in local history; sensitive apps can be excluded in Settings.</p>
+        <h2>Separate team sharing</h2><p>${tr('Optional team sharing sends dates, work, meeting and other activity totals, and recognized project references. Personal descriptions, screenshots, app and site names, browsing and distraction signals, and focus grades are not shared. Shared totals may also appear in weekly reports emailed to verified team managers.')}</p>
+        <label class="consent-toggle-row" for="teamSetupShare"><input type="checkbox" id="teamSetupShare" ${privacySettings?.cloudSyncEnabled ? 'checked' : ''} ${!currentEntitlements?.can_sync ? 'disabled' : ''}><span>Share structured work totals with my team</span></label>
+        <p class="privacy-detail" id="teamSetupSharingState">${teamSharingCopy()}</p>
+        <button type="button" class="button button-ghost" id="teamSetupPrivacy">Read privacy notice</button>
+        <p>Finishing acknowledges local recording. It does not start recording or turn sharing on.</p>`;
+      document.getElementById('teamSetupShare').addEventListener('change', async event => {
+        const checkbox = event.target; checkbox.disabled = true;
+        try { await applyPrivacyPatch({ cloudSyncEnabled: checkbox.checked }); }
+        catch (error) { checkbox.checked = Boolean(privacySettings?.cloudSyncEnabled); showToast(String(error), 'error'); }
+        finally { checkbox.disabled = !currentEntitlements?.can_sync; setText(document.getElementById('teamSetupSharingState'), teamSharingCopy); }
+      });
+      document.getElementById('teamSetupPrivacy').addEventListener('click', showPrivacyNotice);
+      document.getElementById('onboardingBackBtn').hidden = true;
+      document.getElementById('onboardingStepLabel').hidden = true;
+      document.querySelector('#onboardingOverlay .onboarding-progress-track').hidden = true;
+      setText(document.getElementById('onboardingContinueBtn'), () => tr('I understand — finish setup'));
+      document.getElementById('onboardingContinueBtn').disabled = false;
+      setText(document.getElementById('onboardingSkipCalendarBtn'), () => tr('Later'));
+      document.getElementById('onboardingSkipCalendarBtn').hidden = false;
+      setText(document.getElementById('onboardingSetupStatus'), () => '');
+    }
+
+    async function finishTeamSetup() {
+      if (onboardingState.saving) return;
+      onboardingState.saving = true;
+      const button = document.getElementById('onboardingContinueBtn'); button.disabled = true;
+      try {
+        await applyPrivacyPatch({ monitoringNoticeAcknowledged: true });
+        userPreferences = await invoke('save_user_preferences_command', { prefs: { ...userPreferences, onboardingCompleted: true } });
+        hideOnboardingWizard(); switchTab('tabToday'); document.getElementById('playTimerBtn').focus({ preventScroll: true });
+      } catch (error) { setText(document.getElementById('onboardingSetupStatus'), () => `${tr('Could not finish setup.')} ${localizeStatus(String(error))}`); }
+      finally { onboardingState.saving = false; button.disabled = false; }
+    }
+
+    document.querySelectorAll('[data-usage-choice]').forEach(button => button.addEventListener('click', () => changeUsageProfile(button.dataset.usageChoice, document.getElementById('usageTeamSelect').value || null)));
+    document.getElementById('usageTeamSelect').addEventListener('change', event => {
+      const team = currentUsageProfile.teams.find(item => item.id === event.target.value);
+      if (team && !team.manager) changeUsageProfile('team_employee', team.id);
+    });
+    document.getElementById('chooseTeamUsage').addEventListener('click', () => { teamConnectionRequested = true; rememberUsageChoice('team'); hideUsageChoice(); showCloudActivationPanel('team'); });
+    document.getElementById('chooseIndividualUsage').addEventListener('click', () => { rememberUsageChoice('individual'); hideUsageChoice(); showOnboardingWizard(); });
+    document.getElementById('skipUsageChoice').addEventListener('click', () => { rememberUsageChoice('individual'); hideUsageChoice(); });
+    document.getElementById('usageConnectTeam').addEventListener('click', () => {
+      teamConnectionRequested = true;
+      if (!authSession) { showCloudActivationPanel('team'); return; }
+      document.getElementById('usageJoinTeam').open = true; document.getElementById('teamCodeInput').focus();
+    });
+    document.getElementById('usageRefreshProfile').addEventListener('click', async () => {
+      const button = document.getElementById('usageRefreshProfile'); button.disabled = true;
+      try { await invoke('refresh_entitlements'); await persistEntitlements(); await loadPrivacySettings(); setText(document.getElementById('usageProfileStatus'), () => tr('Profile refreshed.')); }
+      catch (error) { setText(document.getElementById('usageProfileStatus'), () => `${tr('Could not refresh your profile.')} ${localizeStatus(String(error))}`); }
+      finally { button.disabled = false; }
+    });
+    document.getElementById('teamTodayPrivacy').addEventListener('click', () => { switchTab('tabProfile'); document.getElementById('privacyAnalyticsCard').scrollIntoView({ block: 'start', behavior: 'auto' }); document.getElementById('cloudSyncToggle').focus({ preventScroll: true }); });
+    document.getElementById('teamLocalHistory').addEventListener('toggle', async event => {
+      if (!event.target.open) return;
+      const root = document.getElementById('teamLocalHistoryRows'); setText(root, () => tr('Loading local history…'));
+      try {
+        const history = await loadCurrentDayHistory(); const entries = history?.entries || []; root.replaceChildren();
+        if (!entries.length) { setText(root, () => tr('No local activity recorded today.')); return; }
+        const list = document.createElement('ol');
+        for (const entry of entries.slice(0, 100)) {
+          const row = document.createElement('li'), title = document.createElement('strong'), detail = document.createElement('p');
+          title.textContent = `${entry.time || ''} · ${formatDuration(Number(entry.duration_seconds) || 0)}`;
+          detail.textContent = String(entry.description || categoryLabel(entry.category || 'General'));
+          row.append(title, detail); list.appendChild(row);
+        }
+        root.appendChild(list);
+      } catch (error) { setText(root, () => tr('Local history could not be loaded. Close and reopen this section to retry.')); }
+    });
 
     function isNotionPro() {
       if (!NOTION_INTEGRATION_ENABLED) return false;
@@ -4480,7 +4838,7 @@
     }
 
     function canUseCalendarCompanion() {
-      return hasPaidCalendarEntitlement(currentEntitlements, currentUser?.id);
+      return !isTeamProfile(currentUsageProfile) && hasPaidCalendarEntitlement(currentEntitlements, currentUser?.id);
     }
 
     function activeCalendarTask() {
@@ -4958,14 +5316,7 @@
       setLicenseActivationStatus(tr('Activating license...'));
 
       try {
-        const supabase = getSupabaseClient();
-        await claimLicenseCode(supabase, code);
-
-        let entitlements = await invoke('refresh_entitlements');
-        if (entitlements?.plan === 'individual' && entitlements?.status === 'active' && !entitlements?.active_team_id) {
-          await ensurePersonalTeam(supabase);
-          entitlements = await invoke('refresh_entitlements');
-        }
+        currentEntitlements = await invoke('claim_license_code', { code });
 
         await persistEntitlements();
 
@@ -4976,9 +5327,11 @@
         setLicenseActivationStatus('');
         document.getElementById('profileLicenseCode').value = '';
         await loadUserTeams();
+        await loadPrivacySettings();
+        await promptOnboardingIfNeeded();
         showToast(tr('License activated'), 'success');
       } catch (error) {
-        const message = error?.message || tr('Could not activate license.');
+        const message = localizeStatus(error?.message || String(error || tr('Could not activate license.')));
         setLicenseActivationStatus(message, true);
         showToast(message, 'error', 4500);
       } finally {
@@ -4987,6 +5340,7 @@
     }
 
     function updatePlanBadge() {
+      applyUsageProfile();
       const badge = document.getElementById('loginBadge');
       const activateBtn = document.getElementById('activateCloudBtn');
       const logoutBtn = document.getElementById('logoutBtn');
@@ -5026,7 +5380,7 @@
         if (integrationsCard) integrationsCard.classList.add('paid-feature-locked');
         if (integrationsProviderRow) integrationsProviderRow.style.display = 'none';
         if (upgradeHint) upgradeHint.style.display = 'block';
-        if (teamCodeGroup) teamCodeGroup.style.display = 'none';
+        if (teamCodeGroup) teamCodeGroup.style.display = hasCloudAccountSession() ? '' : 'none';
         updateLicenseActivationCard();
         updateCoachLockState();
         updateNotionControls();
@@ -5043,7 +5397,7 @@
       if (integrationsCard) integrationsCard.classList.remove('paid-feature-locked');
       if (integrationsProviderRow) integrationsProviderRow.style.display = canIntegrate ? '' : 'none';
       if (upgradeHint) upgradeHint.style.display = canIntegrate ? 'none' : 'block';
-      if (teamCodeGroup) teamCodeGroup.style.display = currentEntitlements.plan === 'team' ? '' : 'none';
+      if (teamCodeGroup) teamCodeGroup.style.display = hasCloudAccountSession() ? '' : 'none';
 
       updateCoachLockState();
       updateNotionControls();
@@ -5064,9 +5418,8 @@
         return entitlements;
       } catch (e) {
         console.warn('[Entitlements] load failed:', e);
-        currentEntitlements = null;
         updatePlanBadge();
-        return null;
+        return currentEntitlements;
       }
     }
 
@@ -5086,11 +5439,16 @@
       } else {
         resetLoginSplashCopy();
       }
-      document.getElementById('loginScreen')?.classList.add('visible');
+      document.getElementById('loginScreen')?.classList.toggle('team-login', mode === 'team');
+      if (mode === 'team') {
+        setText(title, () => tr('Connect your work team'));
+        setText(sub, () => tr('Sign in with your work account. Your license and team role choose the profile.'));
+      }
+      dialogFocus.open(document.getElementById('loginScreen'));
     }
 
     function hideCloudActivationPanel() {
-      document.getElementById('loginScreen')?.classList.remove('visible');
+      dialogFocus.close(document.getElementById('loginScreen'));
       document.querySelector('.login-splash')?.classList.remove('login-splash--manual');
       setWorkerLoginError('');
     }
@@ -5098,6 +5456,7 @@
     function showFreeProfileState() {
       currentUser = null;
       authSession = null;
+      usageProfileHydrated = true;
       setText(document.getElementById('userName'), () => (tr('Guest')));
       setText(document.getElementById('userEmail'), () => (tr('Free local mode')));
       const avatar = document.getElementById('userAvatar');
@@ -5170,6 +5529,7 @@
     }
 
     function updateProfileHeader() {
+      usageProfileHydrated = true;
       if (!currentUser) {
         showFreeProfileState();
         return;
@@ -5189,7 +5549,7 @@
     }
 
     function showMainApp() {
-      document.getElementById('loginScreen')?.classList.remove('visible');
+      dialogFocus.close(document.getElementById('loginScreen'));
       document.getElementById('mainApp').style.display = 'flex';
       updateProfileHeader();
 
@@ -5318,6 +5678,11 @@
     function updateTodayGreeting() {
       const el = document.getElementById('todayGreeting');
       if (!el) return;
+      if (isTeamProfile(currentUsageProfile)) {
+        setText(el, () => tr('Work session'));
+        setText(document.getElementById('todayIntro'), () => tr(isMonitoring ? 'Recording on this device. Stop whenever you need.' : 'Recording is stopped. Continue when you are ready.'));
+        return;
+      }
       setText(el, () => ((isMonitoring ? tr('In flow.') : (isPaused ? tr('On hold.') : tr("What's next?")))));
       const intro = document.getElementById('todayIntro');
       if (intro) setText(intro, () => ((isMonitoring ? tr('Your work is being recorded locally. Pause or stop whenever you need.') : (isPaused ? tr('The clock is paused. Resume when you are ready.') : tr('Start a block. Activity is measured only while tracking runs.')))));
@@ -5332,17 +5697,38 @@
       return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
     }
 
-    function computeStreak(week) {
-      if (!week?.days) return 0;
-      let streak = 0;
-      const todayIdx = week.days.findIndex(d => d.is_today);
-      for (let i = todayIdx; i >= 0; i--) {
-        if (week.days[i].has_activity) streak++;
-        else break;
-      }
-      return streak;
-    }
+    const dailyFlow = mountDailyFlow({
+      root: document.getElementById('dailyFlow'),
+      preference: document.getElementById('dailyFlowVisible'),
+      statusElement: document.getElementById('dailyFlowAnnouncement'),
+      invoke,
+    });
 
+    const onlineLeagues = mountOnlineLeagues({root: document.getElementById('onlineLeaguesPanel'), invoke: (command, args) => {
+      if (!currentUsageProfile.capabilities.online) {
+        if (command === 'get_online_leagues') return Promise.resolve({ enabled: false, signed_in: false, groups: [], account_id: null });
+        return Promise.reject(tr('This feature belongs to the individual profile.'));
+      }
+      return invoke(command, args);
+    }, listen});
+    const contentStudio = mountBuildInPublic({root: document.getElementById('buildInPublic'), invoke, canUse: () => !isTeamProfile(currentUsageProfile)});
+    for (const [tabId, panelId] of [['onlineLeaguesTab', 'onlineLeaguesPanel'], ['onlineContentTab', 'buildInPublic']]) {
+      document.getElementById(tabId).addEventListener('click', () => {
+        for (const [otherTab, otherPanel] of [['onlineLeaguesTab', 'onlineLeaguesPanel'], ['onlineContentTab', 'buildInPublic']]) {
+          document.getElementById(otherTab).setAttribute('aria-selected', String(otherTab === tabId));
+          document.getElementById(otherTab).tabIndex = otherTab === tabId ? 0 : -1;
+          document.getElementById(otherPanel).hidden = otherPanel !== panelId;
+        }
+        if (panelId === 'buildInPublic') contentStudio.refresh();
+        else onlineLeagues.refresh();
+      });
+    }
+    document.querySelector('.online-mode-tabs').addEventListener('keydown', event => {
+      if (!['ArrowLeft','ArrowRight','Home','End'].includes(event.key)) return;
+      event.preventDefault();
+      const next = event.key === 'Home' ? 'onlineLeaguesTab' : event.key === 'End' ? 'onlineContentTab' : event.target.id === 'onlineLeaguesTab' ? 'onlineContentTab' : 'onlineLeaguesTab';
+      document.getElementById(next).click();document.getElementById(next).focus();
+    });
     const liveTrackingClock = new LiveTrackingClock();
     let timerPreferences = loadTimerPreferences(localStorage);
     const pomodoro = new PomodoroTimer(timerPreferences);
@@ -5353,6 +5739,21 @@
     let dailyHistoryRequest = null;
     let trackingStateHydrated = false;
     let trackingTransitionInProgress = false;
+    let linkedTotalFocusKnown = false, totalFocusClockRequest = 0;
+    document.addEventListener('flowsight:total-focus-state', async ({detail}) => {
+      const linked=Boolean(detail.state?.session?.linkedClock);
+      updatePlayButtonState();updateTimerDisplay();
+      if(detail.busy || trackingTransitionInProgress || (!linked && !linkedTotalFocusKnown))return;
+      const request=++totalFocusClockRequest;
+      const status=await invoke('get_status').catch(()=>null);
+      if(request!==totalFocusClockRequest || !status || trackingTransitionInProgress)return;
+      linkedTotalFocusKnown=linked;
+      const running=Boolean(status.isRunning),paused=Boolean(detail.state?.session?.pausedAt);
+      if(isMonitoring===running && isPaused===paused)return;
+      isMonitoring=running;isPaused=paused;
+      if(isMonitoring)resumeSessionTimer();else commitSessionTime();
+      renderTrackingStatus();persistTrackingState();
+    });
     const TIMER_RING_CIRC = 2 * Math.PI * 82;
     const TRACKING_CHECKPOINT_INTERVAL_SECONDS = 15;
 
@@ -5367,6 +5768,10 @@
       const ring = document.getElementById('timerProgressRing');
       const p = Math.min(Math.max(progress, 0), 1);
       if (ring) ring.setAttribute('stroke-dashoffset', String(TIMER_RING_CIRC * (1 - p)));
+      const bar = document.getElementById('timerGoalProgress');
+      const fill = document.getElementById('timerGoalProgressFill');
+      if (bar) {bar.hidden = getDailyGoalHours() <= 0; bar.setAttribute('aria-valuenow', String(Math.round(p * 100))); bar.setAttribute('aria-label', getLanguage() === 'es' ? 'Avance del objetivo diario' : 'Daily goal progress');}
+      if (fill) fill.style.transform = `scaleX(${p})`;
     }
 
     function applyRecordedHistory(history) {
@@ -5379,8 +5784,13 @@
     function syncTrackingClock() {
       if (!clockRequest) {
         clockRequest = invoke('get_tracking_clock').then(snapshot => {
+          if (totalFocusController.session()?.linkedClock && snapshot && isMonitoring !== Boolean(snapshot.is_running)) {
+            isMonitoring=Boolean(snapshot.is_running);isPaused=Boolean(totalFocusController.session()?.pausedAt);
+            renderTrackingStatus();
+          }
           if (liveTrackingClock.sample({ ...snapshot, is_running: trackingStateHydrated ? isMonitoring : snapshot.is_running })) {
             updateTimerDisplay();
+            dailyFlow.refresh();
           }
         }).finally(() => { clockRequest = null; });
       }
@@ -5412,6 +5822,17 @@
       const pauseIcon = document.getElementById('pauseIcon');
       const label = document.getElementById('playTimerLabel');
       if (!btn) return;
+      const linkedFocus=totalFocusController.session()?.linkedClock;
+      if (isTeamProfile(currentUsageProfile)) {
+        const text = tr(isMonitoring ? 'Stop recording' : 'Continue recording');
+        setText(label, () => text); setAttributeText(btn, 'title', () => text); setAttributeText(btn, 'aria-label', () => text);
+        btn.classList.toggle('active', isMonitoring);
+        if (playIcon) playIcon.style.display = isMonitoring ? 'none' : 'block';
+        if (pauseIcon) pauseIcon.style.display = isMonitoring ? 'block' : 'none';
+        btn.disabled = trackingTransitionInProgress || usageProfileSaving || setupInProgress;
+        updateTimerControlsVisibility();
+        return;
+      }
       if (isMonitoring) {
         btn.classList.add('active');
         setAttributeText(btn, 'title', () => (tr('Pause tracking')));
@@ -5427,8 +5848,14 @@
         if (playIcon) playIcon.style.display = 'block';
         if (pauseIcon) pauseIcon.style.display = 'none';
       }
-      btn.disabled = trackingTransitionInProgress || pomodoroTransition;
-      if (timerPreferences.mode === 'pomodoro' && !isMonitoring) {
+      if(linkedFocus) {
+        const text=tr(isMonitoring?'Pause total focus':'Resume total focus');
+        setText(label,()=>text);setAttributeText(btn,'title',()=>text);btn.setAttribute('aria-label',text);
+      }
+      btn.disabled = trackingTransitionInProgress || pomodoroTransition || totalFocusController.busy();
+      const focusStart = document.getElementById('todayTotalFocusStart');
+      focusStart.disabled = btn.disabled || !totalFocusController.ready();
+      if (!linkedFocus && timerPreferences.mode === 'pomodoro' && !isMonitoring) {
         const waitingForBreak = pomodoro.phase !== 'work' && !pomodoro.ready;
         btn.disabled = btn.disabled || waitingForBreak;
         const text = waitingForBreak ? tr('Taking a break') : tr('Start focus interval');
@@ -5436,9 +5863,9 @@
         btn.setAttribute('aria-label', text);
         btn.title = text;
       }
-      document.getElementById('timerModeSelect').disabled = trackingTransitionInProgress || pomodoroTransition;
+      document.getElementById('timerModeSelect').disabled = trackingTransitionInProgress || pomodoroTransition || Boolean(linkedFocus);
       for (const id of ['pomodoroWork','pomodoroShortBreak','pomodoroLongBreak']) {
-        document.getElementById(id).disabled = isMonitoring || (pomodoro.phase !== 'work' && !pomodoro.ready);
+        document.getElementById(id).disabled = Boolean(linkedFocus) || isMonitoring || (pomodoro.phase !== 'work' && !pomodoro.ready);
       }
       updateTimerControlsVisibility();
     }
@@ -5448,10 +5875,11 @@
       const badge = document.getElementById('monitoringBadge');
       const visibleState = document.getElementById('todayTrackingState');
       if (visibleState) {
-        setText(visibleState, () => ((isMonitoring ? tr('Live') : (isPaused ? tr('Paused') : tr('Ready')))));
+        setText(visibleState, () => isTeamProfile(currentUsageProfile) ? tr(isMonitoring ? 'Recording' : 'Stopped') : (isMonitoring ? tr('Live') : (isPaused ? tr('Paused') : tr('Ready'))));
         visibleState.className = `today-tracking-state${isMonitoring ? ' is-recording' : isPaused ? ' is-paused' : ''}`;
       }
       updateTodayGreeting();
+      announceTrackingState();
 
       if (isMonitoring) {
         if (status) {
@@ -5489,15 +5917,18 @@
       const display = document.getElementById('timerDisplay');
       if (!display) return;
       const total = getDisplayTotalSeconds();
-      const isPomodoro = timerPreferences.mode === 'pomodoro';
+      const focusSession=totalFocusController.session();
+      const linkedFocus=Boolean(focusSession?.linkedClock);
+      const isPomodoro = !isTeamProfile(currentUsageProfile) && !linkedFocus && timerPreferences.mode === 'pomodoro';
       const shown = isPomodoro ? Math.ceil(pomodoro.remaining() / 1000) : total;
       setText(display, () => isPomodoro ? `${String(Math.floor(shown / 60)).padStart(2, '0')}:${String(shown % 60).padStart(2, '0')}` : formatTimerDisplay(shown));
       const timerLabel = document.getElementById('timerKindLabel');
-      if (timerLabel) setText(timerLabel, () => !isPomodoro ? tr('Recorded today') : tr(pomodoro.ready ? 'Ready for the next interval' : pomodoro.phase === 'work' ? 'Focus interval' : pomodoro.phase === 'long-break' ? 'Long break' : 'Break'));
+      if (timerLabel) setText(timerLabel, () => !isPomodoro ? tr(isTeamProfile(currentUsageProfile) ? 'Recorded on this device today' : 'Recorded today') : tr(pomodoro.ready ? 'Ready for the next interval' : pomodoro.phase === 'work' ? 'Focus interval' : pomodoro.phase === 'long-break' ? 'Long break' : 'Break'));
       const note = document.getElementById('timerRecordingNote');
       if (note) {
-        note.hidden = !isPomodoro;
-        setText(note, () => isPomodoro ? formatMessage`${pomodoro.completed} completed intervals · ${formatTimerDisplay(total)} tracked today` : '');
+        note.hidden = !isPomodoro && !linkedFocus;
+        const remaining=focusSession?.pausedAt ? focusSession.remainingSeconds : Math.max(0,Math.ceil((Date.parse(focusSession?.expiresAt)-Date.now())/1000));
+        setText(note, () => linkedFocus ? `${tr('Total focus remaining')}: ${formatTimerDisplay(remaining)}${focusSession.pausedAt ? ` · ${tr('Paused')}` : ''}` : isPomodoro ? formatMessage`${pomodoro.completed} completed intervals · ${formatTimerDisplay(total)} tracked today` : '');
       }
       const skip = document.getElementById('pomodoroSkipBreak');
       if (skip) skip.hidden = !isPomodoro || pomodoro.phase === 'work' || pomodoro.ready;
@@ -5518,7 +5949,7 @@
 
     function commitSessionTime() {
       liveTrackingClock.setRunning(false);
-      if (timerPreferences.mode === 'pomodoro' && pomodoro.phase === 'work') pomodoro.pause();
+      if (!isTeamProfile(currentUsageProfile) && timerPreferences.mode === 'pomodoro' && pomodoro.phase === 'work') pomodoro.pause();
       syncTrackingClock().catch(() => {});
       if (sessionTimerInterval) {
         clearInterval(sessionTimerInterval);
@@ -5529,7 +5960,7 @@
 
     function resumeSessionTimer() {
       liveTrackingClock.setRunning(true);
-      if (timerPreferences.mode === 'pomodoro' && (pomodoro.phase === 'work' || pomodoro.ready)) pomodoro.start();
+      if (!isTeamProfile(currentUsageProfile) && timerPreferences.mode === 'pomodoro' && (pomodoro.phase === 'work' || pomodoro.ready)) pomodoro.start();
       syncTrackingClock().catch(() => {});
       beginTimerTicks();
       updateTimerDisplay();
@@ -5552,7 +5983,7 @@
     }
 
     async function advancePomodoro() {
-      if (timerPreferences.mode !== 'pomodoro' || pomodoroTransition || trackingTransitionInProgress) return;
+      if (isTeamProfile(currentUsageProfile) || totalFocusController.session()?.linkedClock || timerPreferences.mode !== 'pomodoro' || pomodoroTransition || trackingTransitionInProgress) return;
       const transition = pomodoro.update();
       if (!transition) return;
       if (transition === 'break-complete') {
@@ -5647,6 +6078,9 @@
     });
 
     async function pushTaskContextToBackend() {
+      if(totalFocusController.session()?.linkedClock) {
+        await invoke('set_task_context',{userTask:totalFocusController.session().intention,jiraTicket:null});return;
+      }
       const { task, jiraTicket } = getTaskContext();
       try {
         await invoke('set_task_context', {
@@ -5684,10 +6118,11 @@
       if (trackingStateHydrated) return;
 
       try {
-        const [nativeStatus, history, localAgent] = await Promise.all([
+        const [nativeStatus, history, localAgent, totalFocus] = await Promise.all([
           invoke('get_status'),
           loadCurrentDayHistory(),
           invoke('get_local_agent_data').catch(() => null),
+          totalFocusController.refresh(),
         ]);
         const checkpoint = loadTrackingCheckpoint(localStorage);
         let serverOnline = false;
@@ -5702,9 +6137,10 @@
           serverOnline,
           historySeconds: recordedDailyTotal(history),
           checkpoint,
-          agentFocusStatus: localAgent?.focus?.status,
+          agentFocusStatus: totalFocus?.session?.pausedAt ? 'paused' : localAgent?.focus?.status,
         });
 
+        if (restored.shouldResumeNative && (isTeamProfile(currentUsageProfile) || !usageProfileHydrated || currentUsageProfile.local || !userPreferences?.onboardingCompleted || !monitoringNoticeAccepted(privacySettings))) restored = { ...restored, mode: 'paused', shouldResumeNative: false };
         if (restored.shouldResumeNative) {
           try {
             await startNativeMonitoring();
@@ -5740,6 +6176,16 @@
       trackingTransitionInProgress = true;
       setTrackingControlsBusy(true);
       try {
+        if(totalFocusController.session()?.linkedClock) {
+          const sample=setInterval(()=>syncTrackingClock().catch(()=>{}),500);
+          let result;
+          try { result=await totalFocusController.clockAction('pause_total_focus'); }
+          finally { clearInterval(sample); }
+          isMonitoring=false;isPaused=true;commitSessionTime();renderTrackingStatus();persistTrackingState();
+          showToast(tr('Total focus paused. Your remaining time is kept.'),'success');
+          if(!result.browserReleased)showToast(tr('Session ended. Reconnect the extension or use End total focus on a blocked page to release it now.'),'error',8000);
+          return;
+        }
         const focus = (await invoke('get_local_agent_data').catch(() => null))?.focus;
         if (focus?.status === 'running') await invoke('control_local_focus_block', { action: 'pause' });
         else await stopNativeMonitoring({ requireSuccess: true });
@@ -5759,10 +6205,15 @@
     }
 
     async function stopMonitoring() {
-      if ((!isMonitoring && !isPaused) || trackingTransitionInProgress) return;
+      if ((!isMonitoring && !isPaused && !totalFocusController.session()) || trackingTransitionInProgress) return;
       trackingTransitionInProgress = true;
       setTrackingControlsBusy(true);
       try {
+        if(totalFocusController.session()?.linkedClock) {
+          await totalFocusController.clockAction('end_total_focus');
+          isMonitoring=false;isPaused=false;commitSessionTime();renderTrackingStatus();persistTrackingState();
+          showToast(tr('Total focus ended'),'success');return;
+        }
         const focus = (await invoke('get_local_agent_data').catch(() => null))?.focus;
         if (focus) await invoke('control_local_focus_block', { action: 'end' });
         else await stopNativeMonitoring({ requireSuccess: isMonitoring });
@@ -5792,11 +6243,18 @@
     }
 
     async function resumeMonitoring() {
+      if(trackingTransitionInProgress || totalFocusController.busy())return;
+      trackingTransitionInProgress=true;
       document.getElementById('pomodoroStatus').textContent = '';
       const btn = document.getElementById('playTimerBtn');
       btn.disabled = true;
       btn.classList.add('loading-state');
       try {
+        if(totalFocusController.session()?.linkedClock) {
+          await totalFocusController.clockAction('resume_total_focus');
+          isMonitoring=true;isPaused=false;resumeSessionTimer();renderTrackingStatus();persistTrackingState();
+          showToast(tr('Browser protection confirmed. Your session is ready.'),'success');return;
+        }
         const focus = (await invoke('get_local_agent_data').catch(() => null))?.focus;
         if (focus?.status === 'paused') {
           await invoke('control_local_focus_block', { action: 'resume' });
@@ -5824,6 +6282,7 @@
         console.error('Resume failed:', e);
         showToast(('Error resuming: ' + e), 'error');
       } finally {
+        trackingTransitionInProgress=false;
         btn.disabled = false;
         btn.classList.remove('loading-state');
         updatePlayButtonState();
@@ -5831,14 +6290,12 @@
     }
 
     async function refreshTodayView() {
-      sessionPlanner.refreshCalendar();
+      if (!isTeamProfile(currentUsageProfile)) sessionPlanner.refreshCalendar();
       updateTodayGreeting();
       updateGoalUI();
+      if (!isTeamProfile(currentUsageProfile)) dailyFlow.refresh();
       try {
         const week = await invoke('get_week_summary').catch(() => null);
-        const streak = computeStreak(week);
-        const streakEl = document.getElementById('streakText');
-        if (streakEl) setText(streakEl, () => (formatMessage`${streak} day${streak === 1 ? '' : 's'}`));
         currentWeekData = week;
         const history = await loadCurrentDayHistory();
         if (document.getElementById('tabSummary')?.classList.contains('active')) {
@@ -5860,7 +6317,15 @@
     });
 
     document.getElementById('playTimerBtn')?.addEventListener('click', () => {
-      if (trackingTransitionInProgress || pomodoroTransition || (timerPreferences.mode === 'pomodoro' && pomodoro.phase !== 'work' && !pomodoro.ready)) return;
+      if (isTeamProfile(currentUsageProfile)) {
+        if (trackingTransitionInProgress || usageProfileSaving || setupInProgress) return;
+        if (isMonitoring) pauseMonitoring(); else continueTeamRecording().catch(error => showToast(String(error), 'error'));
+        return;
+      }
+      if (trackingTransitionInProgress || totalFocusController.busy() || pomodoroTransition || (!totalFocusController.session()?.linkedClock && timerPreferences.mode === 'pomodoro' && pomodoro.phase !== 'work' && !pomodoro.ready)) return;
+      if(totalFocusController.session()?.linkedClock) {
+        if(totalFocusController.session().pausedAt)resumeMonitoring();else pauseMonitoring();return;
+      }
       if (isMonitoring) {
         document.getElementById('pauseBtn')?.click();
       } else if (isPaused) {
@@ -5868,6 +6333,11 @@
       } else {
         document.getElementById('startBtn')?.click();
       }
+    });
+
+    document.getElementById('todayTotalFocusStart').addEventListener('click', async () => {
+      if (setupInProgress || trackingTransitionInProgress || pomodoroTransition || totalFocusController.busy()) return;
+      await startTotalFocusWithNotice(getTaskContext().task);
     });
 
     // ===== RESTORE LINKED PROVIDERS ON STARTUP =====
@@ -5925,68 +6395,23 @@
     async function loadUserTeams() {
       const select = document.getElementById('teamSelect');
       const group = document.getElementById('teamSelectorGroup');
-      if (!isPaidActive()) {
-        if (group) group.style.display = 'none';
-        return;
-      }
+      if (!authSession) { group.style.display = 'none'; return; }
       try {
-        const data = await invoke('get_user_teams');
-        const teams = data.teams || [];
-        let activeId = data.active_team_id || '';
-
-        // Clear options
-        select.innerHTML = '';
-
-        if (teams.length === 0) {
-          group.style.display = 'none';
-          return;
-        }
-
-        // Fallback: si el backend no devolvió activo (p.ej. versión vieja del
-        // agente) garantizamos persistir la primera membresía, así
-        // session.team_id nunca queda NULL al subir reportes.
-        if (!activeId && teams[0]?.team_id) {
-          activeId = teams[0].team_id;
-          try {
-            await invoke('set_active_team', { teamId: activeId });
-            console.log('[Team] Auto-selected the first available team');
-          } catch (err) {
-            console.error('[Team] Failed auto-select:', err);
-          }
-        }
-
-        // Populate dropdown
-        teams.forEach(t => {
-          const opt = document.createElement('option');
-          opt.value = t.team_id;
-          setText(opt, () => (`${t.team_id.substring(0, 8)}... (${t.role})`));
-          if (t.team_id === activeId) opt.selected = true;
-          select.appendChild(opt);
-        });
-
-        group.style.display = 'block';
-
-        // Update status
-        setTeamStatus(tr('Active team'), activeId ? activeId.substring(0, 8) + '...' : 'none');
-
-        console.log('[Team] Loaded', teams.length, 'team membership(s)');
-      } catch (e) {
-        console.log('[Team] Could not load team memberships');
-        group.style.display = 'none';
-      }
+        await invoke('get_user_teams');
+        await persistEntitlements();
+        const teams = currentUsageProfile.teams;
+        select.replaceChildren(...teams.map(team => {
+          const option = document.createElement('option'); option.value = team.id; option.textContent = team.name; return option;
+        }));
+        select.value = currentUsageProfile.team_id || '';
+        group.style.display = teams.length > 1 ? 'block' : 'none';
+        setTeamStatus(tr('Active team'), currentUsageProfile.team_name || tr('No team selected'));
+      } catch (error) { group.style.display = 'none'; }
     }
 
-    // Team dropdown change handler
-    document.getElementById('teamSelect').addEventListener('change', async (e) => {
-      const teamId = e.target.value;
-      if (!teamId) return;
-      try {
-        await invoke('set_active_team', { teamId });
-        setTeamStatus(tr('Active team'), teamId.substring(0, 8) + '...');
-        console.log('[Team] Switched the active team');
-      } catch (err) {
-        console.error('[Team] Failed to set active team:', err);
-      }
+    document.getElementById('teamSelect').addEventListener('change', event => {
+      const team = currentUsageProfile.teams.find(item => item.id === event.target.value);
+      if (team) changeUsageProfile(team.manager ? 'team_manager' : 'team_employee', team.id);
     });
 
     function setWorkerLoginError(message) {
@@ -6057,6 +6482,7 @@
 
     async function handleLogout() {
       try {
+        if (isTeamProfile(currentUsageProfile)) await pauseBeforeProfileChange();
         if (authSession?.provider === 'cloud' || authSession?.provider === 'worker') {
           await signOutWorker();
         }
@@ -6162,7 +6588,9 @@
 
     // Team code handler
     document.getElementById('joinTeamBtn').onclick = async () => {
-      if (!requirePaidFeature('sync', tr('Joining a team requires a Team license.'))) {
+      if (!authSession) {
+        showToast(tr('Sign in before joining your team.'), 'error');
+        showCloudActivationPanel('team');
         return;
       }
 
@@ -6181,16 +6609,21 @@
       document.getElementById('teamCodeInput').value = '';
 
       try {
-        const result = await invoke('join_team', { token: code });
-
-        setTeamStatus('Joined team. ID', result.team_id);
+        await pauseBeforeProfileChange();
+        await invoke('join_team', { token: code });
+        await invoke('refresh_entitlements');
+        await persistEntitlements();
+        await loadPrivacySettings();
+        setTeamStatus(tr('Team joined'), currentUsageProfile.team_name || '');
         showToast(tr('Successfully joined the team!'), 'success');
 
         // Refresh teams dropdown
         await loadUserTeams();
+        await promptOnboardingIfNeeded();
       } catch (e) {
-        setText(statusEl, () => (('Failed to join: ' + e)));
-        showToast(('Error: ' + e), 'error');
+        const message = `${tr('Could not join your team.')} ${localizeStatus(String(e))}`;
+        setText(statusEl, () => message);
+        showToast(message, 'error');
       }
 
       btn.disabled = false;
@@ -6279,7 +6712,7 @@
     let coachUsage = null;
 
     function canUseCoachChat() {
-      return Boolean(authSession && currentEntitlements?.can_cloud_ai &&
+      return Boolean(!isTeamProfile(currentUsageProfile) && authSession && currentEntitlements?.can_cloud_ai &&
         privacySettings?.cloudAiEnabled && isPaidActive());
     }
 
@@ -6971,7 +7404,7 @@
           typeof res.gpuLayers === 'number'
             ? ` (${res.gpuLayers} GPU layers${res.gpuAuto ? ', auto-selected' : ''})`
             : '';
-        showToast(formatMessage`Local AI Server Ready${layerSuffix}`, 'success');
+        if (!isTeamProfile(currentUsageProfile)) showToast(formatMessage`Local AI Server Ready${layerSuffix}`, 'success');
 
         try {
           await loadCurrentDayHistory();
@@ -7080,9 +7513,9 @@
       refreshTodayView();
       if (todayRefreshInterval) clearInterval(todayRefreshInterval);
       todayRefreshInterval = setInterval(refreshTodayView, 60000);
-      await loadCalendarStatus().catch((error) => console.warn('[Calendar] Status unavailable:', error));
+      if (!isTeamProfile(currentUsageProfile)) await loadCalendarStatus().catch((error) => console.warn('[Calendar] Status unavailable:', error));
       if (calendarViewPoll) clearInterval(calendarViewPoll);
-      calendarViewPoll = setInterval(() => loadCalendarStatus().catch(() => {}), 30000);
+      calendarViewPoll = setInterval(() => { if (!isTeamProfile(currentUsageProfile)) loadCalendarStatus().catch(() => {}); }, 30000);
       if (calendarProgressInterval) clearInterval(calendarProgressInterval);
       calendarProgressInterval = setInterval(updateCalendarEventProgress, 1000);
 
@@ -7169,7 +7602,7 @@
       const el = document.getElementById('workPreferencesSummary');
       if (!el) return;
       if (!prefs?.onboardingCompleted) {
-        setText(el, () => ((authSession ? tr('Complete the setup wizard to personalize reports and greetings.') : tr('Sign in to cloud features to set up your work preferences.'))));
+        setText(el, () => tr('Work preferences are optional and saved on this device. No account is needed.'));
         return;
       }
       const roleLabels = (prefs.workRoles || [])
@@ -7285,7 +7718,8 @@
       setText(continueBtn, () => (((step === 5) ? tr('Finish setup') : tr('Continue'))));
       if (step === 0) {
         body.innerHTML = html`<h1 class="onboarding-title" tabindex="-1">Make room for your work</h1>
-          <p class="onboarding-subtitle">Start tracking when you choose. FlowSight helps you review your time and work patterns on this computer.</p>
+          <p class="onboarding-subtitle">Understand your week and choose what to change, with local analysis and control over your data.</p>
+          <p class="session-help">Start a tracking block when you choose, then open Insights to review your first work report. You do not need seven days of activity.</p>
           <label for="onboardingNameInput">What should we call you? <span class="session-help">Optional</span></label>
           <input type="text" class="onboarding-name-input" id="onboardingNameInput" maxlength="40" autocomplete="given-name" placeholder="Your first name" value="${escapeHtml(onboardingState.displayName)}">
           <label for="onboardingDailyGoal">Daily tracking goal</label>
@@ -7401,6 +7835,12 @@
     }
 
     function showOnboardingWizard(fromProfile = false) {
+      if (isTeamProfile(currentUsageProfile)) { showTeamSetup(); return; }
+      teamSetupVisible = false;
+      document.getElementById('onboardingOverlay').classList.remove('team-setup');
+      document.getElementById('onboardingBackBtn').hidden = false;
+      document.getElementById('onboardingStepLabel').hidden = false;
+      document.querySelector('#onboardingOverlay .onboarding-progress-track').hidden = false;
       onboardingState.totalFocusPreferences = totalFocusController.preferences();
       onboardingState.reopening = fromProfile;
       onboardingState.step = 0;
@@ -7424,18 +7864,15 @@
           currentUser?.display_name || currentUser?.name || currentUser?.email?.split('@')[0] || '';
       }
       const overlay = document.getElementById('onboardingOverlay');
-      overlay?.classList.add('visible');
-      overlay?.setAttribute('aria-hidden', 'false');
-      document.getElementById('mainApp').inert = true;
+      dialogFocus.open(overlay);
       renderOnboardingStep();
       loadCalendarStatus().catch(() => {});
     }
 
     function hideOnboardingWizard() {
       const overlay = document.getElementById('onboardingOverlay');
-      overlay?.classList.remove('visible'); overlay?.setAttribute('aria-hidden', 'true');
-      document.getElementById('mainApp').inert = false;
-      onboardingState.previousFocus?.focus?.();
+      teamSetupVisible = false;
+      dialogFocus.close(overlay);
     }
 
     async function finishOnboarding() {
@@ -7448,6 +7885,7 @@
     }
 
     async function onboardingContinue() {
+      if (teamSetupVisible) { await finishTeamSetup(); return; }
       if (onboardingState.saving || !onboardingCanContinue()) return;
       onboardingState.saving = true;
       const btn = document.getElementById('onboardingContinueBtn');
@@ -7492,7 +7930,29 @@
 
     async function promptOnboardingIfNeeded() {
       await loadUserPreferences();
+      applyUsageProfile();
       if (userPreferences?.onboardingCompleted) return false;
+      if (isTeamProfile(currentUsageProfile)) {
+        if (currentUsageProfile.verified) { showTeamSetup(); return true; }
+        switchTab('tabProfile');
+        document.getElementById('usageRefreshProfile').focus({ preventScroll: true });
+        return false;
+      }
+      let choice = null;
+      try { choice = localStorage.getItem('flowsight_usage_onboarding_choice'); } catch { /* Optional local preference. */ }
+      if (choice === 'team' && !teamConnectionRequested) { choice = 'individual'; rememberUsageChoice('individual'); }
+      if (!choice && !usageChoiceShown) { showUsageChoice(); return true; }
+      if (choice === 'team') {
+        if (!authSession) { showCloudActivationPanel('team'); return true; }
+        // A confirmed free account has an Individual server preset until its
+        // invitation resolves. Keep the Team setup path open instead of placing
+        // the personal wizard over the invitation controls.
+        hideOnboardingWizard();
+        switchTab('tabProfile');
+        document.getElementById('usageJoinTeam').open = true;
+        document.getElementById('teamCodeInput').focus({ preventScroll: true });
+        return false;
+      }
       showOnboardingWizard(false);
       return true;
     }
@@ -7502,6 +7962,7 @@
     });
     document.getElementById('onboardingSkipCalendarBtn')?.addEventListener('click', async () => {
       if (onboardingState.saving) return;
+      if (teamSetupVisible) { hideOnboardingWizard(); return; }
       onboardingState.saving = true;
       try { await finishOnboarding(); }
       catch (error) { showToast(('Could not finish setup: ' + error), 'error'); }
@@ -7552,6 +8013,7 @@
     const PRIVACY_NOTICE_VERSION = '2026-08-23';
     let privacySettings = null;
     let pendingMonitoringStart = false;
+    let pendingTotalFocusStart = null;
     let pendingAutoMonitorConsent = false;
     let desktopPreferences = null;
 
@@ -7587,6 +8049,7 @@
     }
 
     function maybeShowDesktopPresencePrompt() {
+      if (isTeamProfile(currentUsageProfile)) return;
       if (!desktopPreferences || desktopPreferences.developmentBuild || desktopPreferences.promptDecided) return;
       if (document.getElementById('analyticsConsentOverlay')?.classList.contains('visible')) return;
       if (document.getElementById('onboardingOverlay')?.classList.contains('visible')) return;
@@ -7627,7 +8090,7 @@
         await loadDesktopPreferences();
         hideDesktopPresencePrompt();
         if (wantsAutoMonitor) {
-          if (privacySettings?.monitoringNoticeAcknowledged && privacySettings?.noticeVersion === PRIVACY_NOTICE_VERSION) {
+          if (monitoringNoticeAccepted(privacySettings)) {
             await invoke('set_start_monitoring_at_login', { enabled: true });
             await loadDesktopPreferences();
           } else {
@@ -7656,7 +8119,7 @@
 
     document.getElementById('autoMonitorToggle')?.addEventListener('change', async (event) => {
       const enabled = event.target.checked;
-      if (enabled && !(privacySettings?.monitoringNoticeAcknowledged && privacySettings?.noticeVersion === PRIVACY_NOTICE_VERSION)) {
+      if (enabled && !monitoringNoticeAccepted(privacySettings)) {
         pendingAutoMonitorConsent = true;
         renderDesktopPreferences();
         showMonitoringNotice();
@@ -7692,14 +8155,16 @@
     });
 
     function maybeStartMonitoringAtLogin() {
+      if (!usageProfileHydrated || isTeamProfile(currentUsageProfile) || !userPreferences?.onboardingCompleted) return;
       if (!desktopPreferences?.autostartLaunch || !desktopPreferences?.startMonitoringAtLogin) return;
-      if (!privacySettings?.monitoringNoticeAcknowledged || privacySettings.noticeVersion !== PRIVACY_NOTICE_VERSION) return;
+      if (!monitoringNoticeAccepted(privacySettings)) return;
       if (isMonitoring || loadTrackingCheckpoint(localStorage)?.mode === 'paused') return;
       startMonitoringFull().catch((error) => showToast(('Automatic tracking could not start: ' + error), 'error'));
     }
 
     function renderPrivacySettings() {
       const settings = privacySettings || {};
+      renderTeamSharing();
       const syncToggle = document.getElementById('cloudSyncToggle');
       const aiToggle = document.getElementById('cloudAiToggle');
       const titlesToggle = document.getElementById('windowTitlesToggle');
@@ -7712,7 +8177,7 @@
       }
       if (aiToggle) {
         aiToggle.checked = Boolean(settings.cloudAiEnabled);
-        aiToggle.disabled = !authSession || !currentEntitlements?.can_cloud_ai;
+        aiToggle.disabled = isTeamProfile(currentUsageProfile) || !authSession || !currentEntitlements?.can_cloud_ai;
       }
       if (titlesToggle) titlesToggle.checked = Boolean(settings.storeWindowTitles);
       if (excludedApps) excludedApps.value = (settings.excludedApplications || []).join('\n');
@@ -7722,7 +8187,7 @@
       const syncStatus = document.getElementById('cloudSyncStatus');
       const aiStatus = document.getElementById('cloudAiStatus');
       if (syncStatus) {
-        setText(syncStatus, () => ((settings.cloudSyncEnabled ? tr('On — aggregate summaries are sent to your FlowSight Cloud account.') : tr('Off — activity stays on this device.'))));
+        setText(syncStatus, () => isTeamProfile(currentUsageProfile) ? teamSharingCopy() : (settings.cloudSyncEnabled ? tr('On — aggregate summaries are sent to your FlowSight Cloud account.') : tr('Off — activity stays on this device.')));
       }
       if (aiStatus) {
         setText(aiStatus, () => ((settings.cloudAiEnabled ? tr('On — Coach can process messages and selected work context in the cloud. The proactive agent stays local.') : tr('Off — Coach cannot receive messages or activity.'))));
@@ -7733,15 +8198,10 @@
     async function loadPrivacySettings() {
       try {
         privacySettings = await invoke('get_privacy_settings');
-      } catch (_) {
-        privacySettings = {
-          monitoringNoticeAcknowledged: false,
-          cloudSyncEnabled: false,
-          cloudAiEnabled: false,
-          storeWindowTitles: false,
-          excludedApplications: ['1Password', 'Bitwarden', 'KeePass', 'KeePassXC', 'CredentialUIBroker'],
-          retentionDays: 30,
-        };
+      } catch (error) {
+        // A read failure is not a new privacy decision. Keep any loaded choice
+        // and let the next explicit start retry before showing an acknowledgement.
+        console.warn('[Privacy] Saved settings could not be read:', error);
       }
       renderPrivacySettings();
       return privacySettings;
@@ -7755,29 +8215,25 @@
 
     function showPrivacyNotice() {
       const overlay = document.getElementById('privacyNoticeOverlay');
-      overlay?.classList.add('visible');
-      overlay?.setAttribute('aria-hidden', 'false');
+      dialogFocus.open(overlay);
     }
 
     function hidePrivacyNotice() {
       const overlay = document.getElementById('privacyNoticeOverlay');
-      overlay?.classList.remove('visible');
-      overlay?.setAttribute('aria-hidden', 'true');
+      dialogFocus.close(overlay);
     }
 
     function showMonitoringNotice() {
       const button = document.getElementById('monitoringNoticeAcceptBtn');
       if (button) setText(button, () => (((pendingAutoMonitorConsent && !pendingMonitoringStart) ? tr('I understand — enable at sign-in') : tr('I understand — start'))));
       const overlay = document.getElementById('monitoringNoticeOverlay');
-      overlay?.classList.add('visible');
-      overlay?.setAttribute('aria-hidden', 'false');
+      dialogFocus.open(overlay);
       requestAnimationFrame(syncMonitoringConsentScrollCue);
     }
 
     function hideMonitoringNotice() {
       const overlay = document.getElementById('monitoringNoticeOverlay');
-      overlay?.classList.remove('visible');
-      overlay?.setAttribute('aria-hidden', 'true');
+      dialogFocus.close(overlay);
     }
 
     function syncMonitoringConsentScrollCue() {
@@ -7794,8 +8250,12 @@
     });
 
     async function startMonitoringWithNotice() {
-      if (!privacySettings) await loadPrivacySettings();
-      if (privacySettings?.monitoringNoticeAcknowledged && privacySettings?.noticeVersion === PRIVACY_NOTICE_VERSION) {
+      await loadPrivacySettings();
+      if (!privacySettings) {
+        showToast(tr('Could not load saved privacy settings. Try again.'), 'error');
+        return;
+      }
+      if (monitoringNoticeAccepted(privacySettings)) {
         await startMonitoringFull();
         return;
       }
@@ -7803,8 +8263,24 @@
       showMonitoringNotice();
     }
 
+    async function startTotalFocusWithNotice(intention) {
+      await loadPrivacySettings();
+      if (!privacySettings) {
+        showToast(tr('Could not load saved privacy settings. Try again.'), 'error');
+        return;
+      }
+      if (monitoringNoticeAccepted(privacySettings)) {
+        await totalFocusController.startFromToday(intention);
+        return;
+      }
+      pendingTotalFocusStart = intention;
+      pendingMonitoringStart = false;
+      showMonitoringNotice();
+    }
+
     document.getElementById('monitoringNoticeCancelBtn')?.addEventListener('click', () => {
       pendingMonitoringStart = false;
+      pendingTotalFocusStart = null;
       pendingAutoMonitorConsent = false;
       hideMonitoringNotice();
     });
@@ -7818,11 +8294,13 @@
           await invoke('set_start_monitoring_at_login', { enabled: true });
           await loadDesktopPreferences();
         }
-        if (pendingMonitoringStart) await startMonitoringFull();
+        if (pendingTotalFocusStart !== null) await totalFocusController.startFromToday(pendingTotalFocusStart);
+        else if (pendingMonitoringStart) await startMonitoringFull();
       } catch (error) {
         showToast(('Could not save the privacy acknowledgement: ' + error), 'error');
       } finally {
         pendingMonitoringStart = false;
+        pendingTotalFocusStart = null;
         pendingAutoMonitorConsent = false;
         if (button) button.disabled = false;
       }
@@ -8088,8 +8566,8 @@
       }
 
       await loadUserPreferences();
-      showMainApp();
       await restoreCloudSession();
+      showMainApp();
       await loadPrivacySettings();
       await loadDesktopPreferences().catch((error) => console.warn('[Startup] Preferences unavailable:', error));
       await initMainApp();
@@ -8101,14 +8579,15 @@
       maybeStartMonitoringAtLogin();
       loadAppVersionLabel().catch(() => {});
       await loadAnalyticsConsent();
-      const waitingForConsent = await promptAnalyticsConsentIfNeeded();
-      if (!waitingForConsent) {
-        if (analyticsConsent?.consented) {
-          invoke('sync_anonymous_analytics').catch(() => {});
+      const waitingForOnboarding = await promptOnboardingIfNeeded();
+      if (!waitingForOnboarding && !isTeamProfile(currentUsageProfile)) {
+        const waitingForConsent = await promptAnalyticsConsentIfNeeded();
+        if (!waitingForConsent) {
+          if (analyticsConsent?.consented) invoke('sync_anonymous_analytics').catch(() => {});
+          maybeShowDesktopPresencePrompt();
         }
-        const waitingForOnboarding = await promptOnboardingIfNeeded();
-        if (!waitingForOnboarding) maybeShowDesktopPresencePrompt();
       }
+      setInterval(() => loadEntitlementsFromBackend(), 60000);
     }
 
     // Native telemetry (foreground/UIA + configured-interval vision/action review +
@@ -8359,15 +8838,22 @@
       }
     });
 
-    function requestStatusReportPayload() {
+    let workReportPeriodDays = 7;
+    let reportGenerationPeriod = null;
+    function requestStatusReportPayload(periodDays = 7) {
+      if (reportGenerationPromise && reportGenerationPeriod !== periodDays) {
+        return reportGenerationPromise.catch(() => null).then(() => requestStatusReportPayload(periodDays));
+      }
       if (!reportGenerationPromise) {
-        reportGenerationPromise = invoke('generate_local_status_report', { periodDays: 7 })
-          .finally(() => { reportGenerationPromise = null; });
+        reportGenerationPeriod = periodDays;
+        reportGenerationPromise = invoke('generate_local_status_report', { periodDays })
+          .finally(() => { reportGenerationPromise = null; reportGenerationPeriod = null; });
       }
       return reportGenerationPromise;
     }
 
     function checkScheduledReport() {
+      if (isTeamProfile(currentUsageProfile)) return Promise.resolve();
       if (!weeklyReportsReady) return Promise.resolve();
       if (scheduledReportCheckPromise) return scheduledReportCheckPromise;
       scheduledReportCheckPromise = (async () => {
@@ -8568,7 +9054,7 @@
     function updateBrowserPairingPoll() {
       if (browserPairingPollTimer) clearInterval(browserPairingPollTimer);
       browserPairingPollTimer = null;
-      if (document.getElementById('localAgentBrowserSetup')?.open && document.getElementById('tabProfile')?.classList.contains('active')) {
+      if (!isTeamProfile(currentUsageProfile) && document.getElementById('localAgentBrowserSetup')?.open && document.getElementById('tabProfile')?.classList.contains('active')) {
         browserPairingPollTimer = setInterval(() => { refreshBrowserPairing(); }, 5000);
       }
     }
@@ -8643,6 +9129,10 @@
         catch (error) { setLocalAgentStatus('error', String(error)); }
       });
     }
+    document.getElementById('localAgentOpenExtensionBtn')?.addEventListener('click', async () => {
+      try { await invoke('open_browser_extension_folder'); }
+      catch (error) { setLocalAgentStatus('error', String(error)); }
+    });
     document.getElementById('localAgentCopyBrowserKeyBtn')?.addEventListener('click', async () => {
       const key = localBrowserPairing?.token;
       const status = document.getElementById('localAgentBrowserCheckStatus');
@@ -8694,6 +9184,7 @@
     });
 
     listen('local-agent-focus-changed', ({ payload }) => {
+      if(totalFocusController.session()?.linkedClock) { totalFocusController.refresh();return; }
       if (payload?.status === 'running') {
         isMonitoring = true;
         isPaused = false;
@@ -8711,6 +9202,7 @@
       }
     });
     listen('local-agent-digest', ({ payload }) => {
+      if (!currentUsageProfile.capabilities.focus_alerts) return;
       if (Array.isArray(payload) && payload.length) {
         setLocalAgentStatus('success', `${payload.length} held reminder(s):\n${payload.map((item) => `• ${item.title}: ${item.body}`).join('\n')}`);
         showToast(formatMessage`${payload.length} focus reminder(s) held during quiet mode`, 'success', 5000);
@@ -8718,6 +9210,7 @@
     });
 
     function switchTab(tabId) {
+      if (!profileAllowsTab(currentUsageProfile, tabId)) return false;
       document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
       document.querySelectorAll('.nav-item').forEach(n => {
         n.classList.remove('active');
@@ -8727,9 +9220,10 @@
       const activeNavItem = document.querySelector(`.nav-item[data-tab="${tabId}"]`);
       activeNavItem?.classList.add('active');
       activeNavItem?.setAttribute('aria-current', 'page');
-      if (tabId === 'tabSummary') loadHistory();
+      if (tabId === 'tabOnline') onlineLeagues.refresh();
+      if (tabId === 'tabSummary') { dailyFlow.refresh(); loadHistory(); }
       if (tabId === 'tabCloudInsights') loadCoachChat();
-      if (tabId === 'tabProfile') {
+      if (tabId === 'tabProfile' && !isTeamProfile(currentUsageProfile)) {
         refreshBrowserPairing();
         if (document.getElementById('localAgentManageDetails')?.open) loadLocalAgentDetails();
       }
@@ -8755,34 +9249,12 @@
       return `${mins}m`;
     }
 
-    function formatDisplayDate(dateStr) {
-      const d = new Date(dateStr + 'T12:00:00');
-      const today = new Date();
-      const isToday = d.toDateString() === today.toDateString();
-      const formatted = d.toLocaleDateString(getLocale(), { month: 'long', day: 'numeric' });
-      if (isToday) return formatMessage`Today, ${formatted}`;
-      return formatted;
-    }
-
     function canonicalDeepFocusSeconds(data) {
       return data.focus?.deep_focus_seconds || 0;
     }
 
     function canonicalDistractionEvents(data) {
       return data.focus?.distraction_events || 0;
-    }
-
-    function renderWeekRow(week) {
-      if (!week?.days) return '';
-      return week.days.map(day => {
-        const classes = ['week-day'];
-        if (day.is_today) classes.push('today');
-        if (day.has_activity) classes.push('completed');
-        const inner = day.has_activity
-          ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>'
-          : '';
-        return html`<div class="${classes.join(' ')}"><span class="week-day-label">${new Intl.DateTimeFormat(getLocale(), {weekday:'short'}).format(new Date(day.date+'T12:00:00'))}</span><div class="week-day-ring">${inner}</div></div>`;
-      }).join('');
     }
 
     function renderProgressRing(progress) {
@@ -8901,13 +9373,24 @@
         updateLiveSummary();
         lastHistoryRenderKey = key;
       } finally {
+        dailyFlow.attach(summaryBody.querySelector('[data-daily-flow-slot]'));
         restoreReadingPosition(summaryBody, position);
       }
     }
 
+    function bindWorkReportPeriod() {
+      const header = summaryBody.querySelector('.summary-header');
+      if (!header) return;
+      const field = document.createElement('div');
+      field.className = 'report-period-field';
+      field.innerHTML = html`<label for="workReportPeriod">Report period</label><select class="select" id="workReportPeriod"><option value="1">Today</option><option value="7">Last 7 days</option><option value="30">Last 30 days</option></select>`;
+      header.after(field);
+      const select = field.querySelector('select');
+      select.value = String(workReportPeriodDays);
+      select.addEventListener('change', () => { workReportPeriodDays = Number(select.value); });
+    }
+
     function renderHistoryContent(data, week) {
-      const activeDays = week?.days?.filter(day => day.has_activity).length || 0;
-      const weekActivityLabel = formatMessage`${activeDays} active day${activeDays === 1 ? '' : 's'}`;
       if (data.entries.length === 0 && getDisplayTotalSeconds() === 0) {
         summaryBody.innerHTML = html`
           <div class="summary-header">
@@ -8921,15 +9404,13 @@
               </button>
             </div>
           </div>
-          <div class="summary-date">${formatDisplayDate(data.date)}</div>
-          <section class="week-card" aria-label="Activity this week">
-            <div class="week-card-heading"><span>This week</span><span>${weekActivityLabel}</span></div>
-            <div class="week-row">${renderWeekRow(week)}</div>
-          </section>
-          <div class="empty-state">No activity recorded today. Start a tracking block to see your work patterns here.</div>`;
+          <div data-daily-flow-slot></div>
+          <div class="first-report-guide"><p>Start a tracking block when you choose, then open your work report to review the activity recorded on this device.</p><p>You can generate a report for today. An empty report has no evidence for recommendations.</p><button type="button" class="button button-secondary" id="firstReportTrackingBtn">Go to tracking</button></div>`;
+        document.getElementById('firstReportTrackingBtn').onclick = () => switchTab('tabToday');
         document.getElementById('generateReportBtn').onclick = () => {
           generateStatusReport().catch((e) => showToast(String(e), 'error', 6000));
         };
+        bindWorkReportPeriod();
         updateNotionControls();
         return;
       }
@@ -8966,11 +9447,7 @@
             </button>
           </div>
         </div>
-        <div class="summary-date">${formatDisplayDate(data.date)}</div>
-        <section class="week-card" aria-label="Activity this week">
-          <div class="week-card-heading"><span>This week</span><span>${weekActivityLabel}</span></div>
-          <div class="week-row">${renderWeekRow(week)}</div>
-        </section>
+        <div data-daily-flow-slot></div>
 
         <div class="summary-main-card" data-reading-key="daily-summary">
           <div class="summary-time-row">
@@ -9014,6 +9491,7 @@
       document.getElementById('generateReportBtn').onclick = () => {
         generateStatusReport().catch((e) => showToast(String(e), 'error', 6000));
       };
+      bindWorkReportPeriod();
       updateNotionControls();
     }
 
@@ -9085,7 +9563,7 @@
     }
 
     function statusReportViewModel(payload) {
-      const userName = currentUser?.display_name || currentUser?.name || currentUser?.email || tr('Knowledge worker');
+      const userName = userPreferences?.displayName || currentUser?.display_name || currentUser?.name || currentUser?.email || tr('Knowledge worker');
       return createStatusReportViewModel(payload, {
         userName,
         todayDate: currentHistoryData?.date || new Date().toISOString().slice(0, 10),
@@ -9097,7 +9575,19 @@
       const host = document.getElementById('statusReportModalBody');
       if (!host || !payload) return;
 
-      host.innerHTML = renderStatusReportHtml(statusReportViewModel(payload));
+      const model = statusReportViewModel(payload);
+      host.innerHTML = renderStatusReportHtml(model);
+      workReview.attach(document.getElementById('workReviewSlot'), model);
+      workReview.bindSuggestions(host);
+      const syncState = privacySettings?.cloudSyncEnabled ? tr('Activity sync is on.') : tr('Activity sync is off.');
+      const cloudState = privacySettings?.cloudAiEnabled ? tr('Cloud AI is on.') : tr('Cloud AI is off.');
+      const origin = host.querySelector('.sr-origin');
+      if (origin) {
+        const sharing = document.createElement('p');
+        sharing.className = 'sr-origin';
+        sharing.textContent = privacySettings ? `${syncState} ${cloudState} ${tr('MCP shares the requested report with the AI client you connect. Manage sharing in Settings.')}` : tr('Sharing settings could not be loaded. Check Settings before sharing.');
+        origin.after(sharing);
+      }
       document.getElementById('downloadReportPdfBtn')?.addEventListener('click', async (event) => {
         const button = event.currentTarget;
         button.disabled = true;
@@ -9127,7 +9617,8 @@
       await beginReportProgressListen();
 
       try {
-        const payload = await requestStatusReportPayload();
+        const periodDays = workReportPeriodDays;
+        const payload = await requestStatusReportPayload(periodDays);
         lastStatusReportPayload = payload;
         reportProgressState = {
           activeStep: REPORT_GEN_STEP_LABELS.length - 1,
@@ -9275,9 +9766,73 @@
       }
     }
 
+    function esp32Snapshot() {
+      if (!trackingStateHydrated) return null;
+      // Native events keep the same renderer clock alive when the window is hidden.
+      advancePomodoro().catch(() => {});
+      updateTimerDisplay();
+      updatePlayButtonState();
+      const linked = Boolean(totalFocusController.session()?.linkedClock);
+      const breaking = !linked && timerPreferences.mode === 'pomodoro' && pomodoro.phase !== 'work' && !pomodoro.ready;
+      const busy = trackingTransitionInProgress || pomodoroTransition || totalFocusController.busy() || setupInProgress;
+      const event = activeCalendarTask();
+      const connectedCalendar = canUseCalendarCompanion() && (calendarStatus?.googleConnected || calendarStatus?.microsoftConnected);
+      const primary = breaking ? 'end_break' : isMonitoring ? 'pause' : isPaused ? 'resume' : 'start';
+      return {
+        language: getLanguage(),
+        mode: timerPreferences.mode,
+        mode_label: document.getElementById('timerModeSelect').selectedOptions[0]?.textContent || 'Normal',
+        kind: document.getElementById('timerKindLabel').textContent,
+        clock: document.getElementById('timerDisplay').textContent,
+        status: tr(isMonitoring ? 'Live' : isPaused ? 'Paused' : 'Ready'),
+        phase: isMonitoring ? 'running' : breaking ? 'break' : isPaused ? 'paused' : 'ready',
+        total_seconds: getDisplayTotalSeconds(),
+        goal_seconds: getDailyGoalHours() * 3600,
+        goal_label: tr('Daily goal'),
+        goal_value: document.getElementById('timerGoalLabel').textContent,
+        context: String(event?.title || (connectedCalendar ? tr('Calendar connected') : '')).slice(0, 100),
+        primary_action: primary,
+        primary_label: breaking ? tr('End break') : document.getElementById('playTimerLabel').textContent,
+        primary_enabled: !busy && (breaking || !document.getElementById('playTimerBtn').disabled),
+        stop_enabled: !busy && (isMonitoring || isPaused),
+        mode_enabled: !busy && !document.getElementById('timerModeSelect').disabled,
+        busy,
+      };
+    }
+
+    async function esp32Action(action) {
+      const before = esp32Snapshot();
+      if (!before || before.busy) return false;
+      if (action === 'mode_normal' || action === 'mode_pomodoro') {
+        if (!before.mode_enabled) return false;
+        const select = document.getElementById('timerModeSelect');
+        select.value = action === 'mode_normal' ? 'normal' : 'pomodoro';
+        select.dispatchEvent(new Event('change', { bubbles: true }));
+        return true;
+      }
+      if (action === 'stop') {
+        if (!before.stop_enabled) return false;
+        await stopMonitoring();
+        return !isMonitoring && !isPaused;
+      }
+      // A stale physical press can never become the opposite operation.
+      if (!before.primary_enabled || action !== before.primary_action) return false;
+      if (action === 'start') await startMonitoringWithNotice();
+      else if (action === 'resume') await resumeMonitoring();
+      else if (action === 'pause') await pauseMonitoring();
+      else if (action === 'end_break') document.getElementById('pomodoroSkipBreak').click();
+      else return false;
+      return action === 'pause' ? !isMonitoring : action === 'end_break' ? pomodoro.ready : isMonitoring;
+    }
+
+    mountEsp32Companion({ invoke, listen, snapshot: esp32Snapshot, execute: esp32Action })
+      .catch(error => console.warn('[USB companion] Unavailable', error));
+
     // Refresh source-owned display surfaces without replacing editable fields,
     // restarting tracking, requesting a new plan, or generating another report.
     document.addEventListener('flowsight:languagechange', () => {
+      applyUsageProfile();
+      renderTeamSharing();
       updateTodayGreeting();
       updateGoalUI();
       updatePlayButtonState();
@@ -9342,6 +9897,7 @@
         showToast(tr("Login Successful"), "success");
         authSession = session;
         currentUser = session.user;
+        await invoke('refresh_entitlements').then(() => persistEntitlements()).catch(() => {});
         hideCloudActivationPanel();
         showMainApp();
         await initMainApp();

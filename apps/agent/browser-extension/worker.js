@@ -2,10 +2,11 @@
 // arrive through the loopback bridge after the user confirms them in FlowSight.
 const POLL_ALARM = 'flowsight-poll';
 const FOCUS_ALARM = 'flowsight-focus-expiry';
-const FOCUS_RULE_IDS = Array.from({ length: 40 }, (_, index) => 1000 + index);
+const FOCUS_RULE_IDS = Array.from({ length: 41 }, (_, index) => 1000 + index);
 let polling = false;
 let pendingPoll = null;
 let focusQueue = Promise.resolve();
+let focusError = null;
 const focusMutation = run => {
   const result = focusQueue.then(run);
   focusQueue = result.catch(() => {});
@@ -66,8 +67,81 @@ function focusPattern(pattern) {
 
 function matchesFocus(url, policy) {
   if (!policy || Date.parse(policy.expiresAt) <= Date.now() || !/^https?:\/\//i.test(url || '')) return false;
+  if (policy.musicUrl) {
+    const candidate = new URL(url);candidate.hash = '';
+    if (candidate.href === musicAddress(policy.musicUrl)) return false;
+  }
   const matches = pattern => new RegExp(focusPattern(pattern).regexFilter, 'i').test(url);
   return policy.patterns.some(matches) && !policy.exceptions.some(matches);
+}
+
+function musicAddress(raw) {
+  const url = new URL(raw);
+  if (typeof raw !== 'string' || raw.length > 2048 || /\s/.test(raw)
+      || !['http:', 'https:'].includes(url.protocol) || url.username || url.password
+      || url.port || !url.hostname.includes('.') || url.hostname.endsWith('.')
+      || /^\d+\.\d+\.\d+\.\d+$/.test(url.hostname)) throw new Error('Use a complete public HTTP(S) music link without spaces or sign-in credentials.');
+  url.hash = '';
+  return url.href;
+}
+
+async function openFocusMusic(sessionId) {
+  const { focus, musicOpenedSessionId } = await chrome.storage.local.get(['focus', 'musicOpenedSessionId']);
+  if (!focus?.musicUrl || focus.id !== sessionId || Date.parse(focus.expiresAt) <= Date.now()) return {};
+  musicAddress(focus.musicUrl);
+  if (musicOpenedSessionId === sessionId) return { musicOpened: true };
+  // Existing browser window only; neither the active tab nor window focus is changed.
+  const windows = await chrome.windows.getAll({ windowTypes: ['normal'] });
+  const target = windows.find(window => window.focused) || windows[0];
+  if (!target) throw new Error('Keep a browser window open to open music in the background.');
+  const tab = await chrome.tabs.create({ url: focus.musicUrl, windowId: target.id, active: false });
+  await chrome.storage.local.set({ musicOpenedSessionId: sessionId,
+    focusMusic: { sessionId, tabId: tab.id, url: focus.musicUrl, playback: 'play', revision: 1 } });
+  if (isYouTube(focus.musicUrl)) await sendMusicPlayback(tab.id);
+  return { musicOpened: true };
+}
+
+function isYouTube(raw) {
+  try {
+    const url = new URL(raw);
+    return ['http:', 'https:'].includes(url.protocol)
+      && (url.hostname === 'youtu.be' || url.hostname === 'youtube.com' || url.hostname.endsWith('.youtube.com'));
+  } catch (_) { return false; }
+}
+
+async function sendMusicPlayback(tabId) {
+  const { focusMusic } = await chrome.storage.local.get('focusMusic');
+  if (focusMusic?.tabId !== tabId || !isYouTube(focusMusic.url)) return {};
+  const tab = await chrome.tabs.get(tabId);
+  if (!isYouTube(tab.url || tab.pendingUrl)) throw new Error('The focus music tab is no longer on YouTube.');
+  try {
+    const result = await chrome.tabs.sendMessage(tabId, { type: 'focus-music-playback',
+      playback: focusMusic.playback, revision: focusMusic.revision });
+    if (result?.error) throw new Error(result.error);
+    return { musicPlayback: focusMusic.playback };
+  } catch (error) {
+    // The content script requests the persisted state as soon as the page loads.
+    if (tab.status === 'loading') return { musicPending: true };
+    throw error;
+  }
+}
+
+async function controlFocusMusic(args, status) {
+  if (!['pause', 'play', 'release'].includes(args.musicPlayback)) return {};
+  const { focusMusic } = await chrome.storage.local.get('focusMusic');
+  if (!focusMusic || focusMusic.sessionId !== args.musicSessionId || !isYouTube(focusMusic.url)) return {};
+  if (args.musicPlayback === 'play') {
+    const { focus } = await chrome.storage.local.get('focus');
+    if (!status.applied || status.sessionId !== args.sessionId
+        || focus?.musicUrl !== focusMusic.url) return {};
+  } else if (status.applied) return {};
+  const updated = { ...focusMusic, sessionId: args.sessionId,
+    playback: args.musicPlayback, revision: focusMusic.revision + 1 };
+  await chrome.storage.local.set({ focusMusic: updated });
+  try { return await sendMusicPlayback(updated.tabId); }
+  finally {
+    if (args.musicPlayback === 'release') await chrome.storage.local.set({ focusMusic: null });
+  }
 }
 
 async function protectTab(tabId, url) {
@@ -101,12 +175,15 @@ async function applyFocusPolicy(policy) {
       action: { type: 'redirect', redirect: { extensionPath: '/blocked.html' } }, condition: focusPattern(pattern) })),
     ...policy.exceptions.map((pattern, i) => ({ id: 1020 + i, priority: 100,
       action: { type: 'allow' }, condition: focusPattern(pattern) })),
+    ...(policy.musicUrl ? [{ id: 1040, priority: 110, action: { type: 'allow' },
+      condition: { regexFilter: `^${escapeRegex(musicAddress(policy.musicUrl))}$`, isUrlFilterCaseSensitive: true, resourceTypes: ['main_frame'] } }] : []),
   ];
   const installed = (await chrome.declarativeNetRequest.getDynamicRules()).filter(rule => FOCUS_RULE_IDS.includes(rule.id));
   const changed = JSON.stringify(focus) !== JSON.stringify(policy)
     || installed.length !== rules.length || !rules.every(rule => installed.some(item => item.id === rule.id
       && item.priority === rule.priority && item.action.type === rule.action.type
-      && item.condition.regexFilter === rule.condition.regexFilter));
+      && item.condition.regexFilter === rule.condition.regexFilter
+      && item.condition.isUrlFilterCaseSensitive === rule.condition.isUrlFilterCaseSensitive));
   await chrome.alarms.create(FOCUS_ALARM, { when: expiresAt });
   if (changed) {
     await chrome.declarativeNetRequest.updateDynamicRules({ removeRuleIds: FOCUS_RULE_IDS, addRules: rules });
@@ -123,8 +200,10 @@ async function focusStatus() {
   await expireBlocks();
   const { focus, cancelledFocusId } = await chrome.storage.local.get(['focus', 'cancelledFocusId']);
   const installed = await chrome.declarativeNetRequest.getDynamicRules();
-  return { extensionVersion: chrome.runtime.getManifest().version, capabilities: ['total-focus'],
-    sessionId: focus?.id || null, applied: Boolean(focus && installed.some(rule => rule.id === 1000)),
+  const siteAccess = await chrome.permissions.contains({ origins: ['http://*/*', 'https://*/*'] });
+  return { extensionVersion: chrome.runtime.getManifest().version, capabilities: ['total-focus', 'background-music', 'youtube-playback'], musicAvailable: true,
+    available: siteAccess && !focusError, error: focusError || (siteAccess ? null : 'Allow Browser Controls access to all websites in your browser extension settings.'),
+    sessionId: focus?.id || null, applied: Boolean(siteAccess && !focusError && focus && installed.some(rule => rule.id === 1000)),
     cancelledSessionId: cancelledFocusId || null };
 }
 
@@ -153,7 +232,15 @@ async function releaseBlocksAfterDisconnect() {
 }
 
 async function runCommand(name, args) {
-  if (name === 'browser.focus_status') return focusStatus();
+  if (name === 'browser.focus_status') {
+    const status = await focusStatus();
+    try {
+      if (args.musicPlayback) return { ...status, ...await controlFocusMusic(args, status) };
+      if (!args.openMusic || !status.applied || status.sessionId !== args.sessionId) return status;
+      return { ...status, ...await openFocusMusic(args.sessionId) };
+    }
+    catch (error) { return { ...status, musicError: String(error.message || error) }; }
+  }
   if (name === 'browser.unblock_all') {
     const { blocks = [] } = await chrome.storage.local.get('blocks');
     if (blocks.length) {
@@ -258,11 +345,15 @@ async function pollOnce() {
     }
     await chrome.storage.local.set({ lastConnectedAt: Date.now() });
     const { command, focus = null } = await response.json();
-    await reconcileFocus(focus);
+    focusError = null;
+    try { await reconcileFocus(focus); }
+    catch (error) { focusError = String(error.message || error); }
     await publishFocusStatus(port, token);
-    if (!command) return { connected: true };
+    const readiness = await focusStatus();
+    if (!command) return { connected: true, totalFocusAvailable: readiness.available, error: readiness.error };
     let result;
     try {
+      if (command.name === 'browser.focus_status' && focusError) throw new Error(focusError);
       result = { id: command.id, ok: true, result: await runCommand(command.name, command.arguments) };
     } catch (error) {
       result = { id: command.id, ok: false, error: String(error.message || error) };
@@ -270,7 +361,7 @@ async function pollOnce() {
     const { pendingResults = [] } = await chrome.storage.local.get('pendingResults');
     await chrome.storage.local.set({ pendingResults: [...pendingResults, result].slice(-20) });
     await flushResults(port, token);
-    return { connected: true };
+    return { connected: true, totalFocusAvailable: readiness.available, error: readiness.error };
   } catch (_) {
     // FlowSight may be closed. Never keep a site blocked indefinitely.
     await releaseBlocksAfterDisconnect().catch(() => {});
@@ -290,9 +381,17 @@ chrome.action.onClicked.addListener(() => chrome.runtime.openOptionsPage());
 // Single-page apps can change routes without a network main_frame request.
 chrome.tabs.onUpdated.addListener((tabId, change) => {
   if (change.url) protectTab(tabId, change.url).catch(() => {});
+  if (change.status === 'complete') sendMusicPlayback(tabId).catch(() => {});
 });
 chrome.alarms.onAlarm.addListener((alarm) => { if (alarm.name === POLL_ALARM || alarm.name === FOCUS_ALARM) poll(); });
 chrome.runtime.onMessage.addListener((message, sender, reply) => {
+  if (message?.type === 'get-focus-music-playback' && sender.tab && isYouTube(sender.url)) {
+    chrome.storage.local.get('focusMusic').then(({ focusMusic }) => {
+      reply(focusMusic?.tabId === sender.tab.id && isYouTube(focusMusic.url)
+        ? { playback: focusMusic.playback, revision: focusMusic.revision } : {});
+    }, () => reply({}));
+    return true;
+  }
   if (message?.type === 'poll-now' && sender.url?.startsWith(chrome.runtime.getURL(''))) {
     poll().then(reply, () => reply({ connected: false, error: 'Could not connect to FlowSight.' }));
     return true;

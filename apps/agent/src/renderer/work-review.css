@@ -1,0 +1,24 @@
+.work-review { padding:24px 32px; border-top:1px solid hsl(var(--border)); color:hsl(var(--foreground)); }
+.work-review h3 { margin:0 0 10px; font-size:16px; }
+.work-review p { margin:8px 0 14px; line-height:1.6; font-size:12px; overflow-wrap:anywhere; }
+.work-review .work-review-private,.work-review small { color:hsl(var(--muted-foreground)); font-size:11px; }
+.work-review-actions { display:flex; flex-wrap:wrap; gap:8px; margin:12px 0; }
+.work-review-actions button { height:auto; min-height:38px; white-space:normal; }
+.work-review-form { display:grid; gap:8px; margin-top:20px; }
+.work-review-form label { font-size:12px; font-weight:650; }
+.work-review-form input,.work-review-form textarea,.work-review-form select { width:100%; box-sizing:border-box; padding:10px; border:1px solid hsl(var(--border)); border-radius:11px; background:hsl(var(--background)); color:hsl(var(--foreground)); font:inherit; font-size:12px; }
+.work-review-form textarea { resize:vertical; min-height:70px; }
+.work-review-form input:focus-visible,.work-review-form textarea:focus-visible,.work-review button:focus-visible,.work-review summary:focus-visible { outline:3px solid hsl(var(--primary)); outline-offset:3px; }
+.work-review-history { margin-top:20px; }.work-review-history summary { cursor:pointer; font-size:12px; font-weight:650; padding:10px 0; }
+.work-review-history ul { list-style:none; margin:0; padding:0; }.work-review-item { padding:14px 0; border-top:1px solid hsl(var(--border)); }
+.work-review-item .work-review-note { font-size:11px; }.work-review-item button { margin-top:8px; }
+.sr-choice-btn { margin-top:6px; height:auto; white-space:normal; font-size:11px; }
+.sr-origin { font-size:11px; line-height:1.6; color:hsl(var(--muted-foreground)); margin-top:12px; }
+.sr-review-hero .sr-origin { color:#d4e7e7; }
+.work-review .button-primary { background:#087f78; border-color:#087f78; color:#fff; }
+.work-review .button-primary:hover:not(:disabled) { background:#066b65; border-color:#066b65; }
+.work-review-form select:focus-visible { outline:3px solid hsl(var(--primary)); outline-offset:3px; }
+.first-report-guide { margin:12px 0 20px; color:hsl(var(--foreground)); font-size:12px; line-height:1.6; }
+.first-report-guide p { margin:8px 0; }.first-report-guide .button { white-space:normal; height:auto; min-height:38px; }
+.report-period-field { margin:14px 0; display:flex; align-items:center; gap:10px; flex-wrap:wrap; font-size:12px; }.report-period-field select { min-width:0; }
+@media(max-width:520px) { .work-review { padding:20px 22px; } }

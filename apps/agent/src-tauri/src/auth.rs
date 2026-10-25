@@ -466,7 +466,7 @@ fn create_oauth_client(
 }
 
 #[tauri::command]
-pub fn start_auth(provider: String) -> Result<String, String> {
+pub fn start_auth(provider: String, app: tauri::AppHandle) -> Result<String, String> {
     auth_log(format!(
         "[Auth] start_auth requested for provider: {}",
         provider
@@ -476,7 +476,7 @@ pub fn start_auth(provider: String) -> Result<String, String> {
 
     // Google uses Supabase OAuth (configured in Supabase Dashboard)
     if provider == "google" {
-        return start_supabase_oauth(&provider);
+        return start_supabase_oauth(&provider, app);
     }
 
     // Jira and Linear are paid-plan integrations only.
@@ -535,7 +535,7 @@ pub fn start_auth(provider: String) -> Result<String, String> {
 }
 
 // Supabase OAuth for providers configured in Supabase Dashboard (Google, etc.)
-fn start_supabase_oauth(provider: &str) -> Result<String, String> {
+fn start_supabase_oauth(provider: &str, app: tauri::AppHandle) -> Result<String, String> {
     let csrf = uuid::Uuid::new_v4().to_string();
     set_oauth_state("supabase".to_string(), provider.to_string(), csrf.clone());
     auth_log(format!(
@@ -565,7 +565,7 @@ fn start_supabase_oauth(provider: &str) -> Result<String, String> {
     // para no poder tumbar el proceso ante un panic inesperado.
     std::thread::spawn(move || {
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            listen_for_supabase_callback();
+            listen_for_supabase_callback(&app);
         }));
         if let Err(payload) = result {
             auth_log(format!(
@@ -672,7 +672,13 @@ fn listen_for_callback() {
             match exchange_code(&provider, code, &verifier) {
                 Ok(session) => {
                     clear_oauth_state();
-                    save_auth_session(&session);
+                    if let Err(error) = save_auth_session(&session, None) {
+                        let _ = request.respond(
+                            private_html_response(format!("Error: {}", html_escape(&error)))
+                                .with_status_code(400),
+                        );
+                        continue;
+                    }
 
                     // For Jira: also save provider-specific tokens so jira.rs can find them
                     if provider == "jira" {
@@ -699,7 +705,7 @@ fn listen_for_callback() {
 // never send to the server. We serve an HTML page that extracts the fragment
 // and submits it back via a same-origin <form> GET — this is never blocked
 // by browser cross-origin navigation policies unlike window.location.href.
-fn listen_for_supabase_callback() {
+fn listen_for_supabase_callback(app: &tauri::AppHandle) {
     auth_log("[Auth] Supabase callback listener starting");
 
     // Give any previous listener thread time to release port 12345
@@ -908,7 +914,13 @@ fn listen_for_supabase_callback() {
                             provider,
                         };
                         clear_oauth_state();
-                        save_auth_session(&session);
+                        if let Err(error) = save_auth_session(&session, Some(app)) {
+                            let _ = request.respond(
+                                private_html_response(format!("Error: {}", html_escape(&error)))
+                                    .with_status_code(400),
+                            );
+                            continue;
+                        }
                         auth_log("[Auth] Supabase login successful");
                         let _ =
                             request.respond(private_html_response(supabase_login_success_html()));
@@ -1125,17 +1137,71 @@ fn save_jira_specific_tokens(session: &AuthSession) {
     }
 }
 
-fn save_auth_session(session: &AuthSession) {
-    match get_db_conn() {
-        Ok(conn) => {
-            let json = serde_json::to_string(session).unwrap_or_default();
-            match crate::secure_config::save_secret(&conn, "auth_session", &json) {
-                Ok(_) => println!("[Auth] Session saved securely"),
-                Err(e) => println!("[Auth] FAILED to persist session: {}", e),
-            }
-        }
-        Err(e) => println!("[Auth] FAILED to open DB while saving session: {}", e),
+fn persist_auth_session(
+    conn: &Connection,
+    session: &AuthSession,
+    on_identity_change: impl FnOnce() -> Result<(), String>,
+) -> Result<(), String> {
+    if session.provider != "google" && session.provider != "manual" {
+        return crate::secure_config::save_secret(
+            conn,
+            "auth_session",
+            &serde_json::to_string(session).map_err(|e| e.to_string())?,
+        );
     }
+    // Snapshot both old copies before writing the OAuth response. Otherwise the
+    // fallback can disguise first login or leave UI and canonical account apart.
+    let previous = crate::sync::get_user_session_from_conn(conn);
+    let changed = previous.as_ref().map(|s| s.user_id.as_str()) != Some(session.user.id.as_str());
+    if changed {
+        on_identity_change()?;
+    }
+    let canonical = crate::sync::UserSession {
+        user_id: session.user.id.clone(),
+        team_id: if changed {
+            None
+        } else {
+            previous.as_ref().and_then(|s| s.team_id.clone())
+        },
+        access_token: session.access_token.clone(),
+        refresh_token: session.refresh_token.clone().or_else(|| {
+            if changed {
+                None
+            } else {
+                previous.as_ref().and_then(|s| s.refresh_token.clone())
+            }
+        }),
+        email: session.user.email.clone(),
+    };
+    let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
+    if changed {
+        crate::privacy::disable_cloud_for_context_change(&tx)?;
+        crate::privacy::forget_monitoring_acknowledgement(&tx)?;
+        crate::entitlements::clear_entitlements(&tx)?;
+    }
+    crate::secure_config::save_secret(
+        &tx,
+        "user_session",
+        &serde_json::to_string(&canonical).map_err(|e| e.to_string())?,
+    )?;
+    crate::secure_config::save_secret(
+        &tx,
+        "auth_session",
+        &serde_json::to_string(session).map_err(|e| e.to_string())?,
+    )?;
+    tx.commit().map_err(|e| e.to_string())
+}
+
+fn save_auth_session(session: &AuthSession, app: Option<&tauri::AppHandle>) -> Result<(), String> {
+    use tauri::Manager;
+    let _guard = crate::sync::SESSION_REFRESH_LOCK
+        .lock()
+        .map_err(|_| "Session unavailable")?;
+    persist_auth_session(&get_db_conn()?, session, || {
+        let app = app.ok_or("Account transition unavailable")?;
+        crate::agent::stop_monitoring(app.state::<crate::agent::AgentState>())?;
+        crate::local_agent::end_personal_context()
+    })
 }
 
 #[tauri::command]
@@ -1149,9 +1215,19 @@ pub fn get_auth_session() -> Result<Option<PublicAuthSession>, String> {
 }
 
 #[tauri::command]
-pub fn logout() -> Result<(), String> {
+pub fn logout(state: tauri::State<'_, crate::agent::AgentState>) -> Result<(), String> {
+    let team = !crate::entitlements::personal_features_allowed(&crate::paths::db_path()?);
+    crate::agent::stop_monitoring(state)?;
+    crate::local_agent::end_personal_context()?;
     crate::calendar_companion::on_cloud_logout();
+    let _guard = crate::sync::SESSION_REFRESH_LOCK
+        .lock()
+        .map_err(|_| "Session unavailable")?;
     let conn = get_db_conn()?;
+    crate::privacy::disable_cloud_for_context_change(&conn)?;
+    if team {
+        crate::privacy::forget_monitoring_acknowledgement(&conn)?;
+    }
     crate::secure_config::delete_secret(&conn, "auth_session")?;
     crate::secure_config::delete_secret(&conn, "user_session")?;
     crate::entitlements::clear_entitlements(&conn)?;
@@ -1190,14 +1266,17 @@ pub(crate) fn parse_tokens_from_oauth_code(code: &str) -> Result<(String, Option
 // call below opens a real socket, which is what lets Windows inject a broken
 // Winsock LSP into this process (see crash_guard.rs module docs).
 #[tauri::command]
-pub async fn login_with_code(code: String) -> Result<PublicAuthSession, String> {
-    tauri::async_runtime::spawn_blocking(move || login_with_code_blocking(code))
+pub async fn login_with_code(
+    code: String,
+    app: tauri::AppHandle,
+) -> Result<PublicAuthSession, String> {
+    tauri::async_runtime::spawn_blocking(move || login_with_code_blocking(code, &app))
         .await
         .map_err(|e| format!("Task join error: {}", e))?
         .map(PublicAuthSession::from)
 }
 
-fn login_with_code_blocking(code: String) -> Result<AuthSession, String> {
+fn login_with_code_blocking(code: String, app: &tauri::AppHandle) -> Result<AuthSession, String> {
     // Support both raw JWT tokens and full redirect URLs with hash fragments
     // e.g., "https://flowsight.site/#access_token=eyJ...&refresh_token=abc&..."
     let (access_token, refresh_token) = match parse_tokens_from_oauth_code(&code) {
@@ -1250,7 +1329,7 @@ fn login_with_code_blocking(code: String) -> Result<AuthSession, String> {
         provider: "google".to_string(),
     };
 
-    save_auth_session(&session);
+    save_auth_session(&session, Some(app))?;
     println!("[Auth] Login with code successful");
     Ok(session)
 }
@@ -1258,6 +1337,122 @@ fn login_with_code_blocking(code: String) -> Result<AuthSession, String> {
 #[cfg(test)]
 mod oauth_code_parse_tests {
     use super::parse_tokens_from_oauth_code;
+
+    #[cfg(any(windows, target_os = "macos"))]
+    #[test]
+    fn oauth_transition_updates_both_accounts_and_resets_only_a_new_identity() {
+        use super::*;
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch("CREATE TABLE config(key TEXT PRIMARY KEY,value TEXT);")
+            .unwrap();
+        let session = |id: &str, provider: &str| AuthSession {
+            user: AuthUser {
+                id: id.into(),
+                email: format!("{id}@example.test"),
+                display_name: id.into(),
+                avatar_url: None,
+                provider: provider.into(),
+            },
+            access_token: format!("token-{id}"),
+            refresh_token: Some(format!("refresh-{id}")),
+            provider: provider.into(),
+        };
+        let grant = serde_json::json!({"noticeVersion":"2026-08-23","monitoringNoticeAcknowledged":true,"cloudSyncEnabled":true,"cloudAiEnabled":true});
+        conn.execute(
+            "INSERT INTO config VALUES('privacy_settings',?1)",
+            [grant.to_string()],
+        )
+        .unwrap();
+        let mut changed = false;
+        persist_auth_session(&conn, &session("alice", "google"), || {
+            changed = true;
+            assert!(crate::sync::get_user_session_from_conn(&conn).is_none());
+            Ok(())
+        })
+        .unwrap();
+        assert!(
+            changed,
+            "Guest acknowledgement must not carry into first account login"
+        );
+        conn.execute(
+            "UPDATE config SET value=?1 WHERE key='privacy_settings'",
+            [grant.to_string()],
+        )
+        .unwrap();
+        let mut canonical = crate::sync::get_user_session_from_conn(&conn).unwrap();
+        canonical.team_id = Some("alice-team".into());
+        crate::secure_config::save_secret(
+            &conn,
+            "user_session",
+            &serde_json::to_string(&canonical).unwrap(),
+        )
+        .unwrap();
+        persist_auth_session(&conn, &session("alice", "google"), || {
+            panic!("Renewing the same identity must preserve its notice")
+        })
+        .unwrap();
+        assert_eq!(
+            crate::sync::get_user_session_from_conn(&conn)
+                .unwrap()
+                .team_id
+                .as_deref(),
+            Some("alice-team")
+        );
+        let settings: serde_json::Value = serde_json::from_str(
+            &conn
+                .query_row(
+                    "SELECT value FROM config WHERE key='privacy_settings'",
+                    [],
+                    |r| r.get::<_, String>(0),
+                )
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(settings["monitoringNoticeAcknowledged"], true);
+        persist_auth_session(&conn, &session("jira-provider", "jira"), || {
+            panic!("Provider linking must not change account identity")
+        })
+        .unwrap();
+        assert_eq!(
+            crate::sync::get_user_session_from_conn(&conn)
+                .unwrap()
+                .user_id,
+            "alice"
+        );
+        persist_auth_session(&conn, &session("bob", "manual"), || {
+            assert_eq!(
+                crate::sync::get_user_session_from_conn(&conn)
+                    .unwrap()
+                    .user_id,
+                "alice"
+            );
+            Ok(())
+        })
+        .unwrap();
+        let current = crate::sync::get_user_session_from_conn(&conn).unwrap();
+        assert_eq!(current.user_id, "bob");
+        assert!(current.team_id.is_none());
+        let raw = crate::secure_config::load_secret(&conn, "auth_session")
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            serde_json::from_str::<AuthSession>(&raw).unwrap().user.id,
+            "bob"
+        );
+        let settings: serde_json::Value = serde_json::from_str(
+            &conn
+                .query_row(
+                    "SELECT value FROM config WHERE key='privacy_settings'",
+                    [],
+                    |r| r.get::<_, String>(0),
+                )
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(settings["monitoringNoticeAcknowledged"], false);
+        assert_eq!(settings["cloudSyncEnabled"], false);
+        assert_eq!(settings["cloudAiEnabled"], false);
+    }
 
     #[test]
     fn raw_token_without_equals() {

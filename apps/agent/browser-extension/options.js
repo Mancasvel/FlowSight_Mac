@@ -28,7 +28,8 @@ if (!storage) {
       await storage.set({ port, token });
       status.textContent = 'Checking the connection…';
       const connection = await globalThis.chrome.runtime.sendMessage({ type: 'poll-now' });
-      status.textContent = connection?.connected ? 'Connected to FlowSight. Browser actions and total focus are ready.'
+      status.textContent = connection?.connected && connection.totalFocusAvailable ? 'Connected to FlowSight. Browser actions and total focus are ready.'
+        : connection?.connected ? `Connected to FlowSight. ${connection.error || 'Website protection is unavailable. Check site access in the extension settings.'}`
         : connection?.error || 'No response from the extension. Reopen its options and try again.';
     } catch (error) {
       status.textContent = `Could not connect: ${error.message}`;

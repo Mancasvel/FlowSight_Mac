@@ -87,6 +87,14 @@ try {
     await page.locator('#timerDisplay').filter({ hasText: '05:45:00' }).waitFor();
     assert.equal(await page.locator('#timerModeSelect').inputValue(), 'normal');
     assert.equal(await page.locator('#timerRecordingNote').isVisible(), false);
+    assert.equal(await page.locator('#timerGoalProgress').isVisible(), true);
+    assert.equal(await page.locator('#timerGoalProgress').getAttribute('aria-valuenow'), '96');
+    const goalRow=await page.locator('.timer-meta-item').evaluate(row=>{
+      const label=row.querySelector('.timer-meta-label').getBoundingClientRect();
+      const value=row.querySelector('.timer-goal-label').getBoundingClientRect();
+      return {aligned:Math.abs(label.bottom-value.bottom)<5,overlap:label.right>value.left};
+    });
+    assert.ok(goalRow.aligned&&!goalRow.overlap,JSON.stringify(goalRow));
     assert.doesNotMatch(await page.locator('body').innerText(), /Live timer · pauses|Temporizador en directo · se detiene/);
     for (const expected of ['05:45:01', '05:45:02', '05:45:03']) {
       await page.clock.runFor(1000);
@@ -142,8 +150,10 @@ try {
     await page.locator('#playTimerBtn').click();
     await page.locator('#todayTrackingState').filter({ hasText: locale === 'es-ES' ? 'En pausa' : 'Paused' }).waitFor();
     const pausedTime = (await page.locator('#timerDisplay').innerText()).trim();
+    const pausedBar=await page.locator('#timerGoalProgressFill').getAttribute('style');
     await page.clock.runFor(60000);
     assert.equal((await page.locator('#timerDisplay').innerText()).trim(), pausedTime, 'Pause must preserve elapsed time.');
+    assert.equal(await page.locator('#timerGoalProgressFill').getAttribute('style'),pausedBar,'Goal progress must pause with recorded time.');
     await page.locator('#playTimerBtn').click();
     await page.locator('#todayTrackingState').filter({ hasText: locale === 'es-ES' ? 'En directo' : 'Live' }).waitFor();
     await page.clock.runFor(1000);

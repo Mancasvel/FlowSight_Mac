@@ -22,6 +22,18 @@ const AGENT_ERROR_LOG_FILE: &str = "agent_error.log";
 const CRASH_LOG_FILE: &str = "crash.log";
 const SCREENSHOTS_TMP_DIR: &str = "screenshots_tmp";
 
+/// A debug pilot can exercise native commands with a copied database without
+/// modifying the user's active tracking session. Release builds ignore it.
+pub(crate) fn isolated_pilot_dir() -> Option<PathBuf> {
+    #[cfg(debug_assertions)]
+    if let Some(path) = std::env::var_os("FLOWSIGHT_PILOT_DATA_DIR").map(PathBuf::from) {
+        if path.is_absolute() && path.is_dir() {
+            return Some(path);
+        }
+    }
+    None
+}
+
 /// Carpeta local de datos de FlowSight dentro del perfil del usuario (creada si no existe).
 ///
 /// Se resuelve con `dirs::data_local_dir()` (Known Folders en Windows, equivalentes en otros
@@ -32,6 +44,9 @@ const SCREENSHOTS_TMP_DIR: &str = "screenshots_tmp";
 /// en release portable y en instalaciones a `Program Files` (donde el
 /// directorio de instalación NO es escribible por el usuario estándar).
 pub fn app_data_dir() -> Result<PathBuf, String> {
+    if let Some(path) = isolated_pilot_dir() {
+        return Ok(path);
+    }
     let base = dirs::data_local_dir().ok_or_else(|| "No local data dir available".to_string())?;
     let dir = base.join(APP_DIR_NAME);
     if !dir.exists() {
@@ -48,6 +63,9 @@ pub fn db_path() -> Result<PathBuf, String> {
 /// Resolve the existing database for read-only integrations without creating
 /// application directories or an empty database as a side effect.
 pub fn db_path_read_only() -> Result<PathBuf, String> {
+    if let Some(path) = isolated_pilot_dir() {
+        return Ok(path.join(DB_FILE));
+    }
     let base = dirs::data_local_dir().ok_or_else(|| "No local data dir available".to_string())?;
     let path = base.join(APP_DIR_NAME).join(DB_FILE);
     if !path.is_file() {

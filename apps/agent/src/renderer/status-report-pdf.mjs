@@ -1,576 +1,268 @@
-import { t as tr, message as formatMessage, html, markup, setText, setAttributeText, getLocale, getLanguage, initializeLocalization } from './i18n.mjs';
-const PAGE_W = 210;
-const LEFT = 18;
-const RIGHT = PAGE_W - LEFT;
-const WIDTH = RIGHT - LEFT;
-const BOTTOM = 277;
+import { t as tr } from './i18n.mjs';
 
-const INK = [31, 30, 43];
-const MUTED = [92, 91, 108];
-const PURPLE = [112, 72, 196];
-const RULE = [225, 221, 231];
+const LEFT = 18, RIGHT = 192, WIDTH = RIGHT - LEFT;
+const INK = [24, 42, 52], MUTED = [77, 98, 106], TEAL = [8, 111, 107];
+const RULE = [214, 226, 227], TRACK = [234, 241, 241], PREVIOUS = [128, 151, 157];
 
-function continuationPage(doc) {
-  doc.addPage();
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8);
-  doc.setTextColor(...PURPLE);
-  doc.text('FlowSight', LEFT, 16);
-  doc.setDrawColor(...RULE);
-  doc.line(LEFT, 20, RIGHT, 20);
-  return 30;
-}
-
-function ensureSpace(doc, y, needed) {
-  return y + needed > BOTTOM ? continuationPage(doc) : y;
-}
-
-function textLines(doc, value, width) {
-  return doc.splitTextToSize(String(value ?? ''), width);
-}
-
-function drawParagraph(doc, value, y, { x = LEFT, width = WIDTH, size = 9, leading = 4.8, color = INK, weight = 'normal' } = {}) {
+function style(doc, size = 10, weight = 'normal', color = INK) {
   doc.setFont('helvetica', weight);
   doc.setFontSize(size);
-  for (const line of textLines(doc, value, width)) {
-    y = ensureSpace(doc, y, leading);
-    // A page break draws the continuation header, so restore the paragraph style.
-    doc.setFont('helvetica', weight);
-    doc.setFontSize(size);
-    doc.setTextColor(...color);
+  doc.setTextColor(...color);
+}
+
+function printable(value) {
+  return String(value ?? '').replaceAll('→', ' -> ').replaceAll('−', '-').replaceAll('—', '-');
+}
+
+// The PDF is a bounded editorial review. Full generated copy and sampled
+// timestamps remain available in the on-screen detail disclosure.
+function paragraph(doc, value, x, y, width, { size = 10, leading = 5, color = INK, weight = 'normal', maxLines = 4 } = {}) {
+  style(doc, size, weight, color);
+  let lines = doc.splitTextToSize(printable(value), width);
+  if (lines.length > maxLines) {
+    lines = lines.slice(0, maxLines);
+    let last = lines.at(-1);
+    while (doc.getTextWidth(`${last}...`) > width) last = last.slice(0, -1);
+    lines[lines.length - 1] = `${last.trimEnd()}...`;
+  }
+  for (const line of lines) {
     doc.text(line, x, y);
     y += leading;
   }
   return y;
 }
 
-function drawSection(doc, title, y, note = '', minContentHeight = 8) {
-  y = ensureSpace(doc, y, (note ? 20 : 15) + minContentHeight);
+function line(doc, y) {
   doc.setDrawColor(...RULE);
   doc.line(LEFT, y, RIGHT, y);
-  y += 8;
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(12);
-  doc.setTextColor(...INK);
-  doc.text(title, LEFT, y);
-  y += 6;
-  if (note) {
-    y = drawParagraph(doc, note, y, { size: 8, leading: 4, color: MUTED }) + 2;
-  }
-  return y;
 }
 
-function drawNumberedItems(doc, items, y) {
-  if (!items.length) {
-    return drawParagraph(doc, tr('No specific next move is supported by this period yet. Keep tracking to build a baseline.'), y, { color: MUTED }) + 4;
-  }
-  items.forEach((item, index) => {
-    y = ensureSpace(doc, y, 14);
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(9);
-    doc.setTextColor(...PURPLE);
-    doc.text(String(index + 1).padStart(2, '0'), LEFT, y);
-    y = drawParagraph(doc, item, y, { x: LEFT + 12, width: WIDTH - 12, size: 9.4, leading: 5 }) + 4;
+function header(doc, model, title, first = false) {
+  if (!first) doc.addPage();
+  style(doc, 10, 'bold', TEAL);
+  doc.text('FlowSight', LEFT, 18);
+  style(doc, 8, 'normal', MUTED);
+  doc.text(first ? printable(model.generatedAt) : printable(model.period), RIGHT, 18, { align: 'right' });
+  line(doc, 24);
+  return paragraph(doc, title, LEFT, 38, WIDTH, { size: 22, weight: 'bold', leading: 9, maxLines: 2 }) + 2;
+}
+
+function sectionTitle(doc, title, y, note = '') {
+  style(doc, 14, 'bold');
+  doc.text(title, LEFT, y);
+  if (note) paragraph(doc, note, LEFT, y + 7, WIDTH, { size: 9, color: MUTED, maxLines: 2 });
+}
+
+function metrics(doc, model, y) {
+  const entries = [[model.totalDuration, tr('Tracked time')],
+    [model.focusDuration, tr('Sustained focus')], [`${model.activeDays}/${model.periodDays}`, tr('Days with activity')]];
+  entries.forEach(([value, label], index) => {
+    const x = LEFT + index * WIDTH / 3;
+    style(doc, 21, 'bold');
+    doc.text(value, x, y);
+    paragraph(doc, label, x, y + 7, WIDTH / 3 - 6, { size: 9, color: MUTED, maxLines: 2 });
   });
-  return y;
 }
 
-function drawDistractionApps(doc, distractions, y) {
-  if (!distractions.apps.length) {
-    return drawParagraph(doc, distractions.message, y, { size: 8.8, leading: 4.6, color: MUTED }) + 4;
-  }
-  for (const [index, app] of distractions.apps.entries()) {
-    y = ensureSpace(doc, y, 35);
-    if (index) {
-      doc.setDrawColor(...RULE);
-      doc.line(LEFT, y - 3, RIGHT, y - 3);
-      y += 2;
-    }
-    const headingY = y;
-    const printableName = /^[\u0020-\u00FF]+$/.test(app.appName)
-      ? app.appName
-      : tr('App name unavailable in this PDF font - see on-screen report');
-    const printableAdvice = printableName === app.appName
-      ? app.advice
-      : app.advice.replaceAll(app.appName, tr('this app'));
-    const printableObserved = printableName === app.appName
-      ? app.observed
-      : app.observed.replaceAll(app.appName, tr('this app'));
-    y = drawParagraph(doc, printableName, y, {
-      x: LEFT, width: WIDTH - 32, size: 9.5, leading: 4.9, weight: 'bold',
-    });
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(8.2);
-    doc.setTextColor(...PURPLE);
-    doc.text(app.duration, RIGHT, headingY, { align: 'right' });
-    y += 1;
-    doc.setFillColor(238, 235, 244);
-    doc.roundedRect(LEFT, y, WIDTH, 2.2, 1, 1, 'F');
-    doc.setFillColor(...PURPLE);
-    doc.roundedRect(LEFT, y, Math.max(2, app.percentOfTop / 100 * WIDTH), 2.2, 1, 1, 'F');
-    y += 7;
-    y = drawParagraph(doc, printableObserved, y, { size: 8.5, leading: 4.4 }) + 1;
-    y = drawParagraph(doc, formatMessage`Next session: ${printableAdvice}`, y, {
-      size: 8.5, leading: 4.4, color: MUTED,
-    }) + 5;
-  }
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7.5);
-  y = ensureSpace(doc, y, textLines(doc, distractions.caveat, WIDTH).length * 4 + 3);
-  return drawParagraph(doc, distractions.caveat, y, {
-    size: 7.5, leading: 4, color: MUTED,
-  }) + 3;
+function grade(doc, progress, y) {
+  style(doc, 9, 'bold', MUTED);
+  doc.text(progress.title, LEFT, y);
+  if (progress.score === null) return paragraph(doc, progress.note, LEFT, y + 9, WIDTH, { size: 10, color: MUTED, maxLines: 3 });
+  style(doc, 36, 'bold', TEAL);
+  doc.text(`${progress.scoreLabel}/10`, LEFT, y + 20);
+  paragraph(doc, progress.verdict, LEFT + 62, y + 8, WIDTH - 62, { size: 12, weight: 'bold', maxLines: 1 });
+  if (progress.comparable) {
+    paragraph(doc, `${printable(progress.deltaLabel)} ${tr('points')} ${progress.comparisonLabel}`, LEFT + 62, y + 16, WIDTH - 62,
+      { size: 10, color: TEAL, maxLines: 2 });
+    paragraph(doc, `${tr('Previous')} ${progress.previousScoreLabel}/10`, LEFT + 62, y + 27, WIDTH - 62,
+      { size: 9, color: MUTED, maxLines: 1 });
+  } else paragraph(doc, progress.status, LEFT + 62, y + 17, WIDTH - 62, { size: 10, color: MUTED, maxLines: 2 });
 }
 
-function drawSimpleItems(doc, items, y, emptyLabel) {
-  if (!items.length) return drawParagraph(doc, emptyLabel, y, { size: 8.7, color: MUTED }) + 2;
-  for (const item of items) {
-    y = ensureSpace(doc, y, 8);
-    doc.setFillColor(...PURPLE);
-    doc.circle(LEFT + 1, y - 1, 0.8, 'F');
-    y = drawParagraph(doc, item, y, { x: LEFT + 5, width: WIDTH - 5, size: 8.8, leading: 4.7 }) + 2;
-  }
-  return y + 1;
-}
-
-function drawMiniHeading(doc, title, y) {
-  y = ensureSpace(doc, y, 16);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9);
-  doc.setTextColor(...INK);
-  doc.text(title, LEFT, y);
-  return y + 5;
-}
-
-function drawDayChart(doc, days, y) {
-  y = ensureSpace(doc, y, days.length ? 50 : 16);
-  y = drawMiniHeading(doc, tr('Activity by day'), y);
-  if (!days.length) return drawParagraph(doc, tr('No dated activity available.'), y, { color: MUTED }) + 5;
-  y = ensureSpace(doc, y, 43);
-  const gap = 4;
-  const barW = (WIDTH - (days.length - 1) * gap) / days.length;
-  const max = Math.max(1, ...days.map((day) => day.seconds));
-  const chartTop = y + 4;
-  const chartBottom = chartTop + 25;
+function daysChart(doc, days, x, y, width, height = 48) {
+  style(doc, 10, 'bold');
+  doc.text(tr('Activity by day'), x, y);
+  if (!days.length) return paragraph(doc, tr('No dated activity available.'), x, y + 12, width, { size: 9, color: MUTED });
+  const max = Math.max(1, ...days.map(day => day.seconds));
+  const gap = days.length === 1 ? 0 : 2;
+  const barWidth = Math.min(17, (width - gap * (days.length - 1)) / days.length);
+  const chartTop = y + 16, bottom = chartTop + height;
   days.forEach((day, index) => {
-    const x = LEFT + index * (barW + gap);
-    const height = day.seconds ? Math.max(1.5, day.seconds / max * 25) : 0;
-    doc.setFillColor(238, 235, 244);
-    doc.roundedRect(x, chartTop, barW, 25, 1, 1, 'F');
-    if (height) {
-      doc.setFillColor(...PURPLE);
-      doc.roundedRect(x, chartBottom - height, barW, height, 1, 1, 'F');
+    const at = x + index * (barWidth + gap);
+    style(doc, 7.4, 'normal', MUTED);
+    doc.text(day.displayDuration, at + barWidth / 2, chartTop - 4, { align: 'center' });
+    doc.setFillColor(...TRACK);
+    doc.roundedRect(at, chartTop, barWidth, height, 1, 1, 'F');
+    if (day.seconds) {
+      const fillHeight = Math.max(0.8, day.seconds / max * height);
+      doc.setFillColor(...TEAL);
+      doc.roundedRect(at, bottom - fillHeight, barWidth, fillHeight, 0.5, 0.5, 'F');
     }
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(days.length > 14 ? 5.5 : 7);
-    doc.setTextColor(...INK);
-    doc.text(day.label, x + barW / 2, chartBottom + 5, { align: 'center' });
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(days.length > 14 ? 5 : 6.5);
-    doc.setTextColor(...MUTED);
-    doc.text(day.displayDuration, x + barW / 2, chartBottom + 9, { align: 'center' });
+    style(doc, 8, 'bold');
+    doc.text(day.label, at + barWidth / 2, bottom + 6, { align: 'center' });
+    style(doc, 7.5, 'normal', MUTED);
+    doc.text(day.date.slice(8), at + barWidth / 2, bottom + 11, { align: 'center' });
   });
-  return chartBottom + 15;
 }
 
-function drawCategoryChart(doc, categories, y) {
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8);
-  const estimatedHeight = 10 + categories.slice(0, 6).reduce((sum, category) =>
-    sum + Math.max(8, textLines(doc, category.label, 45).length * 4.1 + 1) + 2, 0);
-  y = ensureSpace(doc, y, Math.min(estimatedHeight, 220));
-  y = drawMiniHeading(doc, tr('Time by category'), y);
-  if (!categories.length) return drawParagraph(doc, tr('No category time recorded.'), y, { color: MUTED }) + 5;
-  for (const category of categories.slice(0, 6)) {
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8);
-    const labelLines = textLines(doc, category.label, 45);
-    const height = Math.max(8, labelLines.length * 4.1 + 1);
-    if (height > 45) {
-      y = drawParagraph(doc, category.label, y, { size: 8, leading: 4.1 }) + 1;
-      y = ensureSpace(doc, y, 10);
-      doc.setFillColor(238, 235, 244);
-      doc.roundedRect(LEFT, y, WIDTH - 30, 5, 1, 1, 'F');
-      if (category.percent > 0) {
-        doc.setFillColor(...PURPLE);
-        doc.roundedRect(LEFT, y, Math.max(2, category.percent / 100 * (WIDTH - 30)), 5, 1, 1, 'F');
+function categoriesChart(doc, categories, x, y, width, rowHeight = 14) {
+  style(doc, 10, 'bold');
+  doc.text(tr('Time by category'), x, y);
+  if (!categories.length) return paragraph(doc, tr('No category time recorded.'), x, y + 12, width, { size: 9, color: MUTED });
+  const max = Math.max(1, ...categories.map(row => row.seconds));
+  categories.forEach((row, index) => {
+    const rowY = y + 13 + index * rowHeight;
+    paragraph(doc, row.label, x, rowY, width - 25, { size: 9, maxLines: 1 });
+    style(doc, 8.5, 'bold');
+    doc.text(row.displayDuration, x + width, rowY, { align: 'right' });
+    doc.setFillColor(...TRACK);
+    doc.roundedRect(x, rowY + 3, width, 3, 1, 1, 'F');
+    doc.setFillColor(...(index === 5 ? PREVIOUS : TEAL));
+    doc.roundedRect(x, rowY + 3, Math.max(1, row.seconds / max * width), 3, 0.5, 0.5, 'F');
+  });
+}
+
+function charts(doc, model, y) {
+  if (model.days.length <= 7) {
+    daysChart(doc, model.days, LEFT, y, 82);
+    categoriesChart(doc, model.editorial.chartCategories, LEFT + 94, y, WIDTH - 94);
+  } else {
+    // Longer periods retain every date, in weekly rows with readable labels.
+    style(doc, 10, 'bold');
+    doc.text(tr('Activity by day'), LEFT, y);
+    const peak = Math.max(1, ...model.days.map(day => day.seconds));
+    model.days.forEach((day, index) => {
+      const x = LEFT + index % 7 * 11.5, at = y + 12 + Math.floor(index / 7) * 17;
+      style(doc, 7.5, 'normal', MUTED);
+      doc.text(day.date.slice(8), x, at);
+      doc.setFillColor(...TRACK);
+      doc.rect(x + 4, at - 3, 7, 9, 'F');
+      doc.setFillColor(...TEAL);
+      if (day.seconds) doc.rect(x + 4, at + 6 - day.seconds / peak * 9, 7, day.seconds / peak * 9, 'F');
+      style(doc, 6.8, 'normal', MUTED);
+      doc.text(day.displayDuration, x, at + 10);
+    });
+    categoriesChart(doc, model.editorial.chartCategories, LEFT + 94, y, WIDTH - 94);
+  }
+}
+
+function comparison(doc, progress, y) {
+  if (!progress.rows.length) return paragraph(doc, progress.note, LEFT, y, WIDTH, { color: MUTED, maxLines: 3 });
+  paragraph(doc, progress.comparable ? `${progress.previousPeriod} · ${progress.comparisonLabel}` : progress.note,
+    LEFT, y, WIDTH, { size: 9, color: MUTED, maxLines: 2 });
+  y += 16;
+  progress.rows.forEach(row => {
+    style(doc, 11, 'bold');
+    doc.text(row.label, LEFT, y);
+    const max = Math.max(row.key === 'focus' ? 100 : 1, row.current, row.previous || 0);
+    const barX = LEFT + 29, barW = WIDTH - 62;
+    const measure = (label, value, valueLabel, at, color) => {
+      style(doc, 8.5, 'normal', MUTED);
+      doc.text(label, LEFT, at + 4);
+      doc.setFillColor(...TRACK);
+      doc.roundedRect(barX, at, barW, 5, 1, 1, 'F');
+      if (value > 0) {
+        doc.setFillColor(...color);
+        doc.roundedRect(barX, at, Math.max(1, value / max * barW), 5, 1, 1, 'F');
       }
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(8);
-      doc.setTextColor(...INK);
-      doc.text(category.displayDuration, RIGHT, y + 4, { align: 'right' });
-      y += 11;
-      continue;
-    }
-    y = ensureSpace(doc, y, height + 2);
-    doc.setTextColor(...INK);
-    labelLines.forEach((line, index) => doc.text(line, LEFT, y + 3 + index * 4.1));
-    doc.setFillColor(238, 235, 244);
-    doc.roundedRect(LEFT + 50, y, 96, 5, 1, 1, 'F');
-    if (category.percent > 0) {
-      doc.setFillColor(...PURPLE);
-      doc.roundedRect(LEFT + 50, y, Math.max(2, category.percent / 100 * 96), 5, 1, 1, 'F');
-    }
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(8);
-    doc.text(category.displayDuration, RIGHT, y + 4, { align: 'right' });
-    y += height + 2;
-  }
-  return y + 3;
-}
-
-function drawEvidenceColumns(doc, model, y) {
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7.2);
-  const compact = model.days.length === 7
-    && model.categories.slice(0, 6).every((category) => doc.getTextWidth(category.label) <= 30);
-  if (!compact) {
-    y = drawDayChart(doc, model.days, y);
-    return drawCategoryChart(doc, model.categories, y);
-  }
-
-  const panelHeight = Math.max(44, 18 + Math.min(model.categories.length, 6) * 6.2);
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8.5);
-  const captionHeight = model.timelineCaption
-    ? textLines(doc, model.timelineCaption, WIDTH).length * 4.5 + 6 : 0;
-  y = ensureSpace(doc, y, panelHeight + captionHeight);
-  const gap = 12;
-  const columnW = (WIDTH - gap) / 2;
-  const rightX = LEFT + columnW + gap;
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9);
-  doc.setTextColor(...INK);
-  doc.text(tr('Activity by day'), LEFT, y);
-  doc.text(tr('Time by category'), rightX, y);
-
-  const chartTop = y + 10;
-  const chartBottom = chartTop + 25;
-  const dayGap = 2;
-  const dayW = (columnW - dayGap * 6) / 7;
-  const maxSeconds = Math.max(1, ...model.days.map((day) => day.seconds));
-  model.days.forEach((day, index) => {
-    const x = LEFT + index * (dayW + dayGap);
-    const height = day.seconds ? Math.max(1.5, day.seconds / maxSeconds * 25) : 0;
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(5.8);
-    doc.setTextColor(...MUTED);
-    doc.text(day.displayDuration, x + dayW / 2, chartTop - 2, { align: 'center' });
-    doc.setFillColor(238, 235, 244);
-    doc.roundedRect(x, chartTop, dayW, 25, 1, 1, 'F');
-    if (height) {
-      doc.setFillColor(...PURPLE);
-      doc.roundedRect(x, chartBottom - height, dayW, height, 1, 1, 'F');
-    }
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(6.2);
-    doc.setTextColor(...INK);
-    doc.text(day.label, x + dayW / 2, chartBottom + 4.5, { align: 'center' });
+      style(doc, 9, 'bold', color);
+      doc.text(valueLabel, RIGHT, at + 4, { align: 'right' });
+    };
+    if (progress.comparable && row.previous !== null) measure(tr('Previous'), row.previous, row.previousLabel, y + 6, PREVIOUS);
+    measure(tr('Current'), row.current, row.currentLabel, y + (progress.comparable ? 15 : 6), TEAL);
+    y += progress.comparable ? 32 : 24;
   });
-
-  if (!model.categories.length) {
-    drawParagraph(doc, tr('No category time recorded.'), chartTop + 5, {
-      x: rightX, width: columnW, size: 8, leading: 4.2, color: MUTED,
-    });
-  }
-  model.categories.slice(0, 6).forEach((category, index) => {
-    const rowY = chartTop + 2 + index * 7.3;
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(7.2);
-    doc.setTextColor(...INK);
-    doc.text(category.label, rightX, rowY + 1);
-    doc.setFillColor(238, 235, 244);
-    doc.roundedRect(rightX + 32, rowY - 2, 31, 4, 1, 1, 'F');
-    if (category.percent > 0) {
-      doc.setFillColor(...PURPLE);
-      doc.roundedRect(rightX + 32, rowY - 2, Math.max(1.5, category.percent / 100 * 31), 4, 1, 1, 'F');
-    }
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(7);
-    doc.text(category.displayDuration, rightX + columnW, rowY + 1, { align: 'right' });
-  });
-  return y + panelHeight;
-}
-
-function drawReportHeader(doc, model) {
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9);
-  doc.setTextColor(...PURPLE);
-  doc.text('FlowSight', LEFT, 17);
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7.5);
-  doc.setTextColor(...MUTED);
-  doc.text(model.generatedAt, RIGHT, 17, { align: 'right' });
-  doc.setDrawColor(...RULE);
-  doc.line(LEFT, 23, RIGHT, 23);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(23);
-  doc.setTextColor(...INK);
-  doc.text(model.title, LEFT, 38);
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(10);
-  doc.setTextColor(...MUTED);
-  doc.text(model.period || tr('Current period'), LEFT, 47);
-  return drawParagraph(doc, `${model.userName}  ·  ${model.status}`, 56, {
-    size: 8.2, leading: 4.4, color: MUTED,
-  }) + 8;
-}
-
-function drawMetrics(doc, model, y) {
-  y = ensureSpace(doc, y, 30);
-  const values = [
-    [model.totalHours + 'h', tr('TRACKED TIME')],
-    [model.focusHours + 'h', formatMessage`SUSTAINED FOCUS · ${model.focusSessions} BLOCKS`],
-    [`${model.activeDays}/${model.periodDays}`, tr('DAYS WITH ACTIVITY')],
-  ];
-  const columnW = WIDTH / 3;
-  values.forEach(([value, label], index) => {
-    const x = LEFT + index * columnW;
-    if (index) {
-      doc.setDrawColor(...RULE);
-      doc.line(x - 5, y, x - 5, y + 21);
-    }
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(18);
-    doc.setTextColor(...INK);
-    doc.text(value, x, y + 10);
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(6.8);
-    doc.setTextColor(...MUTED);
-    doc.text(textLines(doc, label, columnW - 7), x, y + 17);
-  });
-  return y + 27;
-}
-
-function drawWorkAreas(doc, rows, y) {
-  if (!rows.length) return drawParagraph(doc, tr('No work-area detail was generated.'), y, { color: MUTED }) + 4;
-  for (const row of rows) {
-    y = ensureSpace(doc, y, 15);
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(9);
-    doc.setTextColor(...INK);
-    doc.setFontSize(8);
-    const compactStatus = doc.getTextWidth(row.status) <= 43;
-    const headingY = y;
-    y = drawParagraph(doc, row.element, y, {
-      width: compactStatus ? WIDTH - 47 : WIDTH,
-      size: 9, leading: 4.8, weight: 'bold',
-    });
-    if (compactStatus) {
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(8);
-      doc.setTextColor(...PURPLE);
-      doc.text(row.status, RIGHT, headingY, { align: 'right' });
-    } else {
-      y = drawParagraph(doc, row.status, y, { size: 8, leading: 4.2, color: PURPLE });
-    }
-    if (row.notes) y = drawParagraph(doc, row.notes, y, { size: 8.6, leading: 4.6 });
-    if (row.owner && row.owner.toLowerCase() !== 'self') {
-      y = drawParagraph(doc, formatMessage`Owner: ${row.owner}`, y, { size: 7.5, leading: 4, color: MUTED });
-    }
-    y += 1;
-  }
   return y;
 }
 
-function drawCompactDetails(doc, model, y) {
-  const leftItems = [...model.observedWork, ...model.highlights];
-  const rightItems = [...model.knownIssues, ...model.potentialRisks];
-  if (leftItems.length > 4 || rightItems.length > 4
-      || [...leftItems, ...rightItems].some((item) => item.length > 160)) return null;
-
-  const gap = 12;
-  const columnW = (WIDTH - gap) / 2;
-  const rightX = LEFT + columnW + gap;
-  const itemHeight = (items, emptyLabel = '') => {
-    const list = items.length ? items : [emptyLabel];
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8.3);
-    return list.reduce((sum, item) => sum + textLines(doc, item, columnW - 7).length * 4.3 + 2, 0);
-  };
-  const leftHeight = 15 + itemHeight(model.observedWork, tr('No labelled work observed.'))
-    + (model.highlights.length ? 7 + itemHeight(model.highlights) : 0);
-  const rightHeight = 15 + 7 + itemHeight(model.knownIssues, tr('None flagged.'))
-    + 7 + itemHeight(model.potentialRisks, tr('None flagged.'));
-  const height = Math.max(leftHeight, rightHeight) + 5;
-  if (height > 190) return null;
-  y = ensureSpace(doc, y, height);
-  doc.setDrawColor(...RULE);
-  doc.line(LEFT, y, RIGHT, y);
-
-  const title = (label, x) => {
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(12);
-    doc.setTextColor(...INK);
-    doc.text(label, x, y + 8);
-  };
-  const subheading = (label, x, at) => {
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(8.5);
-    doc.setTextColor(...INK);
-    doc.text(label, x, at);
-    return at + 6;
-  };
-  const items = (values, fallback, x, at) => {
-    const list = values.length ? values : [fallback];
-    for (const item of list) {
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(8.3);
-      doc.setTextColor(...INK);
-      const lines = textLines(doc, item, columnW - 7);
-      doc.setFillColor(...PURPLE);
-      doc.circle(x + 1, at - 1, 0.7, 'F');
-      lines.forEach((line) => {
-        doc.text(line, x + 5, at);
-        at += 4.3;
-      });
-      at += 2;
-    }
-    return at;
-  };
-
-  title(tr('Work observed'), LEFT);
-  title(tr('Watchpoints'), rightX);
-  let leftY = items(model.observedWork, tr('No labelled work observed.'), LEFT, y + 16);
-  if (model.highlights.length) {
-    leftY = subheading(tr('Highlights'), LEFT, leftY + 1);
-    leftY = items(model.highlights, '', LEFT, leftY);
-  }
-  let rightY = subheading(tr('Known issues'), rightX, y + 16);
-  rightY = items(model.knownIssues, tr('None flagged.'), rightX, rightY);
-  rightY = subheading(tr('Potential risks'), rightX, rightY + 1);
-  rightY = items(model.potentialRisks, tr('None flagged.'), rightX, rightY);
-  return Math.max(leftY, rightY) + 3;
+function appContext(doc, model, y) {
+  sectionTitle(doc, tr('App changes, with context'), y);
+  y = paragraph(doc, tr('App visits are observations, not proof of distraction.'), LEFT, y + 8, WIDTH,
+    { size: 9, color: MUTED, maxLines: 1 }) + 5;
+  const apps = model.editorial.appContexts;
+  if (!apps.length) return paragraph(doc, model.editorial.appMessage, LEFT, y, WIDTH, { size: 9, color: MUTED, maxLines: 2 });
+  const max = Math.max(1, ...apps.map(app => app.seconds || 0));
+  apps.forEach(app => {
+    const name = /^[\u0020-\u00FF]+$/.test(app.appName) ? app.appName
+      : tr('App name unavailable in this PDF font - see on-screen report');
+    paragraph(doc, name, LEFT, y, 59, { size: 9, maxLines: 1 });
+    doc.setFillColor(...TRACK);
+    doc.roundedRect(LEFT + 63, y - 3, WIDTH - 95, 4, 1, 1, 'F');
+    doc.setFillColor(...PREVIOUS);
+    doc.roundedRect(LEFT + 63, y - 3, Math.max(1, (app.seconds || 0) / max * (WIDTH - 95)), 4, 0.5, 0.5, 'F');
+    style(doc, 9, 'bold', MUTED);
+    doc.text(app.duration, RIGHT, y, { align: 'right' });
+    y += 11;
+  });
+  return paragraph(doc, tr('Keep tools needed for work available. Only you can confirm whether a visit was optional.'),
+    LEFT, y + 1, WIDTH, { size: 8.5, color: MUTED, maxLines: 2 });
 }
 
-function drawCompactLessons(doc, lessons, y) {
-  if (lessons.length !== 2) return null;
-  const gap = 12;
-  const columnW = (WIDTH - gap) / 2;
-  const rightX = LEFT + columnW + gap;
-  const measured = lessons.map((lesson) => {
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(8.8);
-    const title = textLines(doc, lesson.title, columnW);
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8.3);
-    const body = textLines(doc, lesson.body, columnW);
-    return { title, body, height: title.length * 4.7 + body.length * 4.4 + 3 };
-  });
-  const height = Math.max(...measured.map((lesson) => lesson.height));
-  if (height > 40) return null;
-  y = drawSection(doc, tr('What this period taught us'), y, '', height);
-  measured.forEach((lesson, index) => {
-    const x = index ? rightX : LEFT;
-    let lineY = y;
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(8.8);
-    doc.setTextColor(...INK);
-    lesson.title.forEach((line) => {
-      doc.text(line, x, lineY);
-      lineY += 4.7;
-    });
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8.3);
-    doc.setTextColor(...INK);
-    lesson.body.forEach((line) => {
-      doc.text(line, x, lineY);
-      lineY += 4.4;
-    });
-  });
-  return y + height;
-}
-
-function addFooters(doc, model) {
-  const pageCount = doc.internal.getNumberOfPages();
-  for (let page = 1; page <= pageCount; page++) {
+function footers(doc) {
+  const count = doc.internal.getNumberOfPages();
+  for (let page = 1; page <= count; page++) {
     doc.setPage(page);
-    doc.setDrawColor(...RULE);
-    doc.line(LEFT, 284, RIGHT, 284);
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(7);
-    doc.setTextColor(...MUTED);
-    doc.text(model.aiPowered
-      ? tr('Local data · Local AI narrative · Interpret with context')
-      : tr('Local data · Rule-based narrative · Interpret with context'), LEFT, 290);
-    doc.text(`${page} / ${pageCount}`, RIGHT, 290, { align: 'right' });
+    line(doc, 284);
+    style(doc, 8, 'normal', MUTED);
+    doc.text(tr('Local data · Focus patterns, with context'), LEFT, 291);
+    doc.text(`${page} / ${count}`, RIGHT, 291, { align: 'right' });
   }
 }
 
 export function renderStatusReportPdf(doc, model) {
-  let y = drawReportHeader(doc, model);
-  y = drawParagraph(doc, model.summary, y, { size: 10, leading: 5.5 }) + 7;
-  y = drawMetrics(doc, model, y);
-
-  y = drawSection(doc, tr('What to do next'), y, tr('Actions suggested by the recorded evidence'), 16);
-  y = drawNumberedItems(doc, model.actions, y);
-
-  y = drawSection(doc, tr('Attention detours'), y,
-    tr('Observed visits and returns between work screens'),
-    model.distractions.apps.length ? 35 : 8);
-  y = drawDistractionApps(doc, model.distractions, y);
-
-  y = drawSection(doc, model.evidenceTitle, y, tr('Recorded time, not a productivity score'), 54);
-  y = drawEvidenceColumns(doc, model, y);
-  if (model.timelineCaption) y = drawParagraph(doc, model.timelineCaption, y, { size: 8.5, leading: 4.5, color: MUTED }) + 6;
-
-  y = drawSection(doc, tr('How to read the signal'), y, '', 20);
-  y = drawParagraph(doc, model.healthNotes || tr('No additional interpretation was generated.'), y, { size: 9, leading: 4.8 }) + 4;
-  if (model.focusTarget) y = drawParagraph(doc, formatMessage`Focus target: ${model.focusTarget}`, y, { size: 8.8, leading: 4.7 }) + 4;
-
-  y = drawSection(doc, tr('Work-area detail'), y, tr('Specific observations behind the review'), 16);
-  y = drawWorkAreas(doc, model.breakdown, y);
-
-  const compactDetailsEnd = drawCompactDetails(doc, model, y);
-  if (compactDetailsEnd == null) {
-    y = drawSection(doc, tr('Work observed'), y, '', 16);
-    y = drawSimpleItems(doc, model.observedWork, y, tr('No labelled work was observed.'));
-    if (model.highlights.length) {
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(8.8);
-      const highlightHeight = 9 + model.highlights.reduce((sum, item) =>
-        sum + textLines(doc, item, WIDTH - 5).length * 4.7 + 2, 0);
-      y = ensureSpace(doc, y, Math.min(highlightHeight, 190));
-      y = drawMiniHeading(doc, tr('Highlights'), y);
-      y = drawSimpleItems(doc, model.highlights, y, '');
-    }
-
-    y = ensureSpace(doc, y, 55);
-    y = drawSection(doc, tr('Watchpoints'), y, '', 30);
-    y = drawMiniHeading(doc, tr('Known issues'), y);
-    y = drawSimpleItems(doc, model.knownIssues, y, tr('None flagged.'));
-    y = drawMiniHeading(doc, tr('Potential risks'), y);
-    y = drawSimpleItems(doc, model.potentialRisks, y, tr('None flagged.'));
-  } else {
-    y = compactDetailsEnd;
+  let y = header(doc, model, model.title, true);
+  paragraph(doc, model.period, LEFT, y, WIDTH, { size: 11, color: MUTED, maxLines: 1 });
+  paragraph(doc, model.userName, LEFT, y + 8, WIDTH, { size: 9, color: MUTED, maxLines: 1 });
+  if (model.empty) {
+    sectionTitle(doc, tr('Not enough focus data'), 80);
+    paragraph(doc, model.editorial.lead, LEFT, 96, WIDTH, { size: 12, maxLines: 2 });
+    paragraph(doc, model.editorial.timeline, LEFT, 114, WIDTH, { color: MUTED, maxLines: 2 });
+    paragraph(doc, tr('Record another normal work session and compare it with your plans before making a specific change.'),
+      LEFT, 140, WIDTH, { maxLines: 3 });
+    paragraph(doc, model.aiPowered ? tr('Local AI report') : tr('Rule-based report'), LEFT, 180, WIDTH,
+      { size: 9, color: MUTED, maxLines: 1 });
+    footers(doc);
+    return doc;
   }
+  grade(doc, model.progress, 70);
+  paragraph(doc, `${model.aiPowered ? tr('Local AI report') : tr('Rule-based report')} · ${tr('{p0} of {p1} days with activity', { p0: model.activeDays, p1: model.periodDays })}`,
+    LEFT, 106, WIDTH, { size: 8, color: MUTED, maxLines: 1 });
+  metrics(doc, model, 120);
+  line(doc, 139);
+  sectionTitle(doc, model.evidenceTitle, 152, tr('Recorded time, not a productivity score'));
+  charts(doc, model, 175);
+  paragraph(doc, model.editorial.timeline, LEFT, 270, WIDTH, { size: 9, color: MUTED, maxLines: 2 });
 
-  const compactLessonsEnd = drawCompactLessons(doc, model.lessons, y);
-  if (compactLessonsEnd == null) {
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8.8);
-    const lessonHeight = 22 + model.lessons.reduce((sum, lesson) => {
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(9);
-      const titleHeight = textLines(doc, lesson.title, WIDTH).length * 4.8;
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(8.8);
-      return sum + titleHeight + textLines(doc, lesson.body, WIDTH).length * 4.7 + 4;
-    }, 0);
-    y = ensureSpace(doc, y, Math.min(lessonHeight, 190));
-    y = drawSection(doc, tr('What this period taught us'), y, '', 15);
-    if (!model.lessons.length) {
-      y = drawParagraph(doc, model.lessonEmptyMessage, y, { color: MUTED }) + 3;
-    } else {
-      for (const lesson of model.lessons) {
-        y = ensureSpace(doc, y, 12);
-        y = drawParagraph(doc, lesson.title, y, { size: 9, leading: 4.8, weight: 'bold' });
-        y = drawParagraph(doc, lesson.body, y, { size: 8.8, leading: 4.7 }) + 4;
-      }
-    }
-  } else {
-    y = compactLessonsEnd;
-  }
-  addFooters(doc, model);
+  y = header(doc, model, tr('Your focus, in perspective'));
+  sectionTitle(doc, model.progress.comparable ? tr('The comparison behind your grade') : tr('Your current focus measures'), y + 6);
+  y = comparison(doc, model.progress, y + 20);
+  y = Math.max(166, y + 5);
+  sectionTitle(doc, tr('What improved'), y);
+  y += 10;
+  if (!model.progress.improvements.length) y = paragraph(doc, model.progress.improvementEmpty, LEFT, y, WIDTH,
+    { size: 10, color: MUTED, maxLines: 2 }) + 5;
+  else model.progress.improvements.slice(0, 2).forEach(item => {
+    paragraph(doc, item.title, LEFT, y, WIDTH - 68, { size: 10, weight: 'bold', maxLines: 1 });
+    paragraph(doc, item.evidence, RIGHT - 65, y, 65, { size: 10, color: TEAL, maxLines: 1 });
+    y += 12;
+  });
+  appContext(doc, model, Math.max(213, y + 10));
+
+  y = header(doc, model, tr('What to do next'));
+  paragraph(doc, tr('Choose one change. Review it after your next normal work session.'), LEFT, y, WIDTH,
+    { size: 11, color: MUTED, maxLines: 2 });
+  y += 20;
+  model.editorial.actions.forEach((action, index) => {
+    if (index) line(doc, y - 7);
+    y = paragraph(doc, action.title, LEFT, y, WIDTH, { size: 13, weight: 'bold', leading: 6, maxLines: 2 });
+    if (action.evidence) y = paragraph(doc, action.evidence, LEFT, y + 2, WIDTH, { size: 9, color: TEAL, maxLines: 2 });
+    y = paragraph(doc, action.body, LEFT, y + 4, WIDTH, { size: 10.5, leading: 5.5, maxLines: 4 }) + 17;
+  });
+  line(doc, 246);
+  sectionTitle(doc, tr('How to read this report'), 255);
+  paragraph(doc, tr('This covers recorded activity, not your whole working day.'), LEFT, 264, WIDTH,
+    { size: 8.5, color: MUTED, maxLines: 1 });
+  paragraph(doc, model.progress.method, LEFT, 270, WIDTH, { size: 8, leading: 3.9, color: MUTED, maxLines: 3 });
+  footers(doc);
   return doc;
 }

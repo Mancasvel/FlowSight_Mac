@@ -1,4 +1,5 @@
 import { t as tr, message as formatMessage, html, markup, setText, setAttributeText, getLocale, getLanguage, initializeLocalization, categoryLabel } from './i18n.mjs';
+import { createReportProgress } from './report-progress.mjs';
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 export function cleanReportText(value) {
@@ -25,6 +26,13 @@ function isoDay(value) {
   return match ? match[0] : '';
 }
 
+function reportTimestamp(value) {
+  const text = cleanReportText(value);
+  if (!/^\d{4}-\d{2}-\d{2}T/.test(text)) return text;
+  const time = Date.parse(text);
+  return Number.isFinite(time) ? new Intl.DateTimeFormat(getLocale(), { dateStyle: 'medium', timeStyle: 'short' }).format(time) : text;
+}
+
 function reportDays(local) {
   const totals = new Map(asItems(local.daily_totals)
     .filter((day) => isoDay(day.date))
@@ -49,9 +57,7 @@ function reportDays(local) {
       .format(new Date(`${date}T12:00:00Z`)),
     seconds: totals.get(date) || 0,
     hours: ((totals.get(date) || 0) / 3600).toFixed(1),
-    displayDuration: (totals.get(date) || 0) >= 3600
-      ? `${((totals.get(date) || 0) / 3600).toFixed(1)}h`
-      : durationLabel(totals.get(date) || 0),
+    displayDuration: durationLabel(totals.get(date) || 0),
     percentOfPeak: Math.round(((totals.get(date) || 0) / max) * 100),
   }));
 }
@@ -106,10 +112,61 @@ function reportLessons(report, { categories, days, totalSeconds, focusSeconds, f
 }
 
 function durationLabel(seconds) {
+  if (!seconds) return '0 min';
   if (seconds < 60) return '<1 min';
-  if (seconds < 600) return `${(seconds / 60).toFixed(seconds % 60 ? 1 : 0)} min`;
-  if (seconds < 3600) return `${Math.round(seconds / 60)} min`;
-  return `${(seconds / 3600).toFixed(1)} h`;
+  const hours = seconds >= 3600;
+  const value = hours ? seconds / 3600 : seconds / 60;
+  const decimals = hours ? 1 : seconds < 600 && seconds % 60 ? 1 : 0;
+  return `${new Intl.NumberFormat(getLocale(), { minimumFractionDigits: hours ? 1 : 0, maximumFractionDigits: decimals }).format(value)} ${hours ? 'h' : 'min'}`;
+}
+
+// The main review follows measured data. Generated narrative remains available
+// in the screen's detail disclosure, rather than competing with the charts.
+function reportEditorial(model) {
+  const { categories, days, progress, activeDays, periodDays } = model;
+  const appContexts = model.distractions.apps.filter(app => app.kind !== 'other').slice(0, 3);
+  const appMessage = model.distractions.state === 'ready' && !appContexts.length
+    ? tr('The recorded app changes need context before drawing a conclusion.') : model.distractions.message;
+  const top = categories[0];
+  const peak = [...days].sort((a, b) => b.seconds - a.seconds)[0];
+  const chartCategories = categories.length > 6 ? [
+    ...categories.slice(0, 5),
+    { label: tr('Other categories'), seconds: categories.slice(5).reduce((sum, row) => sum + row.seconds, 0),
+      percent: model.totalSeconds ? Math.min(100, Math.round(categories.slice(5).reduce((sum, row) => sum + row.seconds, 0) / model.totalSeconds * 100)) : 0 },
+  ] : categories;
+  const observations = [];
+  if (top) observations.push({ title: top.label,
+    evidence: `${top.displayDuration} · ${top.percent}%`,
+    body: tr('The largest part of your recorded time. Check whether it matches your priorities.') });
+  if (model.focusSeconds > 0) observations.push({ title: tr('Sustained focus'),
+    evidence: tr('{duration} in {count} blocks', { duration: model.focusDuration, count: model.focusSessions }),
+    body: tr('Blocks of at least 25 minutes in eligible work. Meetings and collaboration have their own value.') });
+  const actions = [];
+  if (model.empty) return { chartCategories: [], appContexts: [], appMessage, observations: [], actions: [],
+    lead: tr('No local activity was recorded in this period.'),
+    timeline: tr('Days without recorded activity do not prove that no work happened.'),
+    coverage: tr('This covers recorded activity, not your whole working day.') };
+  if (activeDays < periodDays) actions.push({ title: tr('Check the coverage first'),
+    evidence: tr('{active} of {total} days recorded', { active: activeDays, total: periodDays }),
+    body: tr('Compare the gaps with your calendar before changing your routine. A blank day may simply have no tracking data.') });
+  const opportunity = progress.opportunities[0];
+  if (opportunity) actions.push({ title: opportunity.title, evidence: opportunity.evidence, body: opportunity.body });
+  if (top) actions.push({ title: tr('Align your time with your priorities'),
+    evidence: `${top.label} · ${top.displayDuration} · ${top.percent}%`,
+    body: tr('Choose the main task for your next session. Then check whether your time distribution reflects what you intended to work on.') });
+  if (actions.length < 3 && appContexts.length) actions.push({ title: tr('Give app changes context'),
+    evidence: tr('App visits are observations, not proof of distraction.'),
+    body: tr('Keep tools needed for work available. Move only optional checks to a break, then see whether your focus feels easier.') });
+  if (!actions.length) actions.push({ title: tr('Build a useful baseline'), evidence: model.totalDuration,
+    body: tr('Record another normal work session and compare it with your plans before making a specific change.') });
+  return {
+    chartCategories: chartCategories.map(row => ({ ...row, displayDuration: durationLabel(row.seconds) })),
+    appContexts, appMessage, observations, actions: actions.slice(0, 3),
+    lead: tr('{duration} recorded across {active} days.', { duration: model.totalDuration, active: activeDays }),
+    timeline: peak?.seconds ? tr('Most recorded time: {day}, {duration}.', { day: peak.label, duration: peak.displayDuration })
+      : tr('No dated activity available.'),
+    coverage: tr('{active} of {total} days recorded', { active: activeDays, total: periodDays }),
+  };
 }
 
 function distractionAdvice(appName, kind, workInterleavedRevisits) {
@@ -211,23 +268,26 @@ export function createStatusReportViewModel(payload, { userName = tr('Knowledge 
     || todayDate;
   const status = text(report.overall_health) || tr('No assessment available');
   const categories = asItems(local.category_breakdown)
-    .map((row) => ({ label: categoryLabel(text(row.category)) || tr('Unlabelled'), seconds: asSeconds(row.total_seconds) }))
+    .map((row) => ({ label: categoryLabel(text(row.category) === 'CodeReview' ? 'Code Review' : text(row.category)) || tr('Unlabelled'), seconds: asSeconds(row.total_seconds) }))
     .filter((row) => row.seconds > 0)
     .sort((a, b) => b.seconds - a.seconds)
     .map((row) => ({
       ...row,
       hours: (row.seconds / 3600).toFixed(1),
-      displayDuration: row.seconds >= 3600 ? `${(row.seconds / 3600).toFixed(1)}h` : durationLabel(row.seconds),
+      displayDuration: durationLabel(row.seconds),
       percent: totalSeconds ? Math.min(100, Math.round(row.seconds / totalSeconds * 100)) : 0,
     }));
   const distractions = reportDistractionApps(local);
+  const periodDays = days.length || Math.max(0, Number(local.period_days) || 0);
 
-  return {
-    title: days.length === 1 ? tr('Daily work review') : tr('Weekly work review'),
-    evidenceTitle: days.length === 1 ? tr('The day in view') : tr('The week in view'),
+  const model = {
+    title: periodDays === 1 ? tr('Daily work review') : periodDays > 7 ? tr('Work review') : tr('Weekly work review'),
+    evidenceTitle: periodDays === 1 ? tr('The day in view') : periodDays > 7 ? tr('The period in view') : tr('The week in view'),
     period,
+    periodStart,
+    periodEnd,
     userName: text(userName) || tr('Knowledge worker'),
-    generatedAt: text(payload?.generated_at) || todayDate,
+    generatedAt: reportTimestamp(payload?.generated_at) || todayDate,
     summary: text(report.executive_overview || report.work_summary)
       || (totalSeconds ? tr('Activity was recorded in this period.') : tr('No local activity was recorded in this period.')),
     status,
@@ -235,16 +295,21 @@ export function createStatusReportViewModel(payload, { userName = tr('Knowledge 
     healthNotes: text(report.health_notes),
     focusTarget: text(report.focus_target || meta.focus_target),
     timelineCaption: text(report.timeline_caption || report.work_summary),
-    totalHours: (totalSeconds / 3600).toFixed(1),
-    focusHours: (focusSeconds / 3600).toFixed(1),
+    totalHours: new Intl.NumberFormat(getLocale(), { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(totalSeconds / 3600),
+    focusHours: new Intl.NumberFormat(getLocale(), { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(focusSeconds / 3600),
+    totalSeconds,
+    focusSeconds,
+    totalDuration: durationLabel(totalSeconds),
+    focusDuration: durationLabel(focusSeconds),
     focusSessions,
     activeDays,
-    periodDays: days.length || Math.max(0, Number(local.period_days) || 0),
+    periodDays,
+    progress: createReportProgress(local, periodDays),
     empty: totalSeconds === 0,
     days,
     categories,
     distractions,
-    actions: list(report.recommendations),
+    actions: totalSeconds > 0 ? list(report.recommendations) : [],
     breakdown: asItems(report.health_breakdown).map((row) => ({
       element: text(row.element) || tr('Work area'),
       status: text(row.status) || tr('Observed'),
@@ -259,6 +324,10 @@ export function createStatusReportViewModel(payload, { userName = tr('Knowledge 
     lessonEmptyMessage: tr('No activity was recorded, so there is not enough evidence to draw a lesson for this period.'),
     aiPowered: Boolean(payload?.ai_powered),
   };
+  model.editorial = reportEditorial(model);
+  model.sourceActions = model.actions;
+  model.actions = model.editorial.actions.map(action => action.body);
+  return model;
 }
 
 function escapeHtml(value) {
@@ -276,15 +345,59 @@ function reportList(items, emptyLabel) {
     : html`<p class="sr-muted">${escapeHtml(emptyLabel)}</p>`;
 }
 
+function directionIcon(direction) {
+  const path = direction === 'up' ? 'M5 17 17 5M5 5h12v12' : direction === 'down' ? 'M5 5l12 12M5 17h12V5' : 'M4 11h14';
+  return `<svg width="16" height="16" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${path}"/></svg>`;
+}
+
+function renderReportGrade(progress) {
+  if (!progress) return '';
+  return html`<section class="sr-grade" aria-labelledby="srGradeTitle">
+    <h3 id="srGradeTitle">${escapeHtml(progress.title)}</h3>
+    <div class="sr-grade-main">
+      <div class="sr-grade-number" aria-label="${escapeHtml(formatMessage`Focus grade: ${progress.scoreLabel} out of 10`)}"><strong>${progress.scoreLabel}</strong><span>/10</span></div>
+      <div class="sr-grade-reading"><strong>${escapeHtml(progress.verdict)}</strong>
+        ${progress.comparable ? html`<span class="sr-grade-delta sr-trend-${progress.direction}">${directionIcon(progress.direction)} ${escapeHtml(progress.deltaLabel)} <span>points</span></span>` : ''}
+        <span>${escapeHtml(progress.comparable ? progress.comparisonLabel : progress.status)}</span>
+      </div>
+    </div>
+    ${progress.score !== null ? html`<div class="sr-grade-scale" aria-hidden="true">${Array.from({length:10},(_,i)=>`<span class="${progress.score >= i + 1 ? 'is-filled' : ''}"></span>`).join('')}</div>` : ''}
+    <p class="sr-grade-note">${escapeHtml(progress.note)}</p>
+  </section>`;
+}
+
+function renderReportProgress(progress) {
+  if (!progress) return '';
+  const insightList = (items, empty) => items.length ? html`<ul class="sr-progress-insights">${items.map((item) => html`<li><strong>${escapeHtml(item.title)}</strong>${item.evidence ? html`<span class="sr-progress-evidence">${escapeHtml(item.evidence)}</span>` : ''}${item.body ? html`<p>${escapeHtml(item.body)}</p>` : ''}</li>`).join('')}</ul>` : html`<p class="sr-progress-empty">${escapeHtml(empty)}</p>`;
+  const rows = progress.rows.map((row) => {
+    const max = row.key === 'focus' ? 100 : Math.max(1, row.current, progress.comparable ? row.previous || 0 : 0);
+    const width = (value) => Math.min(100, Math.max(0, value / max * 100));
+    return html`<div class="sr-progress-measure"><div class="sr-progress-measure-title"><strong>${escapeHtml(row.label)}</strong>${progress.comparable ? html`<span class="sr-trend-${row.tone}">${directionIcon(row.tone)}</span>` : ''}</div>
+      ${progress.comparable && row.previous !== null ? html`<div class="sr-comparison-bar sr-comparison-previous" aria-label="${escapeHtml(formatMessage`Previous: ${row.previousLabel}`)}"><span style="width:${width(row.previous)}%"></span><b>${escapeHtml(row.previousLabel)}</b></div>` : ''}
+      <div class="sr-comparison-bar sr-comparison-current" aria-label="${escapeHtml(formatMessage`Current: ${row.currentLabel}`)}"><span style="width:${width(row.current)}%"></span><b>${escapeHtml(row.currentLabel)}</b></div>
+    </div>`;
+  }).join('');
+  return html`<section class="sr-progress" aria-label="Your progress">
+    <div class="sr-progress-columns">
+      <div class="sr-progress-improved"><h3>${directionIcon('up')} What improved</h3>${insightList(progress.improvements, progress.improvementEmpty)}</div>
+      <div class="sr-progress-next"><h3>${directionIcon('steady')} Where to improve</h3>${insightList(progress.opportunities, progress.opportunityEmpty)}</div>
+    </div>
+    ${rows ? html`<div class="sr-progress-comparison"><div class="sr-progress-comparison-heading"><h3>${escapeHtml(progress.comparable ? tr('The comparison behind your grade') : tr('Your current focus measures'))}</h3>
+      ${progress.comparable ? html`<p>Previous <strong>${escapeHtml(progress.previousScoreLabel)}/10</strong> <span aria-hidden="true">→</span> Current <strong>${escapeHtml(progress.scoreLabel)}/10</strong></p><p class="sr-progress-period">${escapeHtml(progress.previousPeriod)} ${escapeHtml(progress.comparisonLabel)}</p>` : ''}</div>
+      <div class="sr-comparison-legend" aria-hidden="true">${progress.comparable ? html`<span class="sr-legend-previous">Previous</span>` : ''}<span class="sr-legend-current">Current</span></div><div class="sr-progress-measures">${rows}</div></div>` : ''}
+    <details class="sr-grade-method"><summary>How is this grade calculated?</summary><p>${escapeHtml(progress.method)}</p></details>
+  </section>`;
+}
+
 export function renderStatusReportHtml(model) {
   const days = model.days.map((day) => html`
-    <div class="sr-day" title="${escapeHtml(day.date)}: ${day.seconds ? escapeHtml(day.displayDuration) : '0.0h'}" aria-label="${escapeHtml(day.date)}: ${day.seconds ? escapeHtml(day.displayDuration) : tr('0.0 hours')}">
-      <div class="sr-day-value">${day.seconds ? day.displayDuration : '—'}</div>
+    <div class="sr-day" title="${escapeHtml(day.date)}: ${escapeHtml(day.displayDuration)}" aria-label="${escapeHtml(day.date)}: ${escapeHtml(day.displayDuration)}">
+      <div class="sr-day-value">${day.displayDuration}</div>
       <div class="sr-day-track"><span style="height:${day.seconds ? Math.max(7, day.percentOfPeak) : 0}%"></span></div>
       <div class="sr-day-label">${escapeHtml(day.label)}<small>${escapeHtml(day.date.slice(8))}</small></div>
     </div>`).join('');
-  const categories = model.categories.length
-    ? model.categories.slice(0, 6).map((category) => html`
+  const categories = model.editorial.chartCategories.length
+    ? model.editorial.chartCategories.map((category) => html`
       <div class="sr-category-row">
         <span class="sr-category-name" title="${escapeHtml(category.label)}">${escapeHtml(category.label)}</span>
         <div class="sr-category-track" aria-label="${escapeHtml(formatMessage`${category.percent}% of tracked time`)}"><span style="width:${Math.max(2, category.percent)}%"></span></div>
@@ -292,8 +405,8 @@ export function renderStatusReportHtml(model) {
       </div>`).join('')
     : markup('<p class="sr-muted">No category time recorded.</p>');
   const actions = model.actions.length
-    ? html`<ol class="sr-action-list">${model.actions.map((action, index) => html`
-        <li><span class="sr-action-number">${String(index + 1).padStart(2, '0')}</span><p>${escapeHtml(action)}</p></li>`).join('')}</ol>`
+    ? html`<ol class="sr-action-list">${model.editorial.actions.map((action, index) => html`
+        <li><div><strong>${escapeHtml(action.title)}</strong><span class="sr-progress-evidence">${escapeHtml(action.evidence)}</span><p>${escapeHtml(action.body)}</p><button type="button" class="button button-ghost sr-choice-btn" data-review-suggestion="${index}">Try this change</button></div></li>`).join('')}</ol>`
     : markup('<p class="sr-muted">No specific next move is supported by this period yet. Keep tracking to build a baseline.</p>');
   const breakdown = model.breakdown.length
     ? html`<div class="sr-signal-list">${model.breakdown.map((row) => html`
@@ -305,46 +418,37 @@ export function renderStatusReportHtml(model) {
   const lessons = model.lessons.length
     ? html`<div class="sr-lessons">${model.lessons.map((lesson) => html`<div><strong>${escapeHtml(lesson.title)}</strong><p>${escapeHtml(lesson.body)}</p></div>`).join('')}</div>`
     : html`<p class="sr-muted">${escapeHtml(model.lessonEmptyMessage)}</p>`;
-  const distractions = model.distractions.apps.length
-    ? html`<div class="sr-distraction-list">${model.distractions.apps.map((app) => html`
+  const distractions = model.editorial.appContexts.length
+    ? html`<div class="sr-distraction-list">${model.editorial.appContexts.map((app) => html`
       <div class="sr-distraction-row">
         <div class="sr-distraction-measure">
           <div class="sr-distraction-top"><strong title="${escapeHtml(app.appName)}">${escapeHtml(app.appName)}</strong><span>${escapeHtml(app.duration)}</span></div>
           <div class="sr-distraction-track" role="img" aria-label="${escapeHtml(formatMessage`${app.appName}: ${app.duration} in sampled foreground visits`)}"><span style="width:${app.percentOfTop}%"></span></div>
         </div>
         <div class="sr-distraction-detail">
-          <p class="sr-distraction-observed">${escapeHtml(app.observed)}</p>
-          <p class="sr-distraction-advice"><strong>Next session</strong> ${escapeHtml(app.advice)}</p>
+          <p class="sr-distraction-observed">${escapeHtml(tr('{visits} foreground visits across {days} days', { visits: app.visits, days: app.days }))}</p>
+          <details class="sr-app-evidence"><summary>See recorded context</summary><p>${escapeHtml(app.observed)}</p></details>
         </div>
       </div>`).join('')}</div>`
-    : html`<p class="sr-muted">${escapeHtml(model.distractions.message)}</p>`;
+    : html`<p class="sr-muted">${escapeHtml(model.editorial.appMessage)}</p>`;
 
   return html`
     <article class="status-report sr-review">
       <header class="sr-review-hero">
         <div class="sr-review-heading"><div><h2>${escapeHtml(model.title)}</h2><p>${escapeHtml(model.period)}</p></div>
-          <span class="sr-signal-chip sr-signal-${model.statusTone}">${escapeHtml(model.status)}</span></div>
+          </div>
         <p class="sr-review-meta">${escapeHtml(model.userName)} <span aria-hidden="true">·</span> ${escapeHtml(formatMessage`Generated ${model.generatedAt}`)}</p>
+        ${renderReportGrade(model.progress)}
+        <p class="sr-origin">${escapeHtml(model.aiPowered ? tr('Local AI report') : tr('Rule-based report'))} · ${escapeHtml(formatMessage`${model.activeDays} of ${model.periodDays} days with activity`)}. ${escapeHtml(tr('This covers recorded activity, not your whole working day.'))}</p>
       </header>
 
       <section class="sr-overview" aria-label="Review summary">
-        <p>${escapeHtml(model.summary)}</p>
+        <p>${escapeHtml(model.editorial.lead)}</p>
         <div class="sr-stat-line">
-          <div><strong>${model.totalHours}<span>h</span></strong><span>Tracked time</span></div>
-          <div><strong>${model.focusHours}<span>h</span></strong><span>${escapeHtml(formatMessage`Sustained focus · ${model.focusSessions} blocks`)}</span></div>
+          <div><strong>${model.totalDuration}</strong><span>Tracked time</span></div>
+          <div><strong>${model.focusDuration}</strong><span>${escapeHtml(formatMessage`Sustained focus · ${model.focusSessions} blocks`)}</span></div>
           <div><strong>${model.activeDays}<span>/${model.periodDays}</span></strong><span>Days with activity</span></div>
         </div>
-      </section>
-
-      <section class="sr-section sr-next" aria-labelledby="srNextTitle">
-        <div class="sr-section-heading"><h3 id="srNextTitle">What to do next</h3><p>Actions suggested by the recorded evidence</p></div>
-        ${actions}
-      </section>
-
-      <section class="sr-section sr-distractions" aria-labelledby="srDistractionsTitle">
-        <div class="sr-section-heading"><h3 id="srDistractionsTitle">Attention detours</h3><p>Observed visits and returns between work screens</p></div>
-        ${distractions}
-        ${model.distractions.caveat ? html`<p class="sr-distraction-caveat" id="srDistractionCaveat">${escapeHtml(model.distractions.caveat)}</p>` : ''}
       </section>
 
       <section class="sr-section" aria-labelledby="srEvidenceTitle">
@@ -355,13 +459,33 @@ export function renderStatusReportHtml(model) {
           </figure>
           <figure class="sr-figure"><figcaption>Time by category</figcaption>${categories}</figure>
         </div>
-        ${model.timelineCaption ? html`<p class="sr-evidence-note">${escapeHtml(model.timelineCaption)}</p>` : ''}
+        <p class="sr-evidence-note">${escapeHtml(model.editorial.timeline)}</p>
       </section>
 
+      ${renderReportProgress(model.progress)}
+
+      <section class="sr-section sr-next" aria-labelledby="srNextTitle">
+        <div class="sr-section-heading"><h3 id="srNextTitle">What to do next</h3><p>Choose one change. Review it after your next normal work session.</p></div>
+        ${actions}
+      </section>
+
+      <div id="workReviewSlot"></div>
+
+      <section class="sr-section sr-distractions" aria-labelledby="srDistractionsTitle">
+        <div class="sr-section-heading"><h3 id="srDistractionsTitle">App changes, with context</h3><p>App visits are observations, not proof of distraction.</p></div>
+        ${distractions}
+        <p class="sr-distraction-caveat">Keep tools needed for work available. Only you can confirm whether a visit was optional.</p>
+        ${model.distractions.caveat ? html`<p class="sr-distraction-caveat" id="srDistractionCaveat">${escapeHtml(model.distractions.caveat)}</p>` : ''}
+      </section>
+
+      <details class="sr-report-details"><summary>Read the full local analysis</summary>
       <section class="sr-section sr-context" aria-labelledby="srContextTitle">
         <div class="sr-section-heading"><h3 id="srContextTitle">How to read the signal</h3></div>
+        <p>${escapeHtml(model.summary)}</p>
         ${model.healthNotes ? html`<p>${escapeHtml(model.healthNotes)}</p>` : markup('<p class="sr-muted">No additional interpretation was generated.</p>')}
         ${model.focusTarget ? html`<p class="sr-focus-target"><strong>Focus target</strong> ${escapeHtml(model.focusTarget)}</p>` : ''}
+        ${reportList(model.sourceActions, '')}
+        ${model.distractions.apps.length ? html`<h4>App changes, with context</h4>${reportList(model.distractions.apps.map(app => `${app.appName}: ${app.observed}`), '')}` : ''}
       </section>
 
       <section class="sr-section" aria-labelledby="srAreasTitle">
@@ -377,6 +501,7 @@ export function renderStatusReportHtml(model) {
       </section>
 
       <section class="sr-section" aria-labelledby="srLessonsTitle"><div class="sr-section-heading"><h3 id="srLessonsTitle">What this period taught us</h3></div>${lessons}</section>
+      </details>
 
       <footer class="sr-review-footer"><p>${escapeHtml(formatMessage`Based on activity stored on this device. ${model.aiPowered ? tr('Narrative assisted by local AI.') : tr('Structured, rule-based narrative.')} Interpret alongside your own context.`)}</p>
         <button type="button" class="sr-download-btn" id="downloadReportPdfBtn" aria-label="Download weekly work review as PDF">

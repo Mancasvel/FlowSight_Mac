@@ -26,7 +26,49 @@ use crate::agent::AgentState;
 use crate::vision_model::LLAMA_CHAT_MODEL_ID;
 
 const MAX_USER_MESSAGE_CHARS: usize = 1200;
+
+pub(crate) fn profile_tool_allowed(name: &str, args: &Value, personal: bool) -> bool {
+    personal
+        || matches!(
+            name,
+            "focus.end"
+                | "focus.pause"
+                | "focus.total_end"
+                | "focus.total_status"
+                | "browser.unblock"
+                | "browser.restore_tab"
+        )
+        || (name == "system.set_dnd" && args["enabled"] == false)
+}
+
+pub(crate) fn require_profile_tool(name: &str, args: &Value) -> Result<(), String> {
+    let personal = crate::entitlements::personal_features_allowed(&crate::paths::db_path()?);
+    if profile_tool_allowed(name, args, personal) {
+        Ok(())
+    } else {
+        Err("Personal automations are available in the Individual profile".into())
+    }
+}
 const PROPOSAL_LIFETIME: Duration = Duration::from_secs(5 * 60);
+
+pub(crate) fn clear_pending_personal_actions() {
+    if let Ok(mut pending) = PENDING.lock() {
+        pending.clear();
+    }
+}
+
+pub(crate) fn end_personal_context() -> Result<(), String> {
+    clear_pending_personal_actions();
+    session_plan::clear_pending();
+    total_focus::end_for_context_change()?;
+    for warning in actions::clear_focus_for_context_change()? {
+        log::warn!("Context change: {warning}");
+    }
+    if state::read()?.quiet.is_some() {
+        system_quiet::disable()?;
+    }
+    Ok(())
+}
 static PENDING: Mutex<Vec<PendingAction>> = Mutex::new(Vec::new());
 
 struct PendingAction {
@@ -82,6 +124,15 @@ fn proposal_for(spec: &registry::ToolSpec, arguments: Value) -> Result<ActionPro
         fields
             .entry("exceptions")
             .or_insert(json!(preferences.exceptions));
+        fields
+            .entry("quiet_notifications")
+            .or_insert(json!(preferences.quiet_notifications));
+        fields
+            .entry("music_enabled")
+            .or_insert(json!(preferences.music_enabled));
+        fields
+            .entry("music_url")
+            .or_insert(json!(preferences.music_url));
     }
     registry::validate(spec, &arguments)?;
     let id = uuid::Uuid::new_v4().to_string();
@@ -368,6 +419,7 @@ fn request_model(
 pub fn get_local_agent_tools() -> Vec<Value> {
     registry::enabled_specs()
         .iter()
+        .filter(|spec| require_profile_tool(spec.name, &json!({})).is_ok())
         .map(|spec| {
             json!({
                 "name": spec.name,
@@ -392,6 +444,7 @@ fn propose_local_agent_tool_blocking(
     name: String,
     arguments: Value,
 ) -> Result<ActionProposal, String> {
+    require_profile_tool(&name, &arguments)?;
     let spec = registry::enabled_by_public_name(&name)
         .ok_or("This local agent tool is unavailable in this release.")?;
     if !spec.confirmation {
@@ -408,6 +461,7 @@ pub async fn ask_local_agent(app: AppHandle, message: String) -> Result<AgentTur
 }
 
 fn ask_local_agent_blocking(app: AppHandle, message: String) -> Result<AgentTurn, String> {
+    require_profile_tool("personal.assistant", &json!({}))?;
     let message = message.trim();
     if message.is_empty() || message.chars().count() > MAX_USER_MESSAGE_CHARS {
         return Err("Write a request of up to 1,200 characters.".into());
@@ -554,6 +608,13 @@ pub async fn control_local_focus_block(app: AppHandle, action: String) -> Result
 }
 
 pub fn start_maintenance(app: AppHandle) {
+    if !crate::paths::db_path()
+        .is_ok_and(|path| crate::entitlements::personal_features_allowed(&path))
+    {
+        if let Err(error) = end_personal_context() {
+            log::warn!("Could not release personal protection on startup: {error}");
+        }
+    }
     if let Ok(data) = state::read() {
         if data.quiet.is_some() {
             if let Err(error) = system_quiet::disable() {
@@ -578,8 +639,17 @@ pub fn start_maintenance(app: AppHandle) {
             });
         }
     }
+    if let Err(error) = total_focus::restore_after_restart() {
+        log::warn!("Could not restore total focus notifications after restart: {error}");
+    }
     std::thread::spawn(move || loop {
-        std::thread::sleep(Duration::from_secs(15));
+        std::thread::sleep(Duration::from_secs(5));
+        if let Err(error) = total_focus::maintain() {
+            log::warn!("Could not finish total focus protection: {error}");
+        }
+        if let Err(error) = total_focus::maintain_linked_clock(&app) {
+            log::warn!("Could not reconcile the total focus clock: {error}");
+        }
         if let Err(error) = actions::expire_focus_if_due(app.clone(), app.state::<AgentState>()) {
             log::warn!("Could not expire focus block: {error}");
         }
@@ -604,6 +674,9 @@ pub fn start_maintenance(app: AppHandle) {
 }
 
 pub fn restore_on_exit() {
+    if let Err(error) = system_quiet::disable_total_focus() {
+        log::warn!("Could not restore total focus notifications during quit: {error}");
+    }
     if state::read().ok().and_then(|data| data.quiet).is_some() {
         if let Err(error) = system_quiet::disable() {
             log::warn!("Could not restore notifications during quit: {error}");
@@ -621,6 +694,38 @@ pub fn clear_pending_after_data_deletion() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn team_profiles_deny_personal_actions_and_keep_recovery_actions() {
+        for name in [
+            "focus.total_start",
+            "focus.start",
+            "browser.close_tab",
+            "browser.block",
+            "automation.run",
+            "tasks.create",
+        ] {
+            assert!(!profile_tool_allowed(name, &json!({}), false));
+            assert!(profile_tool_allowed(name, &json!({}), true));
+        }
+        for name in [
+            "focus.end",
+            "focus.total_end",
+            "browser.restore_tab",
+            "browser.unblock",
+        ] {
+            assert!(profile_tool_allowed(name, &json!({}), false));
+        }
+        assert!(profile_tool_allowed(
+            "system.set_dnd",
+            &json!({"enabled":false}),
+            false
+        ));
+        assert!(!profile_tool_allowed(
+            "system.set_dnd",
+            &json!({"enabled":true}),
+            false
+        ));
+    }
 
     #[test]
     fn unknown_or_multiple_model_calls_never_execute() {
@@ -658,5 +763,35 @@ mod tests {
         assert!(spec.confirmation);
         let proposal = proposal_for(&spec, args).unwrap();
         assert_eq!(proposal.tool, "tasks.create");
+    }
+
+    #[test]
+    fn music_link_is_frozen_in_the_reviewed_focus_proposal() {
+        let _store = state::TestStore::new();
+        let music_url = "https://music.example.com/playlist?list=focus&track=123";
+        state::update(|data| {
+            data.total_focus_preferences.music_enabled = true;
+            data.total_focus_preferences.music_url = music_url.into();
+            Ok(())
+        })
+        .unwrap();
+        let spec = registry::specs()
+            .into_iter()
+            .find(|spec| spec.name == "focus.total_start")
+            .unwrap();
+        // The user can request focus and saved music without inventing a task.
+        let proposal = proposal_for(&spec, json!({})).unwrap();
+        assert!(proposal.summary.contains("General"));
+        assert_eq!(proposal.arguments["music_enabled"], true);
+        assert_eq!(proposal.arguments["music_url"], music_url);
+        let empty = proposal_for(&spec, json!({"intention":"  "})).unwrap();
+        assert!(empty.summary.contains("General"));
+        assert!(proposal.summary.contains(music_url));
+        state::update(|data| {
+            data.total_focus_preferences.music_url = "https://music.example.com/changed".into();
+            Ok(())
+        })
+        .unwrap();
+        assert_eq!(proposal.arguments["music_url"], music_url);
     }
 }

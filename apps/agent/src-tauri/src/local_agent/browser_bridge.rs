@@ -139,7 +139,7 @@ pub fn start() -> Result<(), String> {
                             let _ = super::total_focus::cancel_from_extension(id);
                         }
                         let mut queue = bridge.queue.lock().unwrap();
-                        queue.focus_status = json!({"sessionId":value["sessionId"],"applied":value["applied"],"extensionVersion":value["extensionVersion"]});
+                        queue.focus_status = json!({"sessionId":value["sessionId"],"applied":value["applied"],"extensionVersion":value["extensionVersion"],"available":value["available"],"musicAvailable":value["musicAvailable"] == true,"error":value["error"]});
                         queue.focus_seen = Some(Instant::now());
                         json_response(json!({"received":true}), 200)
                     } else {
@@ -188,13 +188,15 @@ fn total_focus_available(queue: &Queue) -> bool {
         .focus_seen
         .is_some_and(|seen| seen.elapsed() < PAIRING_TIMEOUT)
         && queue.focus_status["applied"].is_boolean()
+        && queue.focus_status["available"] != false
 }
 
 pub fn focus_status() -> Value {
     BRIDGE.get().and_then(|bridge| bridge.queue.lock().ok().map(|queue| {
         json!({"connected":queue.last_seen.is_some_and(|seen| seen.elapsed() < PAIRING_TIMEOUT),
             "fresh":queue.focus_seen.is_some_and(|seen| seen.elapsed() < PAIRING_TIMEOUT),
-            "totalFocusAvailable":total_focus_available(&queue),"extensionVersion":queue.focus_status["extensionVersion"],
+            "totalFocusAvailable":total_focus_available(&queue),"musicAvailable":total_focus_available(&queue) && queue.focus_status["musicAvailable"] == true,"extensionVersion":queue.focus_status["extensionVersion"],
+            "error":queue.focus_status["error"],
             "sessionId":queue.focus_status["sessionId"],"applied":queue.focus_status["applied"] == true})
     })).unwrap_or_else(|| json!({"connected":false,"fresh":false,"applied":false}))
 }
@@ -209,6 +211,7 @@ pub fn get_browser_pairing() -> Result<Value, String> {
         "connected": queue.last_seen.is_some_and(|seen| seen.elapsed() < PAIRING_TIMEOUT),
         "totalFocusAvailable": total_focus_available(&queue),
         "extensionVersion": queue.focus_status["extensionVersion"],
+        "error": queue.focus_status["error"],
         "chromeStoreAvailable": browser_store_url("chrome").is_some(),
         "edgeStoreAvailable": browser_store_url("edge").is_some(),
     }))
@@ -277,6 +280,14 @@ mod store_url_tests {
         );
         queue.focus_status = json!({"applied": "false"});
         assert!(!total_focus_available(&queue));
+        queue.focus_status =
+            json!({"applied": false, "available": false, "extensionVersion": "1.1.2"});
+        assert!(
+            !total_focus_available(&queue),
+            "Missing site access cannot enable protection"
+        );
+        queue.focus_status["available"] = json!(true);
+        assert!(total_focus_available(&queue));
         queue.focus_status = json!({"applied": true, "extensionVersion": "1.1.1"});
         queue.focus_seen = Some(Instant::now() - PAIRING_TIMEOUT);
         assert!(
