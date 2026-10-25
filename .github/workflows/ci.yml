@@ -12,14 +12,23 @@ concurrency:
 
 jobs:
   check:
-    runs-on: macos-14
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-14
+            architecture: arm64
+            llm_arch: macos-arm64
+          - runner: macos-15-intel
+            architecture: x86_64
+            llm_arch: macos-x64
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 45
     env:
       # Authenticated GitHub API avoids 403 rate limits in prepare-macos-llm.sh
       TAURI_GOOGLE_CALENDAR_CLIENT_ID: ${{ vars.TAURI_GOOGLE_CALENDAR_CLIENT_ID }}
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      FLOWSIGHT_LLM_ARCH: macos-arm64
-      FLOWSIGHT_SKIP_LLM_RUN: "1"
+      FLOWSIGHT_LLM_ARCH: ${{ matrix.llm_arch }}
       FLOWSIGHT_RENDERER_URL: http://127.0.0.1:1420
     steps:
       - uses: actions/checkout@v4
@@ -48,7 +57,7 @@ jobs:
           set -euo pipefail
           bash scripts/prepare-macos-llm.sh
           test -x local_llm/bin/llama-server
-          lipo -archs local_llm/bin/llama-server | grep -q arm64
+          lipo -archs local_llm/bin/llama-server | grep -q '${{ matrix.architecture }}'
 
       - name: Fetch and verify Qwen3-VL-2B weights
         run: node scripts/fetch-models.mjs
@@ -67,7 +76,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: macos-native-qwen-session
+          name: macos-${{ matrix.architecture }}-native-qwen-session
           path: |
             .impeccable/review/suggestions-qwen.json
             .impeccable/review/suggestions-harness/source-manifest.json
@@ -111,7 +120,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: macos-renderer-previews
+          name: macos-${{ matrix.architecture }}-renderer-previews
           path: .impeccable/review/
           if-no-files-found: ignore
 
