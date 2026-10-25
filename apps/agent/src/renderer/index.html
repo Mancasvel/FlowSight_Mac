@@ -3288,6 +3288,10 @@
   <link rel="stylesheet" href="./coach.css">
   <link rel="stylesheet" href="./online-leagues.css">
   <link rel="stylesheet" href="./build-in-public.css">
+  <style>
+    .platform-macos .app-titlebar { padding-left: 82px; }
+    .platform-macos .titlebar-btn[hidden] { display: none !important; }
+  </style>
 </head>
 
 <body data-usage-profile="pending">
@@ -6920,7 +6924,12 @@
       }, duration);
     }
 
-    const installationRepair = createInstallationRepairController({
+    const isMacOS = /Mac/i.test(navigator.platform || navigator.userAgent);
+    if (isMacOS) {
+      document.documentElement.classList.add("platform-macos");
+      for (const id of ["winMinimizeBtn", "winMaximizeBtn", "winCloseBtn"]) document.getElementById(id).hidden = true;
+    }
+    const installationRepair = isMacOS ? { check: async () => true, needsRepair: () => false, show() {} } : createInstallationRepairController({
       invoke,
       listen,
       document,

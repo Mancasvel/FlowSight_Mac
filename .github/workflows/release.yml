@@ -544,6 +544,10 @@ jobs:
           RUST_TARGET: ${{ matrix.rust_target }}
         run: |
           set -euo pipefail
+          if [[ -z "$RELEASE_BODY" ]]; then
+            RELEASE_BODY="$(gh release view "$RELEASE_TAG" --repo "$REPO" --json body --jq .body)"
+            export RELEASE_BODY
+          fi
           DMG_DIR="apps/agent/src-tauri/target/${RUST_TARGET}/release/bundle/dmg"
           MACOS_DIR="apps/agent/src-tauri/target/${RUST_TARGET}/release/bundle/macos"
           mkdir -p staged
@@ -620,9 +624,12 @@ jobs:
 
       - name: Merge latest.json (aarch64 + x86_64)
         shell: bash
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
         run: |
           set -euo pipefail
           node -e '
+            const assert = require("node:assert/strict");
             const fs = require("fs");
             const path = require("path");
             function walk(dir, out=[]) {
@@ -634,22 +641,22 @@ jobs:
               return out;
             }
             const files = walk("artifacts");
-            if (!files.length) {
-              console.log("No updater fragments (unsigned build) — skipping latest.json");
-              process.exit(0);
-            }
+            assert.equal(files.length, 2, "Both signed Mac updater fragments are required");
+            const expectedVersion = process.env.RELEASE_TAG.replace(/^v/, "");
             const merged = { version: "", notes: "", pub_date: "", platforms: {} };
             for (const f of files) {
               const j = JSON.parse(fs.readFileSync(f, "utf8"));
+              assert.equal(j.version, expectedVersion, "Updater fragment must match the release tag");
+              for (const platform of Object.keys(j.platforms || {})) {
+                assert.ok(!merged.platforms[platform], `Duplicate updater platform ${platform}`);
+                assert.ok(j.platforms[platform].signature, `Missing signature for ${platform}`);
+              }
               merged.version = j.version || merged.version;
               merged.notes = j.notes || merged.notes;
               merged.pub_date = j.pub_date || merged.pub_date;
               Object.assign(merged.platforms, j.platforms || {});
             }
-            if (!Object.keys(merged.platforms).length) {
-              console.log("Updater fragments had empty platforms — skipping latest.json");
-              process.exit(0);
-            }
+            assert.deepEqual(Object.keys(merged.platforms).sort(), ["darwin-aarch64", "darwin-x86_64"]);
             fs.writeFileSync("latest.json", JSON.stringify(merged, null, 2));
             console.log(merged);
           '

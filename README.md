@@ -1,6 +1,6 @@
 # FlowSight (macOS)
 
-**Privacy-first developer productivity intelligence — runs locally on your Mac.**
+**Understand your recorded work with local processing on your Mac.**
 
 This repository is the **macOS** edition of FlowSight (Apple Silicon / Intel).  
 The Windows edition lives in a separate repository and is not modified from here.
@@ -17,6 +17,8 @@ FlowSight is a desktop application that helps distributed engineering teams unde
 - **Desktop-native** — Tauri 2 (Rust) shell, Vite frontend, SQLite. Ships as `.app` / `.dmg`.
 - **Activity-oriented** — Accessibility + frontmost-app signals (not keystroke surveillance).
 - **Team analytics, with consent** — opt-in aggregation into Supabase only when joining a team.
+- **Individual or employee** — Individual is the default without a connected team. A licensed employee sees a simple Stop/Continue recorder and Settings; the PM manages the team in the existing web dashboard.
+- **Visual weekly reports** — three pages of daily activity, categories, comparison and a few supported decisions. Detailed observations stay available in the screen report.
 
 ## Bring your own AI (MCP)
 
@@ -30,7 +32,7 @@ returned report data.
 
 - macOS 12+
 - Xcode / CLT (`sudo xcodebuild -license accept`)
-- Rust stable, Node.js 18+, pnpm 8+
+- Rust stable, Node.js 20.19+, pnpm 8+
 
 ## Install and run
 
@@ -70,7 +72,7 @@ Output under `apps/agent/src-tauri/target/<triple>/release/bundle/`.
 
 ## Releases / CI
 
-Publishing a GitHub Release tag (e.g. `v3.6.0`) runs `.github/workflows/release.yml`, which builds **two** installers from this same repo:
+Publishing a GitHub Release tag (e.g. `v6.5.3`) runs `.github/workflows/release.yml`, which builds **two** installers from this same repo on their native Apple Silicon and Intel runners:
 
 | Asset | Chip |
 |---|---|

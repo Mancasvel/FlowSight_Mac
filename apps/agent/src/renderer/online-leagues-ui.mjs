@@ -31,7 +31,7 @@ const syncCopy={
   es:{automatic:'Sincronización automática',noFocus:'Los puntos empiezan con un bloque de foco de 25 min.',automaticNote:'Se envía en segundo plano. Si no hay conexión, se reintenta automáticamente.',cloudShort:'Al aceptar, envías automáticamente a la nube <strong>tu username y tu foco diario</strong> (máx. 75 min). Tus amigos ven <strong>puntos y puesto</strong>.'},
   en:{automatic:'Automatic sync',noFocus:'Points start with a 25-minute focus block.',automaticNote:'Sent in the background. Retries automatically when the connection returns.',cloudShort:'Accepting automatically sends <strong>your username and daily focus</strong> to the cloud (max. 75 min). Friends see <strong>points and position</strong>.'},
 };
-export function mountOnlineLeagues({root,invoke,listen}){
+export function mountOnlineLeagues({root,invoke,listen,onSignIn}){
   let view={enabled:false,signed_in:false,groups:[]},busy=false,refreshTask=null,refreshAgain=false,revision=0,invitation='',error='',loaded=false;
   const t=()=>{const lang=getLanguage()==='es'?'es':'en';return {...copy[lang],...consentCopy[lang],...syncCopy[lang]};};
   const scoring=c=>`<dl class="online-scoring">${[[25,40],[50,70],[75,100]].map(([minutes,points])=>`<div><dt>${minutes} min</dt><dd><strong>${points}</strong> ${c.pointsUnit}</dd></div>`).join('')}</dl><p class="online-weekly">${c.weekly}</p>`;
@@ -62,12 +62,14 @@ export function mountOnlineLeagues({root,invoke,listen}){
   }
   function render(){
     const c=t();
-    root.innerHTML=`<header class="online-heading"><h1>${c.title}</h1><p>${c.intro}</p></header>${!view.enabled?`
+    const needsSignIn=!view.signed_in||error==='Sign in again to use online leagues';
+    const signInAction=needsSignIn&&onSignIn?`<div class="online-auth-recovery"><button type="button" class="button button-secondary" id="onlineSignIn" ${busy?'disabled':''}>${getLanguage()==='es'?'Iniciar sesión':'Sign in'}</button></div>`:'';
+    root.innerHTML=`<header class="online-heading"><h1>${c.title}</h1><p>${c.intro}</p></header>${signInAction}${!view.enabled?`
       <div class="online-status" role="status" aria-live="polite" aria-atomic="true"></div>
       <section class="online-consent"><h2>${c.acceptTitle}</h2><p class="online-benefit">${c.benefit}</p>${scoring(c)}
       <label for="onlineAlias">${getLanguage()==='es'?'Tu username':'Your username'}</label><input id="onlineAlias" class="input" minlength="3" maxlength="20" pattern="[a-zA-Z0-9][a-zA-Z0-9_.]{2,19}" autocomplete="username" autocapitalize="none" spellcheck="false" aria-describedby="onlineAliasHint" value="${escape(view.alias||'')}" placeholder="alex.foco"><p id="onlineAliasHint" class="online-alias-hint">${getLanguage()==='es'?'Único · 3–20 letras, números, puntos o _':'Unique · 3–20 letters, numbers, dots or _'}</p>
       <div class="online-consent-note"><p>${c.cloudShort}</p><p>${c.privateShort}</p></div>
-      <button type="button" class="button button-primary online-accept" id="onlineAccept" ${busy||!view.signed_in?'disabled':''}>${c.accept}</button>${!view.signed_in?`<p>${c.signin}</p>`:''}
+      <button type="button" class="button button-primary online-accept" id="onlineAccept" ${busy||needsSignIn?'disabled':''}>${c.accept}</button>${!view.signed_in?`<p>${c.signin}</p>`:''}
       <details class="online-consent-details"><summary>${c.privacy}</summary><p>${c.startShort}</p><p>${c.serviceShort}</p><p>${c.refreshNote}</p></details></section>`:`
       <section class="online-summary"><div class="online-summary-head"><h2>${c.active}</h2><span class="online-username">@${escape(view.alias||'')}</span></div>
       <div class="online-status" role="status" aria-live="polite" aria-atomic="true"></div>
@@ -77,6 +79,7 @@ export function mountOnlineLeagues({root,invoke,listen}){
       <form id="onlineJoin"><label for="onlineCode">${c.join}</label><input class="input" id="onlineCode" required maxlength="64" placeholder="${c.code}" autocomplete="off" spellcheck="false"><button class="button button-secondary" ${busy?'disabled':''}>${c.joinButton}</button></form></section>
       ${invitation?`<section class="online-invitation"><p>${c.invitation}</p><label for="onlineInvitationCode">${c.code}</label><input id="onlineInvitationCode" class="input" readonly value="${escape(invitation)}"><button class="button button-secondary" id="onlineCopy">${c.copy}</button></section>`:''}
       <details class="online-sharing"><summary>${c.privacy}</summary><p>${c.cloudShort}</p><p>${c.privateShort}</p><p>${c.startShort}</p><p>${c.automaticNote}</p><p>${c.serviceShort}</p><p>${c.refreshNote}</p><p>${c.disableNote}</p><button class="button button-secondary" id="onlineDisable" ${busy?'disabled':''}>${c.disable}</button></details>`}`;
+    root.querySelector('#onlineSignIn')?.addEventListener('click',onSignIn);
     root.querySelector('#onlineAccept')?.addEventListener('click',()=>{const input=root.querySelector('#onlineAlias');const alias=input.value.trim().toLowerCase();view.alias=alias;if(!/^[a-z0-9][a-z0-9_.]{2,19}$/.test(alias)){error='Use 3 to 20 letters, numbers, dots or underscores for your username';render();return;}act(()=>invoke('set_online_league_consent',{accept:true,alias}));});
     root.querySelector('#onlineDisable')?.addEventListener('click',()=>act(()=>invoke('set_online_league_consent',{accept:false,alias:''}),true));
     root.querySelector('#onlineCreate')?.addEventListener('submit',e=>{e.preventDefault();const name=root.querySelector('#onlineGroupName').value.trim();act(()=>invoke('online_league_action',{request:{action:'create',name}}));});

@@ -68,7 +68,10 @@ try {
   page.once('dialog',dialog=>dialog.dismiss());await page.locator('[data-review-suggestion="0"]').click();
   assert.equal(await page.locator('#reviewDecisionText').inputValue(),'Review · 東京 <script>not executable</script>');
   page.once('dialog',dialog=>dialog.accept());await page.locator('[data-review-suggestion="0"]').click();
-  assert.equal(await page.locator('#reviewDecisionText').inputValue(),'Reserve a writing block.');
+  const editorialChoice = view.language === 'es'
+    ? 'Elige la tarea principal de tu próxima sesión. Después comprueba si la distribución del tiempo refleja lo que querías hacer.'
+    : 'Choose the main task for your next session. Then check whether your time distribution reflects what you intended to work on.';
+  assert.equal(await page.locator('#reviewDecisionText').inputValue(),editorialChoice);
   await page.locator('#reviewDecisionText').fill('Review · 東京 <script>not executable</script>');await page.locator('#reviewDecisionDate').fill('2026-10-17');
   await page.evaluate(()=>window.reviewFailSave=true);
   await page.locator('#reviewDecisionForm button[type="submit"]').click();

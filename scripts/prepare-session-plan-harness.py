@@ -36,7 +36,7 @@ uuid = { version = "1", features = ["v4"] }
 reqwest = { version = "0.12", features = ["json", "blocking"] }
 ''', encoding='utf8')
 output.joinpath('src/state.rs').write_text('use std::collections::BTreeMap;\nuse serde::{Deserialize, Serialize};\n' + structs, encoding='utf8')
-output.joinpath('src/total_focus.rs').write_text('use serde::{Deserialize, Serialize};\n' + focus_types, encoding='utf8')
+output.joinpath('src/total_focus.rs').write_text('use chrono::Utc;\nuse serde::{Deserialize, Serialize};\n' + focus_types, encoding='utf8')
 output.joinpath('src/planner.rs').write_text('''use std::sync::Mutex;
 use std::time::{Duration, Instant};
 use chrono::{DateTime, Duration as TimeDelta, FixedOffset, Utc};

@@ -23,7 +23,7 @@ jobs:
             architecture: x86_64
             llm_arch: macos-x64
     runs-on: ${{ matrix.runner }}
-    timeout-minutes: 45
+    timeout-minutes: 60
     env:
       # Authenticated GitHub API avoids 403 rate limits in prepare-macos-llm.sh
       TAURI_GOOGLE_CALENDAR_CLIENT_ID: ${{ vars.TAURI_GOOGLE_CALENDAR_CLIENT_ID }}
@@ -114,6 +114,10 @@ jobs:
           node scripts/verify-coach-conversation.mjs
           node scripts/verify-linked-session.mjs
           node scripts/verify-online-ui.mjs
+          FLOWSIGHT_E2E_BROWSER=webkit node scripts/verify-online-ui.mjs
+          node scripts/verify-work-review.mjs
+          FLOWSIGHT_REPORT_EVIDENCE=.impeccable/review/report-export-chromium node scripts/verify-report-export.mjs
+          FLOWSIGHT_REPORT_EVIDENCE=.impeccable/review/report-export-webkit FLOWSIGHT_E2E_BROWSER=webkit node scripts/verify-report-export.mjs
           FLOWSIGHT_USAGE_EVIDENCE=.impeccable/review/profiles-chromium node scripts/verify-usage-profiles.mjs
           FLOWSIGHT_USAGE_EVIDENCE=.impeccable/review/profiles-webkit FLOWSIGHT_E2E_BROWSER=webkit node scripts/verify-usage-profiles.mjs
 

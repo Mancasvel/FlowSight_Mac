@@ -10,7 +10,7 @@ The primary interface is a compact Tauri desktop WebView packaged for macOS. Its
 
 ## Users
 
-Individuals doing knowledge work, especially developers, who want to understand their own work patterns without turning activity data into employee surveillance.
+Individuals doing knowledge work who want to understand their own work patterns, and licensed teams that need a simple employee recorder and coordination in the existing PM web dashboard.
 
 ## Product Purpose
 
@@ -26,6 +26,8 @@ Sensitive screen-context analysis runs locally. The user chooses when tracking r
 - The core tasks are Today (tracking, goal and task), Insights (activity and a local work report), and Settings (account, preferences and integrations).
 - The title bar uses native macOS traffic lights; the renderer reserves their space.
 - Coach is a conversational cloud feature shown with an eligibility gate. It must not be presented as unlocked merely because the user signs in.
+- Individual is the default without a connected team. A verified employee uses the simple Stop/Continue recorder and Settings. A known employee keeps these restrictions during a temporary network outage.
+- PM management belongs to the existing web dashboard. The PM's desktop may use Individual independently; a team license does not grant personal cloud features.
 
 ## Capabilities and Constraints
 
@@ -34,6 +36,8 @@ Sensitive screen-context analysis runs locally. The user chooses when tracking r
 - The local work report may use AI or a rule-based fallback; UI copy must not promise AI when fallback is possible.
 - Tracking and cloud access remain under the user's control. Do not imply a purchase or entitlement that has not been verified.
 - The web renderer must remain readable in system light and dark appearance.
+- Weekly PDFs prioritize daily activity, categories and comparisons, with at most three evidence-based decisions over three pages. Detailed observations remain available in the screen report.
+- Screenshots remain in memory. Team sync sends eligible aggregates bound to the capture owner and sharing approval; personal app names, titles and narrative summaries are excluded.
 
 ## Brand Commitments
 
