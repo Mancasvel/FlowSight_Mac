@@ -113,6 +113,7 @@ jobs:
           node scripts/verify-localization.mjs
           node scripts/verify-coach-conversation.mjs
           node scripts/verify-linked-session.mjs
+          node scripts/verify-online-ui.mjs
           FLOWSIGHT_USAGE_EVIDENCE=.impeccable/review/profiles-chromium node scripts/verify-usage-profiles.mjs
           FLOWSIGHT_USAGE_EVIDENCE=.impeccable/review/profiles-webkit FLOWSIGHT_E2E_BROWSER=webkit node scripts/verify-usage-profiles.mjs
 

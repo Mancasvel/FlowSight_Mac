@@ -1331,4 +1331,6 @@ Object.assign(spanish, {
   'See recorded context': 'Ver el contexto registrado',
   'Read the full local analysis': 'Leer el análisis local completo',
   'The recorded app changes need context before drawing a conclusion.': 'Los cambios de aplicación registrados necesitan contexto para sacar una conclusión.',
+  'Sign in again': 'Vuelve a iniciar sesión',
+  'Sign in with your usual account to reconnect Online.': 'Inicia sesión con tu cuenta habitual para recuperar Online.',
 });

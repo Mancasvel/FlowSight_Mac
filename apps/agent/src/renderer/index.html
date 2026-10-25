@@ -3288,10 +3288,6 @@
   <link rel="stylesheet" href="./coach.css">
   <link rel="stylesheet" href="./online-leagues.css">
   <link rel="stylesheet" href="./build-in-public.css">
-  <style>
-    .platform-macos .app-titlebar { padding-left: 82px; }
-    .platform-macos .titlebar-btn[hidden] { display: none !important; }
-  </style>
 </head>
 
 <body data-usage-profile="pending">
@@ -5433,6 +5429,7 @@
     function showCloudActivationPanel(mode = 'cloud') {
       const title = document.getElementById('loginTitle');
       const sub = document.getElementById('loginSubtitle');
+      document.getElementById('loginScreen').dataset.returnToOnline = String(mode === 'online');
       if (mode === 'cloud') {
         if (title) setText(title, () => (tr('Activate cloud features')));
         if (sub) setText(sub, () => (tr('Sign in, then activate your license in Profile.')));
@@ -5443,6 +5440,10 @@
       if (mode === 'team') {
         setText(title, () => tr('Connect your work team'));
         setText(sub, () => tr('Sign in with your work account. Your license and team role choose the profile.'));
+      }
+      if (mode === 'online') {
+        setText(title, () => tr('Sign in again'));
+        setText(sub, () => tr('Sign in with your usual account to reconnect Online.'));
       }
       dialogFocus.open(document.getElementById('loginScreen'));
     }
@@ -5570,6 +5571,7 @@
 
     async function handleWorkerLogin(e) {
       e.preventDefault();
+      const returnToOnline = document.getElementById('loginScreen').dataset.returnToOnline === 'true';
       const email = document.getElementById('workerEmail').value.trim();
       const password = document.getElementById('workerPassword').value;
       const btn = document.getElementById('workerLoginBtn');
@@ -5621,6 +5623,10 @@
           await loadUserTeams();
         }
         await promptOnboardingIfNeeded();
+        if (returnToOnline && currentUsageProfile.capabilities.online) {
+          switchTab('tabOnline');
+          await onlineLeagues.refresh();
+        }
         showToast(
           (isPaidActive() ? tr('Cloud features activated') : tr('Signed in — activate your license in Profile')),
           'success',
@@ -5710,7 +5716,9 @@
         return Promise.reject(tr('This feature belongs to the individual profile.'));
       }
       return invoke(command, args);
-    }, listen});
+    }, listen, onSignIn: () => {
+      if (currentUsageProfile.capabilities.online) showCloudActivationPanel('online');
+    }});
     const contentStudio = mountBuildInPublic({root: document.getElementById('buildInPublic'), invoke, canUse: () => !isTeamProfile(currentUsageProfile)});
     for (const [tabId, panelId] of [['onlineLeaguesTab', 'onlineLeaguesPanel'], ['onlineContentTab', 'buildInPublic']]) {
       document.getElementById(tabId).addEventListener('click', () => {
@@ -6912,12 +6920,7 @@
       }, duration);
     }
 
-    const isMacOS = /Mac/i.test(navigator.platform || navigator.userAgent);
-    if (isMacOS) {
-      document.documentElement.classList.add("platform-macos");
-      for (const id of ["winMinimizeBtn", "winMaximizeBtn", "winCloseBtn"]) document.getElementById(id).hidden = true;
-    }
-    const installationRepair = isMacOS ? { check: async () => true, needsRepair: () => false, show() {} } : createInstallationRepairController({
+    const installationRepair = createInstallationRepairController({
       invoke,
       listen,
       document,
