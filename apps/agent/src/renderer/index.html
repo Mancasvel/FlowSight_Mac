@@ -4624,8 +4624,9 @@
       for (const panel of document.querySelectorAll('.tab-panel')) panel.inert = !profileAllowsTab(currentUsageProfile, panel.id);
       const selected = document.querySelector('.tab-panel.active');
       const stranded = previousFocus?.closest('[data-personal-surface], .tab-panel[inert], .nav-item[hidden]');
-      if (selected && !profileAllowsTab(currentUsageProfile, selected.id)) switchTab('tabToday');
-      if (stranded) document.getElementById('navToday').focus({ preventScroll: true });
+      const closedSelectedTab = selected && !profileAllowsTab(currentUsageProfile, selected.id);
+      if (closedSelectedTab) switchTab('tabToday');
+      if (stranded || closedSelectedTab) document.getElementById('navToday').focus({ preventScroll: true });
       setText(document.querySelector('#navToday .nav-label'), () => tr(team ? 'Clock' : 'Today'));
       setText(document.querySelector('#navProfile .nav-label'), () => tr(team ? 'Settings' : 'You'));
       setText(document.querySelector('#tabProfile .profile-heading h1'), () => tr(team ? 'Settings' : 'You'));
