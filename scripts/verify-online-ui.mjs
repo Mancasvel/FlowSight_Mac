@@ -10,8 +10,10 @@ const initialize=source.slice(begin,end);
 const out=new URL(`../.impeccable/review/online-${process.env.FLOWSIGHT_E2E_BROWSER || 'chromium'}/`,import.meta.url);await mkdir(out,{recursive:true});
 const browserType=process.env.FLOWSIGHT_E2E_BROWSER==='webkit'?webkit:chromium;
 const browser=await browserType.launch({headless:true});
+let page;
 try{
-  const page=await browser.newPage({locale:'es-ES',viewport:{width:370,height:700}});
+  page=await browser.newPage({locale:'es-ES',viewport:{width:370,height:700}});
+  page.setDefaultTimeout(30_000);
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.addInitScript({content:`(${initialize})({locale:'es-ES'});`});
   await page.addInitScript(()=>{
@@ -164,4 +166,10 @@ try{
   await page.locator('#closeCloudActivationBtn').click();
   assert.deepEqual(errors,[]);
   console.log('PASS: Online opt-in, unique username, group creation, invitation, escaping, withdrawal; automatic sync without Online open or manual buttons, username association, native events, offline retries, updated ranking, draft/focus preservation and stale response protection; five-tab layout at 340/370/900 in light/dark. Screenshots use a simulated native service.');
+}catch(error){
+  if(page&&!page.isClosed()){
+    await page.screenshot({path:fileURLToPath(new URL('failure-simulated-native.png',out))}).catch(()=>{});
+    console.error('Online failure surface:',await page.locator('#tabOnline').innerText().catch(()=>''));
+  }
+  throw error;
 }finally{await browser.close();}

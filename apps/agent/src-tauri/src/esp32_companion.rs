@@ -18,6 +18,7 @@ struct Shared {
 #[derive(Clone, Default)]
 pub struct Companion(Arc<Mutex<Shared>>);
 
+#[cfg(any(windows, test))]
 pub fn valid_action(action: &str) -> bool {
     matches!(
         action,
