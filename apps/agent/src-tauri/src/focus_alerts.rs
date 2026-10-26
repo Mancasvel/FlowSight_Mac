@@ -266,6 +266,9 @@ pub fn excluded_app_entered() {
 }
 
 pub fn record_app_switch(app: &tauri::AppHandle, app_name: &str) {
+    if !crate::desktop_presence::focus_alerts_enabled() {
+        return;
+    }
     let now = Instant::now();
     let normalized = app_name.trim().to_ascii_lowercase();
     static OWN_EXE: OnceLock<String> = OnceLock::new();
@@ -343,7 +346,10 @@ pub fn review_browsing_report(
     description: &str,
     captured_app: Option<&str>,
 ) {
-    if duration_seconds == 0 || !category.eq_ignore_ascii_case("Browsing") {
+    if !crate::entitlements::personal_features_allowed(db_path)
+        || duration_seconds == 0
+        || !category.eq_ignore_ascii_case("Browsing")
+    {
         return;
     }
     let today = Local::now().format("%Y-%m-%d").to_string();
@@ -700,6 +706,10 @@ fn finish_proposal(app: &tauri::AppHandle, proposal: Proposal, decision: Option<
     if guard.generation != proposal.generation {
         return;
     }
+    if !crate::desktop_presence::focus_alerts_enabled() {
+        guard.set_pending(proposal.evidence.kind(), false);
+        return;
+    }
     let Some(advice) = decision else {
         guard.set_pending(proposal.evidence.kind(), false);
         return;
@@ -726,7 +736,15 @@ fn finish_proposal(app: &tauri::AppHandle, proposal: Proposal, decision: Option<
         let (title, body) = advice.copy();
         (title.into(), body.into())
     };
-    if crate::local_agent::state::hold_notification(&title, &body).unwrap_or(false) {
+    let held = match crate::local_agent::state::hold_notification(&title, &body) {
+        Ok(held) => held,
+        Err(error) => {
+            log::warn!("[FocusAlerts] Could not check quiet mode; reminder suppressed: {error}");
+            guard.set_pending(proposal.evidence.kind(), false);
+            return;
+        }
+    };
+    if held {
         guard.set_pending(proposal.evidence.kind(), false);
         guard.last_alert = Some(now);
         return;

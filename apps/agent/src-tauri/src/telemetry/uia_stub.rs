@@ -7,6 +7,7 @@ use std::sync::Arc;
 pub fn spawn(
     _ring: SharedRing,
     _running: SharedFlag,
+    _privacy_blocked: SharedFlag,
     _target: SharedTarget,
     _current_app: SharedAppInfo,
     _trigger: Arc<ActionCaptureTrigger>,

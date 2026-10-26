@@ -16,7 +16,7 @@ try {
     {id:'u-saved',role:'user',content:'Review · 学習: keep my saved question.'},
     {id:'a-saved',role:'assistant',content:'# Plan\n\n**PLE first**\n\n## Next\n\n1. Work on PLE\n2. Take a 15-minute break\n\nKeep Settings · Review · 学習 unchanged.'},
    ];
-   const entitlements={plan:'individual',status:'active',can_cloud_ai:true,can_integrations:false,can_sync:false,team_ids:[]};
+   const entitlements={owner_user_id:'fictional-pro',plan:'individual',status:'active',can_cloud_ai:true,can_integrations:false,can_sync:false,team_ids:[],usage_profile:{id:'individual',verified:true,license_plan_id:'solo',team_id:null,teams:[],available_profiles:['individual'],capabilities:{online:true,focus_alerts:true,personal_insights:true,team_dashboard:false}}};
    const privacy={monitoringNoticeAcknowledged:true,cloudAiEnabled:true,cloudSyncEnabled:false,storeWindowTitles:false,excludedApplications:[],retentionDays:30};
    const prefs={onboardingCompleted:true,displayName:'Example',dailyGoalHours:6,workRoles:[],workActivities:[],improvementGoals:[]};
    const responses={initialize_agent:null,get_config:{captureInterval:60000,dailyGoalHours:6},get_auth_session:null,

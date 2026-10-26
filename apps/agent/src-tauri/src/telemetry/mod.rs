@@ -2,25 +2,29 @@
 //!
 //! Design ("Level 0" in the architecture): raw interaction signals (which
 //! window/app has focus, which UI control was touched) are captured
-//! event-driven (Win32/UI Automation on Windows; Accessibility + active-window
-//! polling on macOS) and kept in a short-lived ring buffer that only ever lives
-//! in process memory. This module itself never writes raw events to SQLite or
-//! to any file. Two independent, complementary reviews turn that raw signal
-//! into persisted `reports` rows:
-//!   - `aggregator`: every 60s, (a) a pure-text review of whatever UIA/foreground
-//!     events accumulated in the ring buffer during that minute (if any), and
+//! event-driven via Win32/UI Automation APIs and kept in a short-lived ring
+//! buffer that only ever lives in process memory. This module itself never
+//! writes raw events to SQLite or to any file. Two independent, complementary
+//! reviews turn that raw signal into persisted `reports` rows:
+//!   - `aggregator`: at the configured interval, (a) a pure-text review of UIA/foreground
+//!     events accumulated in the ring buffer during that interval (if any), and
 //!     (b) a screenshot + local vision pass (`agent::capture_and_analyze_screen`,
-//!     save -> analyze -> delete). Each becomes its own `reports` row.
-//!   - `action_capture`: fired immediately (debounced ~15s) whenever significant
-//!     window lifecycle events are detected, pairing a transient screenshot with
-//!     the textual context of that action.
+//!     held in memory only). Each becomes its own `reports` row. Periodic
+//!     frames also feed the in-memory task-progress comparator; only aggregate
+//!     change/stability evidence is saved, separately from the task category.
+//!   - `action_capture`: fired immediately (debounced ~15s) whenever `uia`
+//!     detects a significant action (a window opening/closing), pairing a
+//!     transient screenshot (`agent::capture_and_analyze_action`) with the
+//!     textual context of that action.
 //!
 //! Explicitly NOT implemented, by design: any global keyboard/mouse hook,
-//! any idle/last-input polling, or any inference of "away from keyboard".
+//! any idle/last-input polling (`GetLastInputInfo`), or any inference of
+//! "away from keyboard". The local model may still *output* an Idle category
+//! from what it sees on screen; we simply never feed idle/keyboard signals in.
+//! Static content beyond 20 minutes is possible stagnation, not an Idle label.
 
 mod action_capture;
 mod aggregator;
-
 #[cfg(windows)]
 #[path = "foreground_win.rs"]
 mod foreground;
@@ -30,7 +34,6 @@ mod foreground;
 #[cfg(not(any(windows, target_os = "macos")))]
 #[path = "foreground_stub.rs"]
 mod foreground;
-
 #[cfg(windows)]
 #[path = "uia_win.rs"]
 mod uia;
@@ -43,7 +46,7 @@ mod uia;
 
 use std::collections::VecDeque;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
@@ -86,9 +89,16 @@ impl ActionEvent {
 
 pub type SharedRing = Arc<Mutex<VecDeque<ActionEvent>>>;
 pub type SharedFlag = Arc<AtomicBool>;
-/// Platform window handle / AX element id stored as `isize` for cross-thread use.
+pub type SharedCaptureInterval = Arc<AtomicU64>;
+/// Start of the current monitoring run. This lets the periodic sampler avoid
+/// charging paused time to the first observation after resume.
+pub type SharedMonitoringStart = Arc<Mutex<Option<Instant>>>;
+/// Foreground HWND to watch with UI Automation, stored as a raw pointer value
+/// (`isize`) since `HWND` itself does not implement `Send`.
 pub type SharedTarget = Arc<Mutex<Option<isize>>>;
-/// Name of the process currently in the foreground.
+/// Name of the process currently in the foreground, kept up to date by
+/// `foreground` so `uia`'s window-lifecycle handler can label an
+/// action-triggered capture with the app it happened in.
 pub type SharedAppInfo = Arc<Mutex<Option<String>>>;
 
 #[derive(Debug, Clone, Default)]
@@ -99,14 +109,21 @@ pub struct TaskContext {
 
 struct TelemetryController {
     running: SharedFlag,
+    privacy_blocked: SharedFlag,
+    monitoring_started: SharedMonitoringStart,
+    capture_interval_ms: SharedCaptureInterval,
     ring: SharedRing,
     task_ctx: Arc<Mutex<TaskContext>>,
+    db_path: PathBuf,
 }
 
 static CONTROLLER: OnceLock<TelemetryController> = OnceLock::new();
-static APP_HANDLE: OnceLock<tauri::AppHandle> = OnceLock::new();
 
 fn push_event(ring: &SharedRing, event: ActionEvent) {
+    // Recovers from poisoning rather than panicking again: this ring buffer
+    // is best-effort in-memory bookkeeping, so surfacing whatever a previous
+    // (caught, see `uia`/`foreground`'s `catch_unwind` guards) panic left
+    // behind beats cascading failures on every subsequent event.
     let mut buf = ring.lock().unwrap_or_else(|e| e.into_inner());
     buf.push_back(event);
     let cutoff = Instant::now() - RING_BUFFER_TTL;
@@ -115,14 +132,20 @@ fn push_event(ring: &SharedRing, event: ActionEvent) {
     }
 }
 
-/// Starts the telemetry pipeline's background threads. Idempotent.
-pub fn start(app_handle: tauri::AppHandle, db_path: PathBuf) {
-    let _ = APP_HANDLE.set(app_handle.clone());
+/// Starts the telemetry pipeline's background threads. Idempotent: only the
+/// first call actually spawns threads, matching the app's single-agent
+/// lifecycle (mirrors `sync::start_sync_thread`'s always-on loop pattern).
+/// Monitoring is OFF by default — actual data collection is gated behind
+/// `set_running(true)`, which `start_monitoring`/`stop_monitoring` toggle.
+pub fn start(app_handle: tauri::AppHandle, db_path: PathBuf, initial_interval_ms: u64) {
     if CONTROLLER.get().is_some() {
         return;
     }
 
     let running: SharedFlag = Arc::new(AtomicBool::new(false));
+    let privacy_blocked: SharedFlag = Arc::new(AtomicBool::new(true));
+    let monitoring_started: SharedMonitoringStart = Arc::new(Mutex::new(None));
+    let capture_interval_ms: SharedCaptureInterval = Arc::new(AtomicU64::new(initial_interval_ms));
     let ring: SharedRing = Arc::new(Mutex::new(VecDeque::new()));
     let task_ctx = Arc::new(Mutex::new(TaskContext::default()));
     let uia_target: SharedTarget = Arc::new(Mutex::new(None));
@@ -136,39 +159,84 @@ pub fn start(app_handle: tauri::AppHandle, db_path: PathBuf) {
     ));
 
     foreground::spawn(
+        app_handle.clone(),
         ring.clone(),
         running.clone(),
+        privacy_blocked.clone(),
         uia_target.clone(),
         current_app.clone(),
+        db_path.clone(),
     );
     uia::spawn(
         ring.clone(),
         running.clone(),
+        privacy_blocked.clone(),
         uia_target,
         current_app,
         action_trigger,
     );
     aggregator::spawn(
         app_handle,
-        db_path,
+        db_path.clone(),
         ring.clone(),
         running.clone(),
+        monitoring_started.clone(),
+        capture_interval_ms.clone(),
         task_ctx.clone(),
     );
 
     let _ = CONTROLLER.set(TelemetryController {
         running,
+        privacy_blocked,
+        monitoring_started,
+        capture_interval_ms,
         ring,
         task_ctx,
+        db_path,
     });
+}
+
+pub fn set_capture_interval(interval_ms: u64) {
+    if let Some(c) = CONTROLLER.get() {
+        c.capture_interval_ms
+            .store(interval_ms.clamp(5_000, 300_000), Ordering::Relaxed);
+    }
 }
 
 pub fn set_running(value: bool) {
     if let Some(c) = CONTROLLER.get() {
-        c.running.store(value, Ordering::Relaxed);
+        if value {
+            refresh_privacy_filter_for(c);
+        }
+        let was_running = c.running.swap(value, Ordering::Relaxed);
+        if value && !was_running {
+            *c.monitoring_started.lock().unwrap() = Some(Instant::now());
+        } else if !value {
+            *c.monitoring_started.lock().unwrap() = None;
+        }
         if !value {
+            // Drop any partially-collected raw events immediately on stop
+            // rather than waiting for the next aggregator tick to discard them.
             c.ring.lock().unwrap().clear();
         }
+    }
+}
+
+fn refresh_privacy_filter_for(controller: &TelemetryController) {
+    let foreground = crate::context::get_system_context();
+    let blocked = crate::privacy::application_is_excluded(
+        &controller.db_path,
+        foreground.app_name.as_deref(),
+    );
+    controller.privacy_blocked.store(blocked, Ordering::Relaxed);
+    if blocked {
+        controller.ring.lock().unwrap().clear();
+    }
+}
+
+pub fn refresh_privacy_filter() {
+    if let Some(controller) = CONTROLLER.get() {
+        refresh_privacy_filter_for(controller);
     }
 }
 
@@ -182,32 +250,9 @@ pub fn set_task_context(user_task: Option<String>, jira_ticket: Option<String>) 
 
 pub fn selected_task_for_reminder() -> Option<String> {
     let controller = CONTROLLER.get()?;
-    let task = controller.task_ctx.lock().ok()?;
-    task.jira_ticket.clone().or_else(|| task.user_task.clone())
-}
-
-#[cfg(target_os = "macos")]
-pub fn record_foreground_for_reminder(app_name: &str) {
-    let Some(app) = APP_HANDLE.get() else {
-        return;
-    };
-    let Ok(path) = crate::paths::db_path() else {
-        return;
-    };
-    if crate::privacy::application_is_excluded(&path, Some(app_name)) {
-        crate::focus_alerts::excluded_app_entered();
-    } else {
-        crate::focus_alerts::record_app_switch(app, app_name);
-    }
-}
-
-/// Native capture and reminders read the current filter on each observation.
-pub fn refresh_privacy_filter() {
-    if let Some(controller) = CONTROLLER.get() {
-        controller
-            .ring
-            .lock()
-            .unwrap_or_else(|error| error.into_inner())
-            .clear();
-    }
+    let context = controller
+        .task_ctx
+        .lock()
+        .unwrap_or_else(|error| error.into_inner());
+    context.user_task.clone()
 }

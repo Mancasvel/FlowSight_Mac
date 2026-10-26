@@ -2,13 +2,26 @@
 .total-focus-fields .input { box-sizing:border-box; width:100%; min-width:0; font:inherit; font-size:12px; }
 .total-focus-fields textarea { resize:vertical; min-height:64px; line-height:1.5; }
 .total-focus-fields input { max-width:140px; }
+.total-focus-fields input.total-focus-music-url { max-width:none; }
+.total-focus-fields label.total-focus-quiet { display:flex; align-items:center; gap:8px; line-height:1.5; }
+.total-focus-fields [hidden] { display:none !important; }
+.total-focus-quiet input { width:16px; height:16px; flex:none; accent-color:hsl(var(--primary)); }
+#totalFocusDigest { margin-block:16px; padding:12px; border:1px solid hsl(var(--border)); border-radius:8px; }
+#totalFocusDigestItems { overflow-wrap:anywhere; font-size:12px; max-height:220px; overflow:auto; }
 .total-focus-status { margin:14px 0 8px; color:hsl(var(--muted-foreground)); font-size:12px; line-height:1.5; }
 .total-focus-status[data-active="true"] { color:hsl(var(--primary)); font-weight:700; }
 .total-focus-task { margin:0; font-size:13px; overflow-wrap:anywhere; }
+.total-focus-error { color:hsl(var(--destructive)); }
+#totalFocusTask[aria-invalid="true"] { border-color:hsl(var(--destructive)); }
+#totalFocusFeedback { overflow-wrap:anywhere; }
 .total-focus-actions { display:flex; flex-wrap:wrap; gap:8px; margin:16px 0 8px; }
 .total-focus-actions .button { min-height:40px; flex:1 1 120px; }
 .total-focus-settings [hidden] { display:none; }
 .total-focus-settings { min-width:0; }
+#totalFocusRepair { margin-block:12px 20px; padding-block:8px; border-block:1px solid hsl(var(--border)); }
+#totalFocusRepair ol { padding-inline-start:20px; }
+#totalFocusRepair li { margin-block:8px; overflow-wrap:anywhere; }
+#totalFocusRepairOpen { max-width:100%; height:auto; white-space:normal; }
 .total-focus-future { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:6px 12px; margin-top:20px; padding-top:16px; border-top:1px solid hsl(var(--border)); }
 .total-focus-future strong { font-size:12px; }
 .total-focus-future span { font-size:11px; color:hsl(var(--muted-foreground)); }
@@ -19,3 +32,6 @@
 .total-focus-example figcaption { margin-top:9px; font-size:11px; color:hsl(var(--muted-foreground)); line-height:1.5; }
 .total-focus-pairing { margin:18px 0; } .total-focus-pairing .button { min-height:40px; margin:4px 0; }
 .today-total-focus { display:flex; justify-content:space-between; align-items:center; min-height:42px; width:100%; margin:12px 0 0; font-size:12px; }
+.today-focus-start { width:100%; margin-top:8px; }
+.today-focus-feedback { margin:10px 0 0; overflow-wrap:anywhere; }
+.today-timer-ring .today-focus-start[hidden], .today-timer-ring .today-focus-feedback[hidden] { display:none; }

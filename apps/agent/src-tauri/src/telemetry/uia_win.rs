@@ -61,11 +61,12 @@ fn lock_or_recover<T>(m: &std::sync::Mutex<T>) -> std::sync::MutexGuard<'_, T> {
 struct FocusHandler {
     ring: SharedRing,
     running: SharedFlag,
+    privacy_blocked: SharedFlag,
 }
 
 impl IUIAutomationFocusChangedEventHandler_Impl for FocusHandler_Impl {
     fn HandleFocusChangedEvent(&self, sender: Ref<'_, IUIAutomationElement>) -> WinResult<()> {
-        if !self.running.load(Ordering::Relaxed) {
+        if !self.running.load(Ordering::Relaxed) || self.privacy_blocked.load(Ordering::Relaxed) {
             return Ok(());
         }
 
@@ -107,6 +108,7 @@ impl IUIAutomationFocusChangedEventHandler_Impl for FocusHandler_Impl {
 struct WindowLifecycleHandler {
     ring: SharedRing,
     running: SharedFlag,
+    privacy_blocked: SharedFlag,
     current_app: SharedAppInfo,
     trigger: Arc<ActionCaptureTrigger>,
 }
@@ -117,7 +119,7 @@ impl IUIAutomationEventHandler_Impl for WindowLifecycleHandler_Impl {
         sender: Ref<'_, IUIAutomationElement>,
         eventid: UIA_EVENT_ID,
     ) -> WinResult<()> {
-        if !self.running.load(Ordering::Relaxed) {
+        if !self.running.load(Ordering::Relaxed) || self.privacy_blocked.load(Ordering::Relaxed) {
             return Ok(());
         }
 
@@ -149,7 +151,7 @@ impl IUIAutomationEventHandler_Impl for WindowLifecycleHandler_Impl {
             // Steps-Recorder-style screenshot (see `action_capture`).
             // `AutomationFocusChanged` is deliberately excluded as a trigger —
             // it fires far too often to screenshot on every occurrence — and
-            // stays purely textual context for the 60s aggregator instead.
+            // stays textual context for the configured-interval aggregator instead.
             let app_name = lock_or_recover(&self.current_app)
                 .clone()
                 .unwrap_or_else(|| "an application".to_string());
@@ -176,16 +178,18 @@ impl IUIAutomationEventHandler_Impl for WindowLifecycleHandler_Impl {
 pub fn spawn(
     ring: SharedRing,
     running: SharedFlag,
+    privacy_blocked: SharedFlag,
     target: SharedTarget,
     current_app: SharedAppInfo,
     trigger: Arc<ActionCaptureTrigger>,
 ) {
-    std::thread::spawn(move || run(ring, running, target, current_app, trigger));
+    std::thread::spawn(move || run(ring, running, privacy_blocked, target, current_app, trigger));
 }
 
 fn run(
     ring: SharedRing,
     running: SharedFlag,
+    privacy_blocked: SharedFlag,
     target: SharedTarget,
     current_app: SharedAppInfo,
     trigger: Arc<ActionCaptureTrigger>,
@@ -213,6 +217,7 @@ fn run(
     let focus_handler: IUIAutomationFocusChangedEventHandler = FocusHandler {
         ring: ring.clone(),
         running: running.clone(),
+        privacy_blocked: privacy_blocked.clone(),
     }
     .into();
     if let Err(e) = unsafe { automation.AddFocusChangedEventHandler(None, &focus_handler) } {
@@ -222,6 +227,7 @@ fn run(
     let window_handler: IUIAutomationEventHandler = WindowLifecycleHandler {
         ring,
         running,
+        privacy_blocked,
         current_app,
         trigger,
     }

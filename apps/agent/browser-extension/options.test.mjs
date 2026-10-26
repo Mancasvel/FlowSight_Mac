@@ -44,7 +44,7 @@ test('installed extension loads and saves pairing details', async () => {
         set: async (value) => { saved = value; },
       },
     },
-    runtime: { sendMessage: async (value) => { message = value; return {connected: true}; } },
+    runtime: { sendMessage: async (value) => { message = value; return {connected: true, totalFocusAvailable: true}; } },
   };
   const { elements, handlers, submitButton } = page(chrome);
   await new Promise((resolve) => setImmediate(resolve));
@@ -65,7 +65,7 @@ test('store package has its runtime files and opens pairing options from the too
   assert.equal(manifest.action.default_title, 'FlowSight Browser Controls');
   assert.deepEqual(manifest.host_permissions, ['http://127.0.0.1/*','http://*/*','https://*/*']);
   assert.equal(manifest.web_accessible_resources[0].resources[0], 'blocked.html');
-  for (const name of ['manifest.json', 'worker.js', 'options.html', 'options.js', 'blocked.html', 'blocked.js', 'focus.css', ...Object.values(manifest.icons)]) {
+  for (const name of ['manifest.json', 'worker.js', 'music.js', 'options.html', 'options.js', 'blocked.html', 'blocked.js', 'focus.css', ...Object.values(manifest.icons)]) {
     assert.ok(statSync(new URL(name, import.meta.url)).size > 0, `${name} is missing or empty`);
   }
   const worker = readFileSync(new URL('./worker.js', import.meta.url), 'utf8');
@@ -80,4 +80,14 @@ test('pairing failure is displayed without claiming success', async () => {
   await handlers.get('submit')({preventDefault() {}});
   assert.match(elements.status.textContent, /key was rejected/);
   assert.doesNotMatch(elements.status.textContent, /Connected to FlowSight/);
+});
+
+test('connected browser without website access explains the missing protection', async () => {
+  const {elements,handlers} = page({storage:{local:{get:async()=>({}),set:async()=>{}}},
+    runtime:{sendMessage:async()=>({connected:true,totalFocusAvailable:false,error:'Allow access to all websites.'})}});
+  elements.token.value='fixture';
+  await handlers.get('submit')({preventDefault(){}});
+  assert.match(elements.status.textContent,/Connected to FlowSight/);
+  assert.match(elements.status.textContent,/Allow access/);
+  assert.doesNotMatch(elements.status.textContent,/total focus are ready/);
 });

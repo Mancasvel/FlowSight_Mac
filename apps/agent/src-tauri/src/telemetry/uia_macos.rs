@@ -107,6 +107,7 @@ fn focused_control_info(system_wide: *mut c_void) -> (Option<String>, Option<Str
 pub fn spawn(
     ring: SharedRing,
     running: SharedFlag,
+    privacy_blocked: SharedFlag,
     _target: SharedTarget,
     current_app: SharedAppInfo,
     trigger: Arc<ActionCaptureTrigger>,
@@ -127,9 +128,18 @@ pub fn spawn(
 
         let mut last_focus_key: Option<(Option<String>, Option<String>)> = None;
         let mut last_app: Option<String> = None;
+        let Ok(db_path) = crate::paths::db_path() else {
+            return;
+        };
 
         loop {
-            if running.load(Ordering::Relaxed) {
+            let current_allowed = active_win_pos_rs::get_active_window().is_ok_and(|window| {
+                !crate::privacy::application_is_excluded(&db_path, Some(&window.app_name))
+            });
+            if running.load(Ordering::Relaxed)
+                && !privacy_blocked.load(Ordering::Relaxed)
+                && current_allowed
+            {
                 let app_now = lock_or_recover(&current_app).clone();
                 if app_now != last_app {
                     if let Some(prev) = last_app.take() {

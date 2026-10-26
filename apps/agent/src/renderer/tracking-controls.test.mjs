@@ -11,7 +11,7 @@ const end = renderer.indexOf('    async function resumeMonitoring()', start);
 assert.ok(start >= 0 && end > start, 'tracking controls must be present in the renderer');
 const controlsSource = renderer.slice(start, end);
 
-function createHarness({ monitoring = true, paused = false, invoke } = {}) {
+function createHarness({ monitoring = true, paused = false, linked = false, invoke, clockAction } = {}) {
   const calls = [];
   const buttons = {
     playTimerBtn: { disabled: false },
@@ -23,6 +23,8 @@ function createHarness({ monitoring = true, paused = false, invoke } = {}) {
     isMonitoring: monitoring,
     isPaused: paused,
     trackingTransitionInProgress: false,
+    totalFocusController: {session:()=>linked?{linkedClock:true}:null,clockAction:clockAction??(async command=>{calls.push(command);return {browserReleased:true};})},
+    setInterval:()=>1,clearInterval(){},syncTrackingClock:async()=>{},
     pomodoro: { reset() {} },
     updateTimerDisplay() {},
     updatePlayButtonState() {},
@@ -160,4 +162,21 @@ test('repeated clicks cannot start overlapping pause and stop transitions', asyn
   await first;
   assert.equal(harness.context.isPaused, true);
   assert.equal(harness.buttons.playTimerBtn.disabled, false);
+});
+
+test('the main clock pauses total focus through its protection lifecycle',async()=>{
+  const harness=createHarness({linked:true});await harness.pauseMonitoring();
+  assert.equal(harness.context.isMonitoring,false);assert.equal(harness.context.isPaused,true);
+  assert.equal(harness.calls[0],'pause_total_focus');assert.ok(harness.calls.includes('commitSessionTime'));
+  assert.equal(harness.calls.includes('stop_monitoring'),false);
+});
+test('stopping a paused total focus session clears focus and keeps recorded time',async()=>{
+  const harness=createHarness({linked:true,monitoring:false,paused:true});await harness.stopMonitoring();
+  assert.equal(harness.context.isPaused,false);assert.equal(harness.calls[0],'end_total_focus');
+  assert.ok(harness.calls.includes('commitSessionTime'));assert.equal(harness.calls.includes('stop_server'),false);
+});
+test('a failed total focus pause keeps the clock state and permits retry',async()=>{
+  const harness=createHarness({linked:true,clockAction:async()=>{throw new Error('Native pause failed');}});
+  await harness.pauseMonitoring();assert.equal(harness.context.isMonitoring,true);
+  assert.equal(harness.calls.includes('commitSessionTime'),false);assert.equal(harness.buttons.playTimerBtn.disabled,false);
 });

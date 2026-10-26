@@ -21,7 +21,7 @@ export function getSupabaseClient() {
         // Keeping a second plaintext token copy in WebView localStorage would
         // increase exposure without providing a product benefit.
         persistSession: false,
-        autoRefreshToken: true,
+        autoRefreshToken: false,
         detectSessionInUrl: false,
       },
     });
@@ -71,10 +71,12 @@ function parseEntitlements(raw) {
     plan: raw?.plan ?? null,
     status: raw?.status ?? 'free',
     teamIds,
-    activeTeamId: teamIds[0] ?? null,
-    canSync: Boolean(features.sync),
-    canCloudAi: Boolean(features.cloud_ai),
-    canIntegrations: Boolean(features.integrations),
+    activeTeamId: raw?.active_team_id ? String(raw.active_team_id) : null,
+    ownerUserId: raw?.owner_user_id ?? null,
+    usageProfile: raw?.usage_profile ?? null,
+    canSync: Boolean(raw?.can_sync ?? features.sync),
+    canCloudAi: Boolean(raw?.can_cloud_ai ?? features.cloud_ai),
+    canIntegrations: Boolean(raw?.can_integrations ?? features.integrations),
   };
 }
 
@@ -151,13 +153,6 @@ export async function signInForCloudFeatures(email, password) {
       activeTeamId = activeTeamId || entitlements.activeTeamId;
     }
 
-    if (entitlements.plan === 'team' && entitlements.teamIds.length === 0) {
-      return rejectSignedInUser(
-        supabase,
-        'This Team license account is not assigned to a team yet. Ask your PM for an invitation code.',
-      );
-    }
-
     const { data: membershipRows, error: membershipError } = await supabase
       .from('team_members')
       .select('team_id, role')
@@ -170,10 +165,7 @@ export async function signInForCloudFeatures(email, password) {
     memberships = membershipRows ?? [];
   }
 
-  const membership =
-    memberships.find((m) => m.team_id === activeTeamId) ??
-    memberships[0] ??
-    (activeTeamId ? { team_id: activeTeamId, role: 'owner' } : null);
+  const membership = memberships.find((m) => m.team_id === activeTeamId) ?? null;
 
   return {
     session: signInData.session,
@@ -191,6 +183,8 @@ export async function signInForCloudFeatures(email, password) {
       status: entitlements.status,
       team_ids: entitlements.teamIds,
       active_team_id: activeTeamId,
+      owner_user_id: entitlements.ownerUserId,
+      usage_profile: entitlements.usageProfile,
       can_sync: entitlements.canSync,
       can_cloud_ai: entitlements.canCloudAi,
       can_integrations: entitlements.canIntegrations,

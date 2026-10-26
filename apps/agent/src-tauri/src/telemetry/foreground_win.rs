@@ -7,6 +7,7 @@
 
 use super::{push_event, ActionEvent, SharedAppInfo, SharedFlag, SharedRing, SharedTarget};
 use std::cell::RefCell;
+use std::path::PathBuf;
 use std::sync::atomic::Ordering;
 use std::time::Instant;
 use windows::Win32::Foundation::HWND;
@@ -20,10 +21,13 @@ use windows::Win32::UI::WindowsAndMessaging::{
 };
 
 struct ForegroundContext {
+    app_handle: tauri::AppHandle,
     ring: SharedRing,
     running: SharedFlag,
+    privacy_blocked: SharedFlag,
     uia_target: SharedTarget,
     current_app: SharedAppInfo,
+    db_path: PathBuf,
 }
 
 thread_local! {
@@ -31,18 +35,24 @@ thread_local! {
 }
 
 pub fn spawn(
+    app_handle: tauri::AppHandle,
     ring: SharedRing,
     running: SharedFlag,
+    privacy_blocked: SharedFlag,
     uia_target: SharedTarget,
     current_app: SharedAppInfo,
+    db_path: PathBuf,
 ) {
     std::thread::spawn(move || {
         CONTEXT.with(|c| {
             *c.borrow_mut() = Some(ForegroundContext {
+                app_handle,
                 ring,
                 running,
+                privacy_blocked,
                 uia_target,
                 current_app,
+                db_path,
             });
         });
 
@@ -106,8 +116,21 @@ unsafe extern "system" fn win_event_proc(
                 return;
             }
 
+            let app_name = get_process_name(hwnd);
+            let blocked =
+                crate::privacy::application_is_excluded(&ctx.db_path, app_name.as_deref());
+            ctx.privacy_blocked.store(blocked, Ordering::Relaxed);
+            if blocked {
+                crate::focus_alerts::excluded_app_entered();
+                *lock_or_recover(&ctx.uia_target) = None;
+                *lock_or_recover(&ctx.current_app) = app_name;
+                lock_or_recover(&ctx.ring).clear();
+                return;
+            }
+
+            let app_name = app_name.expect("non-excluded applications always have a name");
+            crate::focus_alerts::record_app_switch(&ctx.app_handle, &app_name);
             let window_title = get_window_title(hwnd);
-            let app_name = get_process_name(hwnd).unwrap_or_else(|| "Unknown".to_string());
 
             *lock_or_recover(&ctx.uia_target) = Some(hwnd.0 as isize);
             *lock_or_recover(&ctx.current_app) = Some(app_name.clone());

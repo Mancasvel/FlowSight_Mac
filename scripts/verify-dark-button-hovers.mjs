@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
 
 const stage=process.argv.includes('--capture-before')?'before':'after';
-const output=new URL('../.impeccable/review/',import.meta.url);
+const output=new URL(process.env.FLOWSIGHT_EVIDENCE_URL||'../.impeccable/review/',import.meta.url);
 await mkdir(output,{recursive:true});
 const browser=await chromium.launch({headless:true});
 const measurements=[];
@@ -56,7 +56,7 @@ async function inspectButton(page,selector,name,{minimumContrast=4.5}={}) {
 
 try {
   for(const viewport of [{width:370,height:700,name:'compact'},{width:900,height:800,name:'wide'}]) {
-    const page=await browser.newPage({viewport:{width:viewport.width,height:viewport.height},colorScheme:'dark',reducedMotion:'reduce',timezoneId:'Europe/Madrid'});
+    const page=await browser.newPage({viewport:{width:viewport.width,height:viewport.height},colorScheme:'dark',reducedMotion:'reduce',timezoneId:'Europe/Madrid',locale:'en-GB'});
     const errors=[];page.on('pageerror',e=>errors.push(e.message));
     await page.clock.setFixedTime(new Date('2026-10-01T10:00:00+02:00'));
     await page.addInitScript(()=>{
@@ -85,8 +85,11 @@ try {
         }};
     });
     await page.goto(process.env.FLOWSIGHT_RENDERER_URL||'http://127.0.0.1:1432',{waitUntil:'networkidle'});
+    await page.locator('#chooseIndividualUsage').click();
     await page.locator('#onboardingOverlay.visible').waitFor();await page.evaluate(()=>document.fonts.ready);
-    await page.locator('#onboardingContinueBtn').click();await page.locator('#onboardingContinueBtn').click();await page.locator('#onboardingContinueBtn').click();
+    await page.locator('#onboardingContinueBtn').click();await page.locator('#onboardingStepLabel').filter({hasText:'2 of 6'}).waitFor();
+    await page.locator('#onboardingContinueBtn').click();await page.locator('#onboardingStepLabel').filter({hasText:'3 of 6'}).waitFor();
+    await page.locator('#onboardingContinueBtn').click();await page.locator('#onboardingStepLabel').filter({hasText:'4 of 6'}).waitFor();
     await page.getByRole('heading',{name:'Make space for total focus'}).waitFor();
     await inspectButton(page,'#onboardingFocusCheck',`focus-connection-${viewport.name}`);
     await page.locator('#onboardingContinueBtn').click();

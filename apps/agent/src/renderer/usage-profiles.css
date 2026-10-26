@@ -1,0 +1,113 @@
+/* The team recorder uses the existing slate/teal mobile family, with one work action. */
+.usage-profile-loading { display: none; }
+body[data-usage-profile="pending"] #mainApp { visibility: hidden; }
+body[data-usage-profile="pending"] .usage-profile-loading {
+  display: block; position: fixed; top: 45%; inset-inline: 24px;
+  margin: 0; text-align: center; color: hsl(var(--muted-foreground)); font-size: 13px;
+}
+[data-usage-profile] .bottom-nav .nav-item[hidden],
+body[data-usage-profile] .bottom-nav #navCloudInsights[hidden],
+.usage-profile-card [hidden], .team-today-context[hidden],
+.team-sharing-explanation[hidden], .team-local-history[hidden],
+.team-runtime-diagnostics[hidden] { display: none !important; }
+
+body[data-usage-profile^="team"] [data-personal-surface],
+body[data-usage-profile="pending"] [data-personal-surface],
+body[data-usage-profile^="team"] #tabOnline,
+body[data-usage-profile^="team"] #tabSummary,
+body[data-usage-profile^="team"] #tabCloudInsights,
+body[data-usage-profile^="team"] .timer-mode-row,
+body[data-usage-profile^="team"] .today-preferences,
+body[data-usage-profile^="team"] #sessionCalendar,
+body[data-usage-profile^="team"] .today-timer-ring > svg,
+body[data-usage-profile^="team"] .timer-meta-row,
+body[data-usage-profile^="team"] #timerGoalProgress,
+body[data-usage-profile^="team"] #pomodoroPanel,
+body[data-usage-profile^="team"] .today-calendar-status,
+body[data-usage-profile^="team"] .timer-controls,
+body[data-usage-profile^="team"] #timerRecordingNote,
+body[data-usage-profile^="team"] .today-kicker,
+body[data-usage-profile^="team"] .profile-kicker,
+body[data-usage-profile="pending"] #navOnline,
+body[data-usage-profile="pending"] #navSummary,
+body[data-usage-profile="pending"] #navCloudInsights { display: none !important; }
+
+.usage-state-announcement {
+  position: absolute; width: 1px; height: 1px; padding: 0;
+  margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+}
+.usage-profile-card h2 { margin: 0; }
+.usage-current-profile { margin: 0 0 8px; color: hsl(var(--foreground)); font-size: 14px; font-weight: 750; line-height: 1.5; overflow-wrap: anywhere; }
+.usage-profile-options { display: flex; flex-direction: column; margin: 14px 0; }
+.usage-profile-option {
+  display: flex; flex-direction: column; gap: 4px; align-items: flex-start;
+  width: 100%; padding: 12px 10px; border: 0; border-bottom: 1px solid hsl(var(--border));
+  border-radius: 0; text-align: left; font: inherit; color: hsl(var(--foreground));
+  background: transparent; cursor: pointer;
+}
+.usage-profile-option strong { font-size: 13px; line-height: 1.4; }
+.usage-profile-option span { color: hsl(var(--muted-foreground)); font-size: 11px; line-height: 1.6; }
+.usage-profile-option[aria-pressed="true"] { color: #087f78; background: hsl(var(--accent)); border-radius: 10px; border-bottom-color: transparent; }
+.usage-profile-option:disabled { cursor: default; }
+.usage-profile-option:not(:disabled):hover { background: hsl(var(--accent)); }
+.usage-profile-option:focus-visible, .usage-start-choice:focus-visible, .usage-dashboard-link:focus-visible,
+.team-today-context .button:focus-visible, .usage-profile-card summary:focus-visible,
+.team-local-history summary:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 3px; }
+.usage-dashboard-link { display: inline-block; margin-top: 12px; color: #087f78; font-size: 12px; font-weight: 700; line-height: 1.5; text-underline-offset: 3px; }
+.usage-join-team { margin-top: 14px; padding-top: 14px; border-top: 1px solid hsl(var(--border)); }
+.usage-join-team summary, .team-local-history summary, .team-runtime-diagnostics summary { cursor: pointer; font-size: 12px; line-height: 1.5; font-weight: 650; }
+#usageTeamCodeSlot { margin-top: 12px; }
+.team-today-context { display: grid; gap: 6px; margin: 0 0 20px; }
+.team-today-context p { margin: 0; color: hsl(var(--muted-foreground)); font-size: 12px; line-height: 1.55; overflow-wrap: anywhere; }
+#teamTodayName { color: hsl(var(--foreground)); font-weight: 650; }
+.team-today-context .button { justify-self: start; min-height: 38px; padding: 6px 0; color: #087f78; }
+.team-sharing-explanation { margin: 0 0 16px; color: hsl(var(--muted-foreground)); line-height: 1.65; }
+.team-local-history { margin: 14px 0; padding: 12px 0; border-top: 1px solid hsl(var(--border)); border-bottom: 1px solid hsl(var(--border)); }
+.team-local-history p { margin: 10px 0; font-size: 11px; line-height: 1.6; overflow-wrap: anywhere; }
+#teamLocalHistoryRows ol { margin: 12px 0 0; padding-left: 20px; }
+#teamLocalHistoryRows li { padding-bottom: 10px; }
+#teamLocalHistoryRows strong { font-size: 11px; font-variant-numeric: tabular-nums; }
+.team-runtime-diagnostics { margin: 12px 0; }
+.team-runtime-diagnostics .status-indicator { margin-top: 10px; }
+body[data-usage-profile^="team"] #tabToday { max-width: 540px; }
+body[data-usage-profile^="team"] .today-timer-ring { min-height: 0; padding: 22px 20px; border-radius: 16px; }
+body[data-usage-profile^="team"] .today-timer-meta { gap: 12px; align-items: flex-start; }
+body[data-usage-profile^="team"] #timerKindLabel { max-width: 72%; font-size: 11px; line-height: 1.5; white-space: normal; }
+body[data-usage-profile^="team"] .timer-inner { margin: 18px 0 24px; }
+body[data-usage-profile^="team"] .timer-display { font-variant-numeric: tabular-nums; font-size: clamp(34px, 10vw, 48px); }
+body[data-usage-profile^="team"] .timer-actions { margin: 0; }
+body[data-usage-profile^="team"] .play-timer-btn { width: 100%; min-height: 54px; background: #087f78; border-radius: 12px; }
+body[data-usage-profile^="team"] .play-timer-btn:hover:not(:disabled) { background: #066b65; }
+body[data-usage-profile^="team"] .bottom-nav { display: flex; max-width: 340px; }
+body[data-usage-profile^="team"] .bottom-nav .nav-item { flex: 1 1 0; gap: 4px; min-height: 58px; }
+body[data-usage-profile^="team"] .bottom-nav .nav-item .nav-label {
+  display: block; position: static; width: auto; height: auto; margin: 0; padding: 0;
+  clip-path: none; overflow: visible; white-space: normal; font-size: 11px; line-height: 1.3;
+}
+/* Recording confirmations stay above the dock so both destinations remain usable. */
+body[data-usage-profile^="team"] .toast-container { bottom: 104px; }
+
+.usage-choice-card { display: flex; flex-direction: column; gap: 16px; max-width: 460px; }
+.usage-choice-card h1 { margin: 0; font-family: Manrope, sans-serif; font-size: 25px; line-height: 1.25; font-weight: 750; letter-spacing: -0.025em; }
+.usage-choice-card > p { margin: 0; color: hsl(var(--muted-foreground)); font-size: 13px; line-height: 1.6; }
+.usage-start-choice { display: flex; align-items: flex-start; gap: 12px; padding: 16px; border: 0; border-radius: 12px; color: white; background: #087f78; text-align: left; cursor: pointer; font: inherit; }
+.usage-start-choice:hover { background: #066b65; }
+.usage-start-choice svg { width: 22px; height: 22px; flex: none; margin-top: 2px; }
+.usage-start-choice span { display: flex; flex-direction: column; gap: 6px; }
+.usage-start-choice strong { font-size: 15px; line-height: 1.35; }
+.usage-start-choice small { font-size: 12px; line-height: 1.6; }
+.usage-start-personal { color: hsl(var(--foreground)); background: hsl(var(--muted)); }
+.usage-start-personal:hover { background: hsl(var(--accent)); }
+.usage-start-personal small { color: hsl(var(--muted-foreground)); }
+.team-login .login-splash-hero { display: none; }
+.team-login .login-splash { max-width: 460px; grid-template-columns: 1fr; }
+.team-setup .onboarding-top { padding-bottom: 0; }
+.team-setup .onboarding-body { padding-top: 16px; }
+.team-setup .onboarding-body h2 { margin: 22px 0 8px; font-size: 14px; font-weight: 750; line-height: 1.4; }
+.team-setup .onboarding-body p { font-size: 12px; line-height: 1.65; }
+.team-setup .onboarding-body .onboarding-subtitle { margin-bottom: 18px; color: hsl(var(--foreground)); font-weight: 650; overflow-wrap: anywhere; }
+@media (prefers-color-scheme: dark) {
+  .usage-profile-option[aria-pressed="true"], .usage-dashboard-link, .team-today-context .button { color: #6cdfd0; }
+}
+html[data-theme="dark"] .usage-profile-option[aria-pressed="true"], html[data-theme="dark"] .usage-dashboard-link, html[data-theme="dark"] .team-today-context .button { color: #6cdfd0; }
+@media (max-width: 360px) { .usage-choice-card { padding: 20px; } .usage-start-choice { padding: 14px; } }

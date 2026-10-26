@@ -36,13 +36,16 @@ fn spec(
 
 pub fn specs() -> Vec<ToolSpec> {
     vec![
-        spec("focus.total_start", "focus_total_start", "Activate total focus in the paired browser, without starting tracking. Uses saved settings unless sites or exceptions are supplied. Messaging auto replies are not available.", json!({
-            "intention":{"type":"string","maxLength":160},
+        spec("focus.total_start", "focus_total_start", "Start total focus and its linked tracking clock in the paired browser, hold FlowSight reminders, optionally silence Windows notification banners and open a music link in a background tab. Uses saved settings unless supplied. Messaging auto replies are not available.", json!({
+            "intention":{"type":"string","minLength":0,"maxLength":160,"description":"Optional task description. Leave empty or omit to start general focus."},
             "duration_minutes":{"type":"integer","minimum":5,"maximum":180},
             "patterns":{"type":"array","items":{"type":"string","maxLength":240},"minItems":1,"maxItems":20},
-            "exceptions":{"type":"array","items":{"type":"string","maxLength":240},"maxItems":20}
-        }), &["intention"], true),
-        spec("focus.total_end", "focus_total_end", "End total focus and release its browser protection.", json!({}), &[], true),
+            "exceptions":{"type":"array","items":{"type":"string","maxLength":240},"maxItems":20},
+            "quiet_notifications":{"type":"boolean","description":"Silence Windows app notification banners for this session and restore their prior setting afterwards."},
+            "music_enabled":{"type":"boolean","description":"Open the saved music link in an inactive tab when this focus session starts. Requires updated Browser Controls."},
+            "music_url":{"type":"string","minLength":0,"maxLength":2048,"description":"Complete public HTTP(S) music URL, including playlist or video parameters. Used when music_enabled is true."}
+        }), &[], true),
+        spec("focus.total_end", "focus_total_end", "End total focus, release its browser protection and restore notification banners owned by this session.", json!({}), &[], true),
         spec("focus.total_status", "focus_total_status", "Read total focus settings and the actual extension acknowledgement.", json!({}), &[], false),
         spec("focus.start", "focus_start", "Start a timed focus block with a specific intention. Ask the user to confirm first.", json!({
             "intention": {"type":"string","maxLength":160},
@@ -183,7 +186,7 @@ const DISABLED_EXTERNAL_WRITES: &[&str] = &[
 ];
 
 pub fn is_enabled_name(name: &str) -> bool {
-    !DISABLED_EXTERNAL_WRITES.contains(&name)
+    !DISABLED_EXTERNAL_WRITES.contains(&name) && (cfg!(windows) || name != "system.set_dnd")
 }
 
 pub fn enabled_specs() -> Vec<ToolSpec> {
@@ -257,7 +260,7 @@ pub fn validate(spec: &ToolSpec, args: &Value) -> Result<(), String> {
                 let text = value
                     .as_str()
                     .ok_or_else(|| format!("{name} must be text."))?;
-                if text.trim().is_empty() {
+                if text.trim().is_empty() && rule["minLength"].as_u64() != Some(0) {
                     return Err(format!("{name} cannot be empty."));
                 }
                 if text.chars().count() > rule["maxLength"].as_u64().unwrap_or(u64::MAX) as usize {
@@ -364,7 +367,18 @@ mod tests {
 
     #[test]
     fn unverified_external_writes_are_not_offered() {
-        assert_eq!(enabled_specs().len(), 33);
+        assert_eq!(enabled_specs().len(), if cfg!(windows) { 33 } else { 32 });
+        assert_eq!(
+            enabled_by_public_name("system.set_dnd").is_some(),
+            cfg!(windows),
+            "Notification-banner control is offered only on Windows"
+        );
+        assert_eq!(
+            specs_for_family("system")
+                .iter()
+                .any(|spec| spec.name == "system.set_dnd"),
+            cfg!(windows)
+        );
         for name in DISABLED_EXTERNAL_WRITES {
             assert!(by_public_name(name).is_some());
             assert!(enabled_by_public_name(name).is_none());
@@ -396,6 +410,20 @@ mod tests {
         assert!(validate(&spec, &standard).is_ok());
         let strict = json!({"intention":"Finish the PR","duration_minutes":45,"protection":"strict","block_patterns":["youtube.com/shorts"]});
         assert!(validate(&spec, &strict).is_ok());
+        let total = by_public_name("focus.total_start").unwrap();
+        assert!(validate(&total, &json!({})).is_ok());
+        assert!(validate(
+            &total,
+            &json!({"intention":"  ","music_enabled":false,"music_url":""})
+        )
+        .is_ok());
+        assert!(validate(&total, &json!({"intention":12})).is_err());
+        assert!(validate(&total, &json!({"intention":"x".repeat(161)})).is_err());
+        assert!(validate(
+            &spec,
+            &json!({"intention":"","duration_minutes":45,"protection":"standard"})
+        )
+        .is_err());
     }
 
     #[test]

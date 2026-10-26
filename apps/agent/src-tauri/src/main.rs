@@ -136,7 +136,7 @@ fn main() {
     // opcional. La configuracion publica de Supabase tiene defaults en codigo.
     if let Ok(exe) = std::env::current_exe() {
         if let Some(dir) = exe.parent() {
-            let _ = dotenv::from_filename(dir.join(".env"));
+            let _ = dotenvy::from_filename(dir.join(".env"));
         }
     }
 
@@ -175,9 +175,34 @@ fn main() {
         // WebView2 overlay scrollbars ignore ::-webkit-scrollbar CSS; force classic bars.
         std::env::set_var(
             "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS",
-            "--disable-features=msWebView2OverlayScrollbar,OverlayScrollbar",
+            if cfg!(debug_assertions) && std::env::var_os("FLOWSIGHT_PILOT_DATA_DIR").is_some() {
+                format!(
+                    "{} --disable-features=msWebView2OverlayScrollbar,OverlayScrollbar",
+                    std::env::var("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS").unwrap_or_default()
+                )
+            } else {
+                "--disable-features=msWebView2OverlayScrollbar,OverlayScrollbar".to_string()
+            },
         );
     }
 
+    #[cfg(debug_assertions)]
+    {
+        let args: Vec<String> = std::env::args().collect();
+        if args.get(1).map(String::as_str) == Some("--bip-verify") {
+            if args.len() != 4 {
+                eprintln!("Expected --bip-verify INPUT OUTPUT");
+                std::process::exit(2);
+            }
+            if let Err(error) = app_lib::verify_build_in_public(
+                std::path::Path::new(&args[2]),
+                std::path::Path::new(&args[3]),
+            ) {
+                eprintln!("{error}");
+                std::process::exit(1);
+            }
+            return;
+        }
+    }
     app_lib::run();
 }

@@ -12,14 +12,23 @@ concurrency:
 
 jobs:
   check:
-    runs-on: macos-14
-    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            architecture: arm64
+            llm_arch: macos-arm64
+          - runner: macos-15-intel
+            architecture: x86_64
+            llm_arch: macos-x64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
     env:
       # Authenticated GitHub API avoids 403 rate limits in prepare-macos-llm.sh
       TAURI_GOOGLE_CALENDAR_CLIENT_ID: ${{ vars.TAURI_GOOGLE_CALENDAR_CLIENT_ID }}
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      FLOWSIGHT_LLM_ARCH: macos-arm64
-      FLOWSIGHT_SKIP_LLM_RUN: "1"
+      FLOWSIGHT_LLM_ARCH: ${{ matrix.llm_arch }}
       FLOWSIGHT_RENDERER_URL: http://127.0.0.1:1420
     steps:
       - uses: actions/checkout@v4
@@ -42,13 +51,40 @@ jobs:
         with:
           workspaces: apps/agent/src-tauri -> target
 
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Renderer tests
+        run: pnpm --filter @flowsight/agent exec node --test
+
+      - name: Production renderer
+        run: pnpm --filter @flowsight/agent exec vite build
+
+      - name: Formatting
+        run: cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --check
+
       - name: Prepare macOS llama-server (Metal)
         shell: bash
         run: |
           set -euo pipefail
           bash scripts/prepare-macos-llm.sh
           test -x local_llm/bin/llama-server
-          lipo -archs local_llm/bin/llama-server | grep -q arm64
+          lipo -archs local_llm/bin/llama-server | grep -q '${{ matrix.architecture }}'
+
+      - name: Cargo check
+        run: cargo check --manifest-path apps/agent/src-tauri/Cargo.toml
+
+      - name: Unit tests
+        run: cargo test --manifest-path apps/agent/src-tauri/Cargo.toml --lib
+
+      - name: Clippy
+        run: cargo clippy --manifest-path apps/agent/src-tauri/Cargo.toml --lib -- -D warnings
+
+      - name: Native macOS application build
+        run: pnpm --filter @flowsight/agent exec tauri build --no-bundle
+
+      - name: Execute native MCP STDIO smoke test
+        run: node scripts/check-mcp-stdio.mjs apps/agent/src-tauri/target/release/app
 
       - name: Fetch and verify Qwen3-VL-2B weights
         run: node scripts/fetch-models.mjs
@@ -67,25 +103,17 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: macos-native-qwen-session
+          name: macos-${{ matrix.architecture }}-native-qwen-session
           path: |
             .impeccable/review/suggestions-qwen.json
             .impeccable/review/suggestions-harness/source-manifest.json
           if-no-files-found: ignore
 
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Renderer tests
-        run: pnpm --filter @flowsight/agent exec node --test
-
-      - name: Production renderer
-        run: pnpm --filter @flowsight/agent exec vite build
-
       - name: Install browser for renderer integration checks
-        run: pnpm exec playwright install chromium
+        run: pnpm exec playwright install chromium webkit
 
       - name: Onboarding and ADDA renderer checks
+        timeout-minutes: 15
         shell: bash
         run: |
           set -euo pipefail
@@ -96,37 +124,30 @@ jobs:
             if curl -fsS http://127.0.0.1:1420/ >/dev/null; then break; fi
             sleep 1
           done
-          node scripts/verify-session-onboarding.mjs
-          node scripts/verify-recorded-time.mjs
-          node scripts/verify-total-focus-extension.mjs
-          node scripts/verify-adda-renderer.mjs
-          node scripts/verify-dark-button-hovers.mjs
-          node scripts/verify-localization.mjs
-          node scripts/verify-coach-conversation.mjs
-          node scripts/verify-linked-session.mjs
+          node scripts/run-browser-check.mjs scripts/verify-session-onboarding.mjs
+          node scripts/run-browser-check.mjs scripts/verify-focus-platform.mjs
+          FLOWSIGHT_E2E_BROWSER=webkit node scripts/run-browser-check.mjs scripts/verify-focus-platform.mjs
+          node scripts/run-browser-check.mjs scripts/verify-recorded-time.mjs
+          node scripts/run-browser-check.mjs scripts/verify-total-focus-extension.mjs
+          node scripts/run-browser-check.mjs scripts/verify-adda-renderer.mjs
+          node scripts/run-browser-check.mjs scripts/verify-dark-button-hovers.mjs
+          node scripts/run-browser-check.mjs scripts/verify-localization.mjs
+          node scripts/run-browser-check.mjs scripts/verify-coach-conversation.mjs
+          node scripts/run-browser-check.mjs scripts/verify-linked-session.mjs
+          node scripts/run-browser-check.mjs scripts/verify-online-ui.mjs
+          FLOWSIGHT_E2E_BROWSER=webkit node scripts/run-browser-check.mjs scripts/verify-online-ui.mjs
+          node scripts/run-browser-check.mjs scripts/verify-work-review.mjs
+          FLOWSIGHT_REPORT_EVIDENCE=.impeccable/review/report-export-chromium node scripts/run-browser-check.mjs scripts/verify-report-export.mjs
+          FLOWSIGHT_REPORT_EVIDENCE=.impeccable/review/report-export-webkit FLOWSIGHT_E2E_BROWSER=webkit node scripts/run-browser-check.mjs scripts/verify-report-export.mjs
+          FLOWSIGHT_USAGE_EVIDENCE=.impeccable/review/profiles-chromium node scripts/run-browser-check.mjs scripts/verify-usage-profiles.mjs
+          FLOWSIGHT_USAGE_EVIDENCE=.impeccable/review/profiles-webkit FLOWSIGHT_E2E_BROWSER=webkit node scripts/run-browser-check.mjs scripts/verify-usage-profiles.mjs
 
       - name: Upload renderer evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: macos-renderer-previews
-          path: .impeccable/review/
+          name: macos-${{ matrix.architecture }}-renderer-previews
+          path: |
+            .impeccable/review/
+            !.impeccable/review/suggestions-harness/target/**
           if-no-files-found: ignore
-
-      - name: Formatting
-        run: cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --check
-
-      - name: Cargo check
-        run: cargo check --manifest-path apps/agent/src-tauri/Cargo.toml
-
-      - name: Unit tests
-        run: cargo test --manifest-path apps/agent/src-tauri/Cargo.toml --lib
-
-      - name: Clippy
-        run: cargo clippy --manifest-path apps/agent/src-tauri/Cargo.toml --lib -- -D warnings
-
-      - name: Native macOS application build
-        run: pnpm --filter @flowsight/agent exec tauri build --no-bundle
-
-      - name: Execute native MCP STDIO smoke test
-        run: node scripts/check-mcp-stdio.mjs apps/agent/src-tauri/target/release/app

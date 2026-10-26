@@ -5,7 +5,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { jsPDF } from 'jspdf';
 
-import { createStatusReportViewModel, renderStatusReportHtml } from './status-report.mjs';
+import { createStatusReportViewModel, renderStatusReportHtml, applyStatusReportChartStyles } from './status-report.mjs';
 import { renderStatusReportPdf } from './status-report-pdf.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -70,7 +70,7 @@ const htmlPath = join(outputDir, 'review.html');
 const lightHtmlPath = join(outputDir, 'review-light.html');
 const pdfPath = join(outputDir, 'review.pdf');
 function previewHtml(extraCss = '') {
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><style>${style}\nhtml,body{height:auto;overflow:visible}body{display:block;margin:0;padding:32px;background:#eeeaf4}.sr-review{max-width:900px;margin:auto;box-shadow:0 16px 50px #2420331a}@media(max-width:600px){body{padding:0}}${extraCss}</style></head><body>${renderStatusReportHtml(model)}</body></html>`;
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><style>${style}\nhtml,body{height:auto;overflow:visible}body{display:block;margin:0;padding:32px;background:#eeeaf4}.sr-review{max-width:900px;margin:auto;box-shadow:0 16px 50px #2420331a}@media(max-width:600px){body{padding:0}}${extraCss}</style></head><body>${renderStatusReportHtml(model)}<script>(${applyStatusReportChartStyles.toString()})(document);</script></body></html>`;
 }
 writeFileSync(htmlPath, previewHtml());
 writeFileSync(lightHtmlPath, previewHtml(`:root{color-scheme:light;--background:225 24% 97%;--foreground:225 24% 11%;--card:0 0% 100%;--primary:263 84% 58%;--primary-foreground:0 0% 100%;--muted:222 22% 94%;--muted-foreground:220 11% 43%;--border:220 18% 87%}`));

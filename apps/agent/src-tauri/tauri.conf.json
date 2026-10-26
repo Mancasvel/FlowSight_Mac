@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "FlowSight Agent",
-  "version": "5.0.18",
+  "version": "6.5.4",
   "identifier": "ai.flowsight.agent",
   "build": {
     "frontendDist": "../dist",
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "FlowSight — Understand your own Workflows",
+        "title": "FlowSight \u2014 Understand your own Workflows",
         "width": 370,
         "height": 700,
         "resizable": true,
@@ -35,7 +35,10 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["app", "dmg"],
+    "targets": [
+      "app",
+      "dmg"
+    ],
     "createUpdaterArtifacts": false,
     "windows": {
       "webviewInstallMode": {
@@ -82,7 +85,8 @@
       "../browser-extension/focus.css": "browser-extension/focus.css",
       "../browser-extension/icon16.png": "browser-extension/icon16.png",
       "../browser-extension/icon48.png": "browser-extension/icon48.png",
-      "../browser-extension/icon128.png": "browser-extension/icon128.png"
+      "../browser-extension/icon128.png": "browser-extension/icon128.png",
+      "../browser-extension/music.js": "browser-extension/music.js"
     }
   },
   "plugins": {

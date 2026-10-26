@@ -1,5 +1,139 @@
 // Explicit application copy. User-authored task names, messages and activity are never translated.
 export const spanish = Object.fromEntries(`
+How will you use FlowSight?|¿Cómo vas a usar FlowSight?
+Choose the setup that fits your work. Your license and team role determine the available features.|Elige la configuración que encaja con tu trabajo. Tu licencia y tu rol en el equipo determinan las funciones disponibles.
+For my team|Para mi equipo
+Start in Individual. Connect a work team if you have an employee invitation.|Empieza en Individual. Conecta un equipo de trabajo si tienes una invitación como empleado.
+The default on this device. Personal goals, insights and optional focus tools.|El modo predeterminado en este dispositivo. Objetivos personales, análisis y herramientas de concentración opcionales.
+For invited employees. A simple recording screen with Stop and Continue.|Para empleados con invitación. Una pantalla de registro sencilla con Parar y Continuar.
+Project managers use the web dashboard|Los project managers usan el dashboard web
+Recommended for work teams. A simple recording screen and separate sharing choices.|Recomendado para equipos de trabajo. Una pantalla de registro sencilla y opciones de compartir independientes.
+For myself|Para mí
+Personal goals, insights and optional focus tools, with the full individual setup.|Objetivos personales, análisis y herramientas de foco opcionales, con la configuración individual completa.
+Your FlowSight profile|Tu perfil de FlowSight
+Checking your profile…|Comprobando tu perfil…
+Predefined profiles|Perfiles predefinidos
+Team member|Miembro del equipo
+Project manager|Project manager
+Recording, Stop and Continue, and control over your data.|Registro, Detener y Continuar, y control sobre tus datos.
+The same simple recorder, plus the team dashboard for coordination.|El mismo registro sencillo, con el dashboard del equipo para coordinar el trabajo.
+Personal insights, planning, focus tools and optional Online features.|Análisis personal, planificación, herramientas de foco y funciones online opcionales.
+Work team|Equipo de trabajo
+Connect my team|Conectar mi equipo
+Refresh my profile|Actualizar mi perfil
+Open the team dashboard|Abrir el dashboard del equipo
+Join with a team code|Unirme con un código de equipo
+Recording diagnostics|Diagnóstico del registro
+Individual · on this device|Individual · en este dispositivo
+Simple recording · profile not verified|Registro sencillo · perfil sin verificar
+Connect your team to use its licensed profile. Personal features stay available locally.|Conecta tu equipo para usar el perfil de su licencia. Las funciones personales siguen disponibles en local.
+We could not verify your licensed profile. Recording and privacy remain available. Refresh your profile, activate a license or join your team.|No hemos podido verificar el perfil de tu licencia. El registro y la privacidad siguen disponibles. Actualiza el perfil, activa una licencia o únete a tu equipo.
+Your license and verified role determine these choices. Changing profile or team stops recording and turns optional sharing off.|Tu licencia y tu rol verificado determinan estas opciones. Cambiar de perfil o equipo detiene el registro y desactiva el uso compartido opcional.
+Team sharing is unavailable until your profile is verified.|No puedes compartir con el equipo hasta verificar tu perfil.
+Sharing on — structured work totals go to {p0}.|Compartir activado: los totales estructurados del trabajo se envían a {p0}.
+Sharing off — no new activity is sent to {p0}.|Compartir desactivado: no se envía actividad nueva a {p0}.
+Team profile awaiting verification|Perfil de equipo pendiente de verificar
+Optional team sharing sends dates, work, meeting and other activity totals, and recognized project references. Personal descriptions, screenshots, app and site names, browsing and distraction signals, and focus grades are not shared. Shared totals may also appear in weekly reports emailed to verified team managers.|Compartir con el equipo es opcional. Se envían fechas, totales de trabajo, reuniones y otras actividades, y referencias a proyectos reconocidos. No se comparten descripciones personales, capturas, nombres de apps o sitios, señales de navegación o distracciones ni notas de foco. Los totales compartidos también pueden aparecer en informes semanales enviados por correo a los responsables verificados del equipo.
+Share structured work totals with my team|Compartir totales estructurados del trabajo con mi equipo
+Privacy and sharing|Privacidad y uso compartido
+Review my local history|Consultar mi historial local
+Activity recorded on this device today. This is your local history, not a team report or billable time.|Actividad registrada hoy en este dispositivo. Es tu historial local, no un informe de equipo ni tiempo facturable.
+Loading local history…|Cargando el historial local…
+No local activity recorded today.|Hoy no hay actividad registrada en local.
+Local history could not be loaded. Close and reopen this section to retry.|No se ha podido cargar el historial local. Cierra y vuelve a abrir esta sección para intentarlo de nuevo.
+Recorded on this device today|Registrado hoy en este dispositivo
+Work session|Sesión de trabajo
+Recording on this device. Stop whenever you need.|Registrando en este dispositivo. Detén el registro cuando lo necesites.
+Recording is stopped. Continue when you are ready.|El registro está detenido. Continúa cuando quieras.
+Stop recording|Detener registro
+Continue recording|Continuar registro
+Recording|Registrando
+Stopped|Detenido
+Recording started on this device.|Registro iniciado en este dispositivo.
+Recording stopped on this device.|Registro detenido en este dispositivo.
+Startup|Inicio
+Wait for recording to finish changing, then try again.|Espera a que termine el cambio de estado del registro y vuelve a intentarlo.
+Recording could not stop. Try again before changing profile.|No se ha podido detener el registro. Inténtalo de nuevo antes de cambiar de perfil.
+Changing profile…|Cambiando de perfil…
+Profile changed. Recording is stopped; optional sharing is off.|Perfil cambiado. El registro está detenido y el uso compartido opcional está desactivado.
+Could not change profile.|No se ha podido cambiar de perfil.
+Profile refreshed.|Perfil actualizado.
+Could not refresh your profile.|No se ha podido actualizar tu perfil.
+Connect your work team|Conecta tu equipo de trabajo
+Sign in with your work account. Your license and team role choose the profile.|Inicia sesión con tu cuenta de trabajo. Tu licencia y tu rol en el equipo determinan el perfil.
+A simple work session|Una sesión de trabajo sencilla
+Your work team|Tu equipo de trabajo
+Continue starts recording on this device. Stop ends recording; today’s recorded time is kept. Closing the window keeps FlowSight in the system tray.|Continuar inicia el registro en este dispositivo. Detener lo para y conserva el tiempo registrado hoy. Cerrar la ventana mantiene FlowSight en la bandeja del sistema.
+What is observed locally|Qué se observa en local
+While recording, FlowSight processes the active app, selected interface elements and periodic images of the active window on this device. Images are not saved. Short activity summaries stay in local history; sensitive apps can be excluded in Settings.|Durante el registro, FlowSight procesa en este dispositivo la app activa, algunos elementos de su interfaz e imágenes periódicas de la ventana activa. Las imágenes no se guardan. Los resúmenes breves permanecen en el historial local; puedes excluir apps sensibles en Ajustes.
+Separate team sharing|Compartir con el equipo es independiente
+Finishing acknowledges local recording. It does not start recording or turn sharing on.|Al terminar confirmas que entiendes el registro local. Esto no inicia el registro ni activa el uso compartido.
+I understand — finish setup|Lo entiendo: terminar configuración
+Could not finish setup.|No se ha podido terminar la configuración.
+Sign in before joining your team.|Inicia sesión antes de unirte a tu equipo.
+Team joined|Te has unido al equipo
+Sign in before joining a team|Inicia sesión antes de unirte a un equipo
+Invalid invitation code|El código de invitación no es válido.
+Invitation expired or unavailable|La invitación ha caducado o ya no está disponible.
+This feature belongs to the individual profile.|Esta función pertenece al perfil individual.
+Profile access could not be verified|No se ha podido verificar el acceso al perfil.
+This invitation was issued to another email address|Esta invitación se envió a otra dirección de correo
+This team needs an active Team license|Este equipo necesita una licencia Team activa
+This team has no available license seats|No quedan puestos disponibles en la licencia de este equipo
+Account changed while joining the team|La cuenta ha cambiado mientras te unías al equipo
+Could not join your team.|No se ha podido unir tu cuenta al equipo.
+Your focus this week|Tu foco esta semana
+Sustained focus|Foco sostenido
+Your focus today|Tu foco hoy
+Your focus this period|Tu foco en este periodo
+vs. last week|respecto a la semana pasada
+vs. the same day last week|respecto al mismo día de la semana pasada
+vs. the previous 30 days|respecto a los 30 días anteriores
+Your focus improved|Tu foco ha mejorado
+Your focus needs attention|Tu foco necesita atención
+Your focus is stable|Tu foco se mantiene estable
+Building your baseline|Creando tu referencia
+Strong focus rhythm|Buen ritmo de concentración
+A solid foundation|Una base sólida
+Room to build your focus|Margen para ganar foco
+Not enough focus data|Faltan datos de foco
+Focus grade: {p0} out of 10|Nota de foco: {p0} sobre 10
+points|puntos
+What improved|En qué has mejorado
+Where to improve|En qué puedes mejorar
+Your progress|Tu evolución
+More time in sustained focus|Más tiempo en foco sostenido
+Recover your sustained focus|Recupera tu foco sostenido
+Fewer distractions per focus hour|Menos distracciones por hora de foco
+Reduce returns to distractions|Reduce las vueltas a las distracciones
+Longer uninterrupted blocks|Bloques más largos sin interrupciones
+Rebuild one uninterrupted block|Recupera un bloque sin interrupciones
+Distraction minutes per focus hour|Minutos de distracción por hora de foco
+Longest focus block|Bloque de foco más largo
+Protect a 30-minute block for one task and keep optional checks for the break.|Protege un bloque de 30 minutos para una sola tarea y deja las consultas opcionales para la pausa.
+Mute optional notifications and batch app checks into a planned break.|Silencia las notificaciones opcionales y agrupa las consultas a otras apps en una pausa planificada.
+Choose one task before starting and finish the block before switching context.|Elige una tarea antes de empezar y termina el bloque antes de cambiar de contexto.
+Keep the conditions that work|Mantén lo que te está funcionando
+Keep building your sustained focus|Sigue reforzando tu foco sostenido
+Keep reducing distraction time|Sigue reduciendo el tiempo de distracción
+Repeat your strongest focus block and check whether the pattern holds next week.|Repite tu mejor bloque de foco y comprueba si el patrón se mantiene la semana que viene.
+Record a focus block to receive a grade. Time spent in meetings alone does not define your focus.|Registra un bloque de foco para recibir una nota. El tiempo de reuniones por sí solo no define tu concentración.
+There is not enough comparable focus data from the previous period. Your grade uses this period only.|Aún faltan datos de foco comparables del periodo anterior. Tu nota se basa solo en este periodo.
+Both grades use the same method. Changes describe recorded patterns.|Las dos notas usan el mismo método. Los cambios describen los patrones registrados.
+Grade out of 10: 70% sustained-focus share of eligible work + 30% time free of detected distractions. More hours do not earn extra points. Meetings and collaboration are outside this focus grade; it does not measure work quality.|Nota sobre 10: 70% de proporción de foco sostenido en el trabajo elegible + 30% de tiempo libre de distracciones detectadas. Más horas no dan puntos extra. Las reuniones y la colaboración quedan fuera de esta nota de foco; no mide la calidad del trabajo.
+Your first comparison will appear when both periods have focus data.|Tu primera comparación aparecerá cuando ambos periodos tengan datos de foco.
+No clear improvement in these measures this period. Stable patterns are also useful.|No hay una mejora clara en estas medidas durante este periodo. Los patrones estables también son útiles.
+Record a focus block first; there is not enough evidence for a specific change.|Registra primero un bloque de foco; aún faltan datos para sugerir un cambio concreto.
+The comparison behind your grade|La comparación detrás de tu nota
+Your current focus measures|Tus medidas de foco actuales
+Previous|Anterior
+Current|Actual
+Previous: {p0}|Anterior: {p0}
+Current: {p0}|Actual: {p0}
+No baseline|Sin referencia
+How is this grade calculated?|¿Cómo se calcula esta nota?
+{p0} days with recorded activity|{p0} días con actividad registrada
+Could not load saved privacy settings. Try again.|No se pudieron cargar tus preferencias de privacidad guardadas. Inténtalo de nuevo.
 Planning runs on this device. Review and confirm to add the blocks to your linked calendar, or to FlowSight if none is connected.|La planificación se ejecuta en este dispositivo. Revisa y confirma para añadir los bloques a tu calendario vinculado, o a FlowSight si no hay ninguno conectado.
 Draft ready. Review the times and estimates before adding the blocks to {calendar}.|Borrador listo. Revisa las horas y estimaciones antes de añadir los bloques a {calendar}.
 {count} block added to {calendar}.|{count} bloque añadido a {calendar}.
@@ -679,6 +813,13 @@ No assessment available|Sin evaluación disponible
 Unlabelled|Sin etiqueta
 Daily work review|Revisión diaria de trabajo
 Weekly work review|Revisión semanal de trabajo
+Work review|Revisión de trabajo
+The period in view|El período a la vista
+Discard your unsaved choice and open another?|¿Descartar tu decisión sin guardar y abrir otra?
+Write a choice before saving.|Escribe una decisión antes de guardarla.
+Save as new choice|Guardar como nueva decisión
+This saved choice is no longer available. Your draft is here; save it as a new choice.|Esta decisión guardada ya no está disponible. Tu borrador sigue aquí; guárdalo como una nueva decisión.
+Could not delete your choice. It is still here; try again.|No se pudo eliminar tu decisión. Sigue aquí; vuelve a intentarlo.
 The day in view|El día de un vistazo
 The week in view|La semana de un vistazo
 Activity was recorded in this period.|Se registró actividad en este periodo.
@@ -975,6 +1116,7 @@ Storage unavailable|Almacenamiento no disponible
 spanish['{p0}\n\n{p1}\n\nDraft only; copy and review before publishing.']='{p0}\n\n{p1}\n\nSolo borrador; copia y revisa antes de publicar.';
 
 Object.assign(spanish, {
+  'Clock': 'Reloj',
   '1 of 6':'1 de 6','{p0} of 6':'{p0} de 6',
   'Total focus':'Concentración total','Total focus active':'Concentración total activa',
   'Use a domain or HTTP(S) path without spaces.':'Escribe un dominio o una ruta HTTP(S) sin espacios.',
@@ -994,6 +1136,14 @@ Object.assign(spanish, {
   'Session duration (minutes)':'Duración de la sesión (minutos)','Your focus task':'Tu tarea de concentración',
   'Start total focus':'Iniciar concentración total','End total focus':'Finalizar concentración total',
   'Save settings':'Guardar ajustes','Focus settings saved':'Ajustes de concentración guardados',
+  'Open music when total focus starts':'Abrir música al iniciar la concentración total',
+  'Music link':'Enlace de música',
+  'Opens once in a background tab in your connected browser, keeping your current window in front. The browser may require you to allow audio playback on that site.':'Se abre una vez en una pestaña en segundo plano de tu navegador conectado, manteniendo tu ventana actual delante. El navegador puede pedirte que permitas la reproducción de audio en ese sitio.',
+  'Add an HTTP(S) music link before enabling background music.':'Añade un enlace de música HTTP(S) antes de activar la música en segundo plano.',
+  'Use a complete public HTTP(S) music link without spaces or sign-in credentials.':'Escribe un enlace de música HTTP(S) completo y público, sin espacios ni credenciales de acceso.',
+  'Update Browser Controls to open music in the background.':'Actualiza Browser Controls para abrir música en segundo plano.',
+  'Focus is active, but the music link could not be opened:':'La concentración está activa, pero no se pudo abrir el enlace de música:',
+  'Keep a browser window open to open music in the background.':'Mantén una ventana del navegador abierta para abrir música en segundo plano.',
   'Checking browser protection…':'Comprobando la protección del navegador…',
   'Block distracting websites in your paired Chrome extension on Windows, macOS, or Linux.':'Bloquea páginas que te distraen con tu extensión de Chrome vinculada en Windows, macOS o Linux.',
   'Total focus active · browser block confirmed':'Concentración total activa · bloqueo confirmado',
@@ -1020,12 +1170,168 @@ Object.assign(spanish, {
   'Pairing key copied. Local port: 38547. Paste the key in the extension options.':'Clave copiada. Puerto local: 38547. Pega la clave en las opciones de la extensión.',
   'Could not copy the pairing key. Try again in Settings.':'No se pudo copiar la clave. Inténtalo otra vez en Ajustes.',
   'This step saves your settings. Start total focus from Today when you are ready. Tracking remains a separate choice.':'Este paso guarda tus ajustes. Inicia la concentración total desde Hoy cuando estés listo. El seguimiento se activa por separado.',
+  'Understand your week and choose what to change, with local analysis and control over your data.': 'Entiende tu semana y decide qué cambiar, con análisis local y control sobre tus datos.',
+  'Start a tracking block when you choose, then open Insights to review your first work report. You do not need seven days of activity.': 'Inicia un bloque de seguimiento cuando quieras y abre Informes para revisar tu primer informe. No necesitas siete días de actividad.',
+  'Work preferences are optional and saved on this device. No account is needed.': 'Las preferencias de trabajo son opcionales y se guardan en este dispositivo. No necesitas una cuenta.',
+  'Start a tracking block when you choose, then open your work report to review the activity recorded on this device.': 'Inicia un bloque de seguimiento cuando quieras y abre tu informe para revisar la actividad registrada en este dispositivo.',
+  'You can generate a report for today. An empty report has no evidence for recommendations.': 'Puedes generar un informe de hoy. Un informe vacío no tiene datos para proponer recomendaciones.',
+  'Go to tracking': 'Ir al seguimiento',
+  'Report period': 'Periodo del informe',
+  'Last 7 days': 'Últimos 7 días',
+  'Last 30 days': 'Últimos 30 días',
+  'Local AI report': 'Informe con IA local',
+  'Rule-based report': 'Informe basado en reglas',
+  '{p0} of {p1} days with activity': '{p0} de {p1} días con actividad',
+  'This covers recorded activity, not your whole working day.': 'Incluye la actividad registrada, que puede cubrir solo parte de tu jornada.',
+  'Activity sync is on.': 'La sincronización de actividad está activada.',
+  'Activity sync is off.': 'La sincronización de actividad está desactivada.',
+  'Cloud AI is on.': 'La IA en la nube está activada.',
+  'Cloud AI is off.': 'La IA en la nube está desactivada.',
+  'MCP shares the requested report with the AI client you connect. Manage sharing in Settings.': 'MCP comparte el informe solicitado con el cliente de IA que conectes. Gestiona las opciones de compartir en Ajustes.',
+  'Sharing settings could not be loaded. Check Settings before sharing.': 'No se han podido cargar las opciones de compartir. Revisa Ajustes antes de compartir.',
+  'Choose a change to try': 'Elige un cambio para probar',
+  'Save one choice, then come back to review what happened. Keeping your current plan is a valid choice.': 'Guarda una decisión y vuelve después para revisar qué ocurrió. Mantener tu plan actual también es una decisión válida.',
+  'Saved only on this device. Not included in PDF, MCP or cloud sync. Your local retention setting also applies to these choices.': 'Se guarda solo en este dispositivo. No se incluye en PDF, MCP ni sincronización. La retención local también se aplica a estas decisiones.',
+  'Try this change': 'Probar este cambio',
+  'Write a choice': 'Escribir una decisión',
+  'Keep my current plan': 'Mantener mi plan actual',
+  'Your choice': 'Tu decisión',
+  'Review on': 'Revisar el',
+  'What happened?': '¿Qué ocurrió?',
+  'Result or context (optional)': 'Resultado o contexto (opcional)',
+  'Save choice': 'Guardar decisión',
+  'Delete choice': 'Eliminar decisión',
+  'Delete this saved choice?': '¿Eliminar esta decisión guardada?',
+  'Choice deleted': 'Decisión eliminada',
+  'Choice saved locally': 'Decisión guardada en local',
+  'Saved choices': 'Decisiones guardadas',
+  'Review or edit': 'Revisar o editar',
+  'To review': 'Pendiente de revisión',
+  'Tried': 'Probado',
+  'Not tried': 'Sin probar',
+  'Discarded': 'Descartado',
+  'Ready to review': 'Ya se puede revisar',
+  'Could not save your choice. Your draft is still here; try again.': 'No se ha podido guardar la decisión. Tu borrador sigue aquí; inténtalo de nuevo.',
+  'Could not load saved choices. Reopen the report to try again.': 'No se han podido cargar las decisiones guardadas. Abre de nuevo el informe para reintentar.',
 });
 
 Object.assign(spanish, {
+  'Silence Windows app notification banners':'Silenciar los avisos de aplicaciones de Windows',
+  'Your focus task (optional)':'Tu tarea de concentración (opcional)',
+  'Keep your focus task within 160 characters.':'La tarea de concentración puede tener hasta 160 caracteres.',
+  'Starting total focus saves these settings for the Today shortcut.':'Al iniciar la concentración total, estos ajustes se guardan para el botón de Hoy.',
+  'The browser did not confirm opening the music link.':'El navegador no ha confirmado la apertura del enlace de música.',
+  'Total focus starts the main clock. Pause or resume both from the clock; your remaining focus time is kept.':'La concentración total inicia el reloj principal. Pausa o reanuda ambos desde el reloj; se conserva el tiempo de concentración restante.',
+  'Total focus paused · resume from the main clock':'Concentración total pausada · reanuda desde el reloj principal',
+  'Total focus paused':'Concentración total pausada',
+  'Total focus settings':'Ajustes concentración total',
+  'Connect Browser Controls in total focus settings, then try again.':'Conecta Browser Controls en los ajustes de concentración total y vuelve a intentarlo.',
+  'Open main clock':'Abrir reloj principal',
+  'Wait for the current focus action to finish.':'Espera a que termine la acción de concentración en curso.',
+  'Pause total focus':'Pausar concentración total',
+  'Resume total focus':'Reanudar concentración total',
+  'Total focus remaining':'Concentración total restante',
+  'Total focus paused. Your remaining time is kept.':'Concentración total pausada. Se conserva el tiempo restante.',
+  'Reconnect Browser Controls before resuming total focus.':'Reconecta Browser Controls antes de reanudar la concentración total.',
+  'Starting total focus…':'Iniciando concentración total…',
+  'Ending total focus…':'Finalizando concentración total…',
+  'Saving settings…':'Guardando ajustes…',
+  'Starting total focus. Waiting for your browser to confirm protection; this can take up to 90 seconds.':'Iniciando concentración total. Esperando a que tu navegador confirme la protección; puede tardar hasta 90 segundos.',
+  'Choose a focus duration between 5 and 180 minutes.':'Elige una duración de concentración de entre 5 y 180 minutos.',
+  'The previous notification setting is restored when the session ends. Browser protection continues if you quit FlowSight; notification silence resumes when you reopen it.':'Al terminar se restaura el ajuste anterior de notificaciones. Si sales de FlowSight, el bloqueo del navegador continúa; el silencio se reanuda al volver a abrirlo.',
+  'Reminders saved during focus':'Recordatorios guardados durante la concentración',
+  'Dismiss saved reminders':'Descartar recordatorios guardados',
+  'Saved reminders dismissed':'Recordatorios guardados descartados',
+  'Windows app notification banners are silenced.':'Los avisos de aplicaciones de Windows están silenciados.',
+  'Notification silence is not confirmed. End the session and try again.':'El silencio de notificaciones no está confirmado. Finaliza la sesión e inténtalo de nuevo.',
+  'Could not restore notification banners:':'No se pudieron restaurar los avisos de notificaciones:',
   'Ready. Browser actions and total focus are available.': 'Listo. Las acciones del navegador y la concentración total están disponibles.',
+  'Browser connected · website protection unavailable. Check site access or use the compatible extension below.': 'Navegador conectado · bloqueo de páginas no disponible. Comprueba el acceso a los sitios o usa la extensión compatible de abajo.',
+  'Updating FlowSight does not update the browser extension. If the store still has the older version, use the compatible Browser Controls included with this app.': 'Actualizar FlowSight no actualiza la extensión del navegador. Si la tienda sigue ofreciendo la versión antigua, usa Browser Controls compatible incluida con esta app.',
+  'Open compatible extension folder': 'Abrir carpeta de la extensión compatible',
+  "Open your browser's extensions page: arc://extensions, chrome://extensions, or edge://extensions.": 'Abre la página de extensiones de tu navegador: arc://extensions, chrome://extensions o edge://extensions.',
+  'Turn off the older FlowSight Browser Controls, enable Developer mode, and choose Load unpacked. Select the folder opened above.': 'Desactiva FlowSight Browser Controls antigua, activa el Modo de desarrollador y pulsa Cargar descomprimida. Selecciona la carpeta que se ha abierto.',
+  "Open the new extension's options, paste your pairing key, and choose Save and connect.": 'Abre las opciones de la nueva extensión, pega tu clave de vinculación y pulsa Guardar y conectar.',
+  "If the store version cannot start total focus, open your browser's extensions page, turn off the older Browser Controls, enable Developer mode, and choose Load unpacked with this folder.": 'Si la versión de la tienda no permite iniciar la concentración total, abre las extensiones del navegador, desactiva Browser Controls antigua, activa el Modo de desarrollador y pulsa Cargar descomprimida con esta carpeta.',
+  'Could not open the extension folder:': 'No se pudo abrir la carpeta de la extensión:',
+  'Describe your focus task in 1–160 characters.': 'Describe tu tarea de concentración en 1–160 caracteres.',
+  'Allow Browser Controls access to all websites in your browser extension settings.': 'Permite que Browser Controls acceda a todos los sitios desde los ajustes de la extensión en tu navegador.',
   'Browser connected. Update Browser Controls to enable total focus. In Arc, open arc://extensions and update the extension; approve any requested site access.': 'Navegador conectado. Actualiza Browser Controls para activar la concentración total. En Arc, abre arc://extensions y actualiza la extensión; acepta el acceso a los sitios si te lo solicita.',
   'Block distracting websites with Browser Controls in Arc on Windows or macOS, and Chrome on Windows, macOS, or Linux.': 'Bloquea páginas que te distraen con Browser Controls en Arc para Windows o macOS, y en Chrome para Windows, macOS o Linux.',
   'Choose the websites to block during a focus session. Browser Controls works with Arc on Windows and macOS, and Chrome on Windows, macOS, and Linux.': 'Elige las páginas que quieres bloquear durante una sesión. Browser Controls funciona con Arc en Windows y macOS, y con Chrome en Windows, macOS y Linux.',
   'Update Browser Controls in your browser and reconnect it before starting total focus.': 'Actualiza Browser Controls en tu navegador y vuelve a conectarlo antes de iniciar la concentración total.',
+});
+
+Object.assign(spanish, {
+  'Daily Flow': 'Ritmo diario',
+  'Daily Flow streak': 'Racha de ritmo diario',
+  '{count} day': '{count} día',
+  '{count} days': '{count} días',
+  'Show Daily Flow and personal milestones': 'Mostrar el ritmo diario y los hitos personales',
+  'A daily win takes 15 recorded minutes. Aim for 3 days a week. Progress stays on this device and is erased with your local data.': 'Un logro diario requiere 15 minutos registrados. Intenta conseguirlo 3 días por semana. El progreso se guarda en este dispositivo y se borra con tus datos locales.',
+  'Loading your Daily Flow…': 'Cargando tu ritmo diario…',
+  'Daily Flow is unavailable. Your tracking still works.': 'El ritmo diario no está disponible. El seguimiento sigue funcionando.',
+  'Only on this device': 'Solo en este dispositivo',
+  'You showed up today': 'Hoy has dado el paso',
+  'A small step, every day': 'Un pequeño paso cada día',
+  'Daily win': 'Logro diario',
+  '{minutes} min to go': 'Quedan {minutes} min',
+  'Daily win earned. Come back when you are ready.': 'Logro diario conseguido. Vuelve cuando estés listo.',
+  'Record 15 minutes today. Pauses and breaks do not count.': 'Registra 15 minutos hoy. Las pausas y los descansos no cuentan.',
+  'Your streak counts consecutive days with saved tracking time.': 'Tu racha cuenta los días consecutivos con tiempo de seguimiento guardado.',
+  'Daily Flow progress': 'Progreso del ritmo diario',
+  'This week': 'Esta semana',
+  '{count} / {target} days': '{count} / {target} días',
+  'Goal reached': 'Objetivo alcanzado',
+  '{date}: daily win earned': '{date}: logro diario conseguido',
+  '{date}: upcoming': '{date}: próximo',
+  '{date}: in progress': '{date}: en curso',
+  '{date}: rest day': '{date}: día de descanso',
+  'Aim for 3 days a week. Rest days keep your milestones.': 'Intenta lograrlo 3 días por semana. Los descansos conservan tus hitos.',
+  'Milestones': 'Hitos',
+  'Next: {name} · {count}/{target} wins': 'Siguiente: {name} · {count}/{target} logros',
+  'All milestones earned': 'Todos los hitos conseguidos',
+  'First step': 'Primer paso',
+  'Finding rhythm': 'Encontrando el ritmo',
+  'Building momentum': 'Ganando impulso',
+  'Steady practice': 'Práctica constante',
+  'Earned': 'Conseguido',
+  '{count} daily win': '{count} logro diario',
+  '{count} daily wins': '{count} logros diarios',
+  'Wins come from saved tracking time, not an assessment of work quality. Changing your hours goal does not change Daily Flow.': 'Los logros se basan en el tiempo registrado, sin valorar la calidad del trabajo. Cambiar tu objetivo de horas no modifica el ritmo diario.',
+  'Daily win earned. Well done showing up.': 'Logro diario conseguido. Bien hecho por dar el paso.',
+  'Milestone earned: {name}.': 'Hito conseguido: {name}.',
+  'This preference applies for this session. Could not save it on this device.': 'Esta preferencia se aplica durante esta sesión. No se ha podido guardar en este dispositivo.',
+});
+
+Object.assign(spanish, {
+  'Other categories': 'Otras categorías',
+  '{duration} in {count} blocks': '{duration} en {count} bloques',
+  'The largest part of your recorded time. Check whether it matches your priorities.': 'La mayor parte de tu tiempo registrado. Comprueba si coincide con tus prioridades.',
+  'Blocks of at least 25 minutes in eligible work. Meetings and collaboration have their own value.': 'Bloques de al menos 25 minutos en trabajo que permite concentrarse. Las reuniones y la colaboración también tienen valor.',
+  'Check the coverage first': 'Comprueba primero el registro',
+  '{active} of {total} days recorded': '{active} de {total} días registrados',
+  'Compare the gaps with your calendar before changing your routine. A blank day may simply have no tracking data.': 'Compara los días sin registro con tu calendario antes de cambiar tu rutina. Un día en blanco puede ser un día sin seguimiento.',
+  'Align your time with your priorities': 'Ajusta tu tiempo a tus prioridades',
+  'Choose the main task for your next session. Then check whether your time distribution reflects what you intended to work on.': 'Elige la tarea principal de tu próxima sesión. Después comprueba si la distribución del tiempo refleja lo que querías hacer.',
+  'Give app changes context': 'Pon en contexto los cambios de aplicación',
+  'App visits are observations, not proof of distraction.': 'Las visitas a aplicaciones son observaciones; no demuestran una distracción.',
+  'Keep tools needed for work available. Move only optional checks to a break, then see whether your focus feels easier.': 'Mantén disponibles las herramientas que necesitas para trabajar. Deja solo las consultas opcionales para una pausa y comprueba si te resulta más fácil concentrarte.',
+  'Build a useful baseline': 'Crea una referencia útil',
+  'Record another normal work session and compare it with your plans before making a specific change.': 'Registra otra sesión habitual y compárala con tus planes antes de hacer un cambio concreto.',
+  '{duration} recorded across {active} days.': '{duration} registrados en {active} días.',
+  'Most recorded time: {day}, {duration}.': 'Mayor tiempo registrado: {day}, {duration}.',
+  'App changes, with context': 'Cambios de aplicación, con contexto',
+  'Keep tools needed for work available. Only you can confirm whether a visit was optional.': 'Mantén disponibles las herramientas de trabajo. Solo tú puedes confirmar si una visita era opcional.',
+  'Local data · Focus patterns, with context': 'Datos locales · Patrones de foco, con contexto',
+  'Your focus, in perspective': 'Tu foco, con perspectiva',
+  'Choose one change. Review it after your next normal work session.': 'Elige un cambio. Revísalo después de tu próxima sesión habitual.',
+  'How to read this report': 'Cómo leer este informe',
+  '{visits} foreground visits across {days} days': '{visits} visitas en primer plano en {days} días',
+  'See recorded context': 'Ver el contexto registrado',
+  'Read the full local analysis': 'Leer el análisis local completo',
+  'The recorded app changes need context before drawing a conclusion.': 'Los cambios de aplicación registrados necesitan contexto para sacar una conclusión.',
+  'Sign in again': 'Vuelve a iniciar sesión',
+  'Done': 'Listo',
+  'Sign in with your usual account to reconnect Online.': 'Inicia sesión con tu cuenta habitual para recuperar Online.',
 });
