@@ -4398,6 +4398,7 @@
       cleanReportText as extractEnglishText,
       createStatusReportViewModel,
       renderStatusReportHtml,
+      applyStatusReportChartStyles,
     } from './status-report.mjs';
     import { isWeeklyReportDue } from './weekly-report-schedule.mjs';
     import { resolveTaskContext, transitionTaskDetail } from './today-task-context.mjs';
@@ -8225,9 +8226,9 @@
       return privacySettings;
     }
 
-    function showPrivacyNotice() {
+    function showPrivacyNotice(event) {
       const overlay = document.getElementById('privacyNoticeOverlay');
-      dialogFocus.open(overlay);
+      dialogFocus.open(overlay, event?.currentTarget);
     }
 
     function hidePrivacyNotice() {
@@ -9589,6 +9590,7 @@
 
       const model = statusReportViewModel(payload);
       host.innerHTML = renderStatusReportHtml(model);
+      applyStatusReportChartStyles(host);
       workReview.attach(document.getElementById('workReviewSlot'), model);
       workReview.bindSuggestions(host);
       const syncState = privacySettings?.cloudSyncEnabled ? tr('Activity sync is on.') : tr('Activity sync is off.');

@@ -16,7 +16,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - runner: macos-14
+          - runner: macos-15
             architecture: arm64
             llm_arch: macos-arm64
           - runner: macos-15-intel
@@ -91,46 +91,6 @@ jobs:
       - name: Production renderer
         run: pnpm --filter @flowsight/agent exec vite build
 
-      - name: Install browser for renderer integration checks
-        run: pnpm exec playwright install chromium webkit
-
-      - name: Onboarding and ADDA renderer checks
-        shell: bash
-        run: |
-          set -euo pipefail
-          pnpm --filter @flowsight/agent exec vite preview --host 127.0.0.1 --port 1420 > /tmp/flowsight-renderer.log 2>&1 &
-          renderer_pid=$!
-          trap 'kill "$renderer_pid" 2>/dev/null || true' EXIT
-          for attempt in {1..60}; do
-            if curl -fsS http://127.0.0.1:1420/ >/dev/null; then break; fi
-            sleep 1
-          done
-          node scripts/verify-session-onboarding.mjs
-          node scripts/verify-focus-platform.mjs
-          FLOWSIGHT_E2E_BROWSER=webkit node scripts/verify-focus-platform.mjs
-          node scripts/verify-recorded-time.mjs
-          node scripts/verify-total-focus-extension.mjs
-          node scripts/verify-adda-renderer.mjs
-          node scripts/verify-dark-button-hovers.mjs
-          node scripts/verify-localization.mjs
-          node scripts/verify-coach-conversation.mjs
-          node scripts/verify-linked-session.mjs
-          node scripts/verify-online-ui.mjs
-          FLOWSIGHT_E2E_BROWSER=webkit node scripts/verify-online-ui.mjs
-          node scripts/verify-work-review.mjs
-          FLOWSIGHT_REPORT_EVIDENCE=.impeccable/review/report-export-chromium node scripts/verify-report-export.mjs
-          FLOWSIGHT_REPORT_EVIDENCE=.impeccable/review/report-export-webkit FLOWSIGHT_E2E_BROWSER=webkit node scripts/verify-report-export.mjs
-          FLOWSIGHT_USAGE_EVIDENCE=.impeccable/review/profiles-chromium node scripts/verify-usage-profiles.mjs
-          FLOWSIGHT_USAGE_EVIDENCE=.impeccable/review/profiles-webkit FLOWSIGHT_E2E_BROWSER=webkit node scripts/verify-usage-profiles.mjs
-
-      - name: Upload renderer evidence
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: macos-${{ matrix.architecture }}-renderer-previews
-          path: .impeccable/review/
-          if-no-files-found: ignore
-
       - name: Formatting
         run: cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --check
 
@@ -148,3 +108,46 @@ jobs:
 
       - name: Execute native MCP STDIO smoke test
         run: node scripts/check-mcp-stdio.mjs apps/agent/src-tauri/target/release/app
+
+      - name: Install browser for renderer integration checks
+        run: pnpm exec playwright install chromium webkit
+
+      - name: Onboarding and ADDA renderer checks
+        timeout-minutes: 15
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm --filter @flowsight/agent exec vite preview --host 127.0.0.1 --port 1420 > /tmp/flowsight-renderer.log 2>&1 &
+          renderer_pid=$!
+          trap 'kill "$renderer_pid" 2>/dev/null || true' EXIT
+          for attempt in {1..60}; do
+            if curl -fsS http://127.0.0.1:1420/ >/dev/null; then break; fi
+            sleep 1
+          done
+          node scripts/run-browser-check.mjs scripts/verify-session-onboarding.mjs
+          node scripts/run-browser-check.mjs scripts/verify-focus-platform.mjs
+          FLOWSIGHT_E2E_BROWSER=webkit node scripts/run-browser-check.mjs scripts/verify-focus-platform.mjs
+          node scripts/run-browser-check.mjs scripts/verify-recorded-time.mjs
+          node scripts/run-browser-check.mjs scripts/verify-total-focus-extension.mjs
+          node scripts/run-browser-check.mjs scripts/verify-adda-renderer.mjs
+          node scripts/run-browser-check.mjs scripts/verify-dark-button-hovers.mjs
+          node scripts/run-browser-check.mjs scripts/verify-localization.mjs
+          node scripts/run-browser-check.mjs scripts/verify-coach-conversation.mjs
+          node scripts/run-browser-check.mjs scripts/verify-linked-session.mjs
+          node scripts/run-browser-check.mjs scripts/verify-online-ui.mjs
+          FLOWSIGHT_E2E_BROWSER=webkit node scripts/run-browser-check.mjs scripts/verify-online-ui.mjs
+          node scripts/run-browser-check.mjs scripts/verify-work-review.mjs
+          FLOWSIGHT_REPORT_EVIDENCE=.impeccable/review/report-export-chromium node scripts/run-browser-check.mjs scripts/verify-report-export.mjs
+          FLOWSIGHT_REPORT_EVIDENCE=.impeccable/review/report-export-webkit FLOWSIGHT_E2E_BROWSER=webkit node scripts/run-browser-check.mjs scripts/verify-report-export.mjs
+          FLOWSIGHT_USAGE_EVIDENCE=.impeccable/review/profiles-chromium node scripts/run-browser-check.mjs scripts/verify-usage-profiles.mjs
+          FLOWSIGHT_USAGE_EVIDENCE=.impeccable/review/profiles-webkit FLOWSIGHT_E2E_BROWSER=webkit node scripts/run-browser-check.mjs scripts/verify-usage-profiles.mjs
+
+      - name: Upload renderer evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-${{ matrix.architecture }}-renderer-previews
+          path: |
+            .impeccable/review/
+            !.impeccable/review/suggestions-harness/target/**
+          if-no-files-found: ignore

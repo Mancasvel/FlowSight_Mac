@@ -373,8 +373,8 @@ function renderReportProgress(progress) {
     const max = row.key === 'focus' ? 100 : Math.max(1, row.current, progress.comparable ? row.previous || 0 : 0);
     const width = (value) => Math.min(100, Math.max(0, value / max * 100));
     return html`<div class="sr-progress-measure"><div class="sr-progress-measure-title"><strong>${escapeHtml(row.label)}</strong>${progress.comparable ? html`<span class="sr-trend-${row.tone}">${directionIcon(row.tone)}</span>` : ''}</div>
-      ${progress.comparable && row.previous !== null ? html`<div class="sr-comparison-bar sr-comparison-previous" aria-label="${escapeHtml(formatMessage`Previous: ${row.previousLabel}`)}"><span style="width:${width(row.previous)}%"></span><b>${escapeHtml(row.previousLabel)}</b></div>` : ''}
-      <div class="sr-comparison-bar sr-comparison-current" aria-label="${escapeHtml(formatMessage`Current: ${row.currentLabel}`)}"><span style="width:${width(row.current)}%"></span><b>${escapeHtml(row.currentLabel)}</b></div>
+      ${progress.comparable && row.previous !== null ? html`<div class="sr-comparison-bar sr-comparison-previous" aria-label="${escapeHtml(formatMessage`Previous: ${row.previousLabel}`)}"><span data-sr-width="${width(row.previous)}"></span><b>${escapeHtml(row.previousLabel)}</b></div>` : ''}
+      <div class="sr-comparison-bar sr-comparison-current" aria-label="${escapeHtml(formatMessage`Current: ${row.currentLabel}`)}"><span data-sr-width="${width(row.current)}"></span><b>${escapeHtml(row.currentLabel)}</b></div>
     </div>`;
   }).join('');
   return html`<section class="sr-progress" aria-label="Your progress">
@@ -393,14 +393,14 @@ export function renderStatusReportHtml(model) {
   const days = model.days.map((day) => html`
     <div class="sr-day" title="${escapeHtml(day.date)}: ${escapeHtml(day.displayDuration)}" aria-label="${escapeHtml(day.date)}: ${escapeHtml(day.displayDuration)}">
       <div class="sr-day-value">${day.displayDuration}</div>
-      <div class="sr-day-track"><span style="height:${day.seconds ? Math.max(7, day.percentOfPeak) : 0}%"></span></div>
+      <div class="sr-day-track"><span data-sr-height="${day.seconds ? Math.max(7, day.percentOfPeak) : 0}"></span></div>
       <div class="sr-day-label">${escapeHtml(day.label)}<small>${escapeHtml(day.date.slice(8))}</small></div>
     </div>`).join('');
   const categories = model.editorial.chartCategories.length
     ? model.editorial.chartCategories.map((category) => html`
       <div class="sr-category-row">
         <span class="sr-category-name" title="${escapeHtml(category.label)}">${escapeHtml(category.label)}</span>
-        <div class="sr-category-track" aria-label="${escapeHtml(formatMessage`${category.percent}% of tracked time`)}"><span style="width:${Math.max(2, category.percent)}%"></span></div>
+        <div class="sr-category-track" aria-label="${escapeHtml(formatMessage`${category.percent}% of tracked time`)}"><span data-sr-width="${Math.max(2, category.percent)}"></span></div>
         <strong>${category.displayDuration}</strong>
       </div>`).join('')
     : markup('<p class="sr-muted">No category time recorded.</p>');
@@ -423,7 +423,7 @@ export function renderStatusReportHtml(model) {
       <div class="sr-distraction-row">
         <div class="sr-distraction-measure">
           <div class="sr-distraction-top"><strong title="${escapeHtml(app.appName)}">${escapeHtml(app.appName)}</strong><span>${escapeHtml(app.duration)}</span></div>
-          <div class="sr-distraction-track" role="img" aria-label="${escapeHtml(formatMessage`${app.appName}: ${app.duration} in sampled foreground visits`)}"><span style="width:${app.percentOfTop}%"></span></div>
+          <div class="sr-distraction-track" role="img" aria-label="${escapeHtml(formatMessage`${app.appName}: ${app.duration} in sampled foreground visits`)}"><span data-sr-width="${app.percentOfTop}"></span></div>
         </div>
         <div class="sr-distraction-detail">
           <p class="sr-distraction-observed">${escapeHtml(tr('{visits} foreground visits across {days} days', { visits: app.visits, days: app.days }))}</p>
@@ -509,4 +509,15 @@ export function renderStatusReportHtml(model) {
           Download PDF
         </button></footer>
     </article>`;
+}
+
+export function applyStatusReportChartStyles(root) {
+  // Tauri adds a nonce to style-src, so dynamic HTML style attributes are
+  // blocked. Assign the two numeric chart dimensions through CSSOM instead.
+  for (const [attribute, property] of [['data-sr-height', 'height'], ['data-sr-width', 'width']]) {
+    for (const node of root.querySelectorAll(`[${attribute}]`)) {
+      const percent = Number(node.getAttribute(attribute));
+      if (Number.isFinite(percent)) node.style[property] = `${Math.min(100, Math.max(0, percent))}%`;
+    }
+  }
 }

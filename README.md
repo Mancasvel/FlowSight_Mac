@@ -72,7 +72,7 @@ Output under `apps/agent/src-tauri/target/<triple>/release/bundle/`.
 
 ## Releases / CI
 
-Publishing a GitHub Release tag (e.g. `v6.5.3`) runs `.github/workflows/release.yml`, which builds **two** installers from this same repo on their native Apple Silicon and Intel runners:
+Publishing a GitHub Release tag (e.g. `v6.5.4`) runs `.github/workflows/release.yml`, which builds **two** installers from this same repo on their native Apple Silicon and Intel runners:
 
 | Asset | Chip |
 |---|---|

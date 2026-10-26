@@ -43,7 +43,7 @@ jobs:
       matrix:
         include:
           - rust_target: aarch64-apple-darwin
-            runner: macos-14
+            runner: macos-15
             llm_arch: macos-arm64
             artifact: macos-aarch64
             updater_platform: darwin-aarch64

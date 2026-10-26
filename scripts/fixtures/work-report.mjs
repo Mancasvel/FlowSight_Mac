@@ -9,7 +9,7 @@ export const syntheticWorkReport = {
     focus_semantics: { longest_focus_seconds: 2700 },
     prior_period: { period_start: '2026-10-05', period_end: '2026-10-11', total_seconds: 36000,
       focus_eligible_seconds: 18000, deep_focus_seconds: 7200, distraction_seconds: 3600, longest_focus_seconds: 1800 },
-    daily_totals: Array.from({ length: 5 }, (_, index) => ({ date: `2026-10-${index + 12}`, total_seconds: 7200 })),
+    daily_totals: [3600, 5400, 7200, 9000, 10800].map((total_seconds, index) => ({ date: `2026-10-${index + 12}`, total_seconds })),
     category_breakdown: [
       ['Coding', 12600], ['Research', 8400], ['Analysis', 5400], ['Communication', 3600],
       ['Admin', 2400], ['Documentation', 1800], ['General', 1200], ['Browsing', 600],
@@ -54,7 +54,7 @@ export function installSyntheticWorkReportNative({ language, report }) {
       if (command === 'plugin:event|listen') return args.handler;
       if (command.startsWith('plugin:window|')) return command.endsWith('is_maximized') ? false : null;
       if (command.startsWith('plugin:event|') || command.startsWith('plugin:updater|')) return null;
-      if (command === 'plugin:app|version') return '6.5.3';
+      if (command === 'plugin:app|version') return '6.5.4';
       if (command === 'get_work_review_decisions') return decisions();
       if (command === 'save_work_review_decision') {
         const saved = { ...args.input, id: args.input.id || 'synthetic-private-choice', createdAt: '2026-10-19', updatedAt: '2026-10-19' };

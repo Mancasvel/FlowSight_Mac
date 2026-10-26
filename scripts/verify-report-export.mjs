@@ -28,8 +28,41 @@ if (!rendererUrl) {
   rendererUrl = `http://127.0.0.1:${server.address().port}`;
 }
 const origin = new URL(rendererUrl).origin;
+// Tauri adds nonces to its configured policy. Their presence makes unsafe-inline
+// ineffective for style attributes; only static style blocks and CSSOM are allowed.
+// This explicit regression policy also runs on ports whose product CSP is null.
+const nativeNonce = 'flowsight-synthetic-native-regression';
+const nativeCsp = `default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data: https:; font-src 'self' data:; style-src 'self' 'unsafe-inline' 'nonce-${nativeNonce}'; script-src 'self' 'unsafe-inline' 'nonce-${nativeNonce}'; connect-src 'self' ipc: http://ipc.localhost https://*.supabase.co wss://*.supabase.co ws://127.0.0.1:1420`;
 let browser;
 const results = [];
+
+async function chartGeometry(page) {
+  return page.evaluate(() => {
+    const measure = (selector, axis, grid = false) => [...document.querySelectorAll(selector)].map(bar => {
+      const box = bar.getBoundingClientRect();
+      const parent = bar.parentElement;
+      const track = grid ? Number.parseFloat(getComputedStyle(parent).gridTemplateColumns.split(' ')[0]) : parent.getBoundingClientRect()[axis];
+      return { pixels: box[axis], track, percent: track > 0 ? box[axis] / track * 100 : null };
+    });
+    return { days: measure('.sr-day-track > span', 'height'), categories: measure('.sr-category-track > span', 'width'),
+      comparisons: measure('.sr-comparison-bar > span', 'width', true), detours: measure('.sr-distraction-track > span', 'width') };
+  });
+}
+
+function assertChartGeometry(geometry) {
+  // Fixture facts: five different days sum to 10 h; category shares sum to 100%.
+  // Focus is 40% -> 60%, detours are 12 -> 6 min/h, longest is 30 -> 45 min.
+  const expected = { days: [33, 50, 67, 83, 100, 0, 0], categories: [35, 23, 15, 10, 7, 10],
+    comparisons: [40, 60, 100, 50, 100 * 30 / 45, 100], detours: [30, 15] };
+  for (const [kind, percentages] of Object.entries(expected)) {
+    assert.equal(geometry[kind].length, percentages.length, `Wrong number of ${kind} bars.`);
+    geometry[kind].forEach((bar, index) => {
+      assert.ok(bar.track > 0, `${kind}[${index}] needs a visible track.`);
+      const expectedPixels = bar.track * percentages[index] / 100;
+      assert.ok(Math.abs(bar.pixels - expectedPixels) <= 1, `${kind}[${index}]: expected ${percentages[index]}% (${expectedPixels}px), observed ${bar.percent}% (${bar.pixels}px).`);
+    });
+  }
+}
 
 function pdfPages(bytes) {
   const source = Buffer.from(bytes).toString('latin1');
@@ -53,17 +86,29 @@ try {
     { name: 'compact-es', width: 370, height: 900, language: 'es', theme: 'light' },
     { name: 'wide-dark', width: 900, height: 1000, language: 'en', theme: 'dark' },
   ]) {
-    const context = await browser.newContext({ viewport: { width: view.width, height: view.height },
+    const context = await browser.newContext({ viewport: { width: view.width, height: view.height }, bypassCSP: false,
       locale: view.language === 'es' ? 'es-ES' : 'en-GB', timezoneId: 'Europe/Madrid', colorScheme: view.theme, reducedMotion: 'reduce' });
     const externalRequests = [];
-    await context.route('**/*', route => {
-      if (new URL(route.request().url()).origin === origin) return route.continue();
-      externalRequests.push(route.request().url()); return route.abort();
+    await context.route('**/*', async route => {
+      if (new URL(route.request().url()).origin !== origin) { externalRequests.push(route.request().url()); return route.abort(); }
+      if (route.request().resourceType() !== 'document') return route.continue();
+      const response = await route.fetch();
+      const body = (await response.text()).replace(/<(style|script)(?=[\s>])/gi, `<$1 nonce="${nativeNonce}"`);
+      return route.fulfill({ response, body, headers: { ...response.headers(), 'content-security-policy': nativeCsp } });
     });
     await context.addInitScript(installSyntheticWorkReportNative, { language: view.language, report: syntheticWorkReport });
     const page = await context.newPage(), errors = [];
     page.on('pageerror', error => errors.push(error.message));
     await page.goto(rendererUrl, { waitUntil: 'networkidle' });
+    const cspProbe = await page.evaluate(() => {
+      const probe = document.createElement('div');
+      probe.setAttribute('style', 'height:13px;width:37px'); document.body.append(probe);
+      const attributeHeight = probe.getBoundingClientRect().height;
+      probe.style.height = '13px'; probe.style.width = '37px';
+      const propertyHeight = probe.getBoundingClientRect().height, propertyWidth = probe.getBoundingClientRect().width;
+      probe.remove(); return { attributeHeight, propertyHeight, propertyWidth };
+    });
+    assert.deepEqual(cspProbe, { attributeHeight: 0, propertyHeight: 13, propertyWidth: 37 }, 'The test must enforce native-style CSP while allowing direct CSSOM properties.');
     await page.locator('.nav-item[data-tab="tabSummary"]').click();
     assert.equal(await page.locator('#workReportPeriod').inputValue(), '7');
     await page.locator('#generateReportBtn').click();
@@ -77,6 +122,8 @@ try {
     assert.equal(await page.locator('[data-review-suggestion]').count(), 3);
     assert.ok(await page.locator('#srEvidenceTitle').evaluate(node => !!(node.compareDocumentPosition(document.querySelector('#srNextTitle')) & Node.DOCUMENT_POSITION_FOLLOWING)));
     assert.ok(await page.locator('#statusReportModalBody').evaluate(node => node.scrollWidth <= node.clientWidth + 1));
+    const geometry = await chartGeometry(page);
+    assertChartGeometry(geometry);
     await page.locator('.sr-report-details > summary').click();
     assert.ok(await page.locator('.sr-report-details').evaluate(node => node.open));
     assert.match(await page.locator('.sr-report-details').innerText(), /RAW_SYNTHETIC_SCREEN_CONTEXT/);
@@ -129,7 +176,7 @@ try {
     assert.deepEqual(errors, []);
     results.push({ scenario: view.name, synthetic: true, pages: pages.length, bytes: exported.bytes.length,
       generationViaUi: true, privateChoiceExcluded: true, technicalNarrativeExcluded: true, downloadDialog: true,
-      retryTested: view.name === 'wide-en', noExternalRequests: true });
+      retryTested: view.name === 'wide-en', noExternalRequests: true, nativeNonceCsp: true, chartGeometry: geometry });
     await context.close();
   }
   await writeFile(resolve(output, 'export-verification.json'), JSON.stringify({ passed: true, synthetic: true, results }, null, 2));

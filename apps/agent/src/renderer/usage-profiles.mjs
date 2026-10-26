@@ -83,11 +83,11 @@ export function createDialogFocusController(document, { onEscape = {} } = {}) {
   function focusable(element) {
     return [...element.querySelectorAll('button, input, select, textarea, summary, a[href], [tabindex]')].filter(node => !node.disabled && !node.hidden && node.tabIndex >= 0 && node.getClientRects().length && getComputedStyle(node).visibility !== 'hidden' && !node.closest('[inert]'));
   }
-  function open(element) {
+  function open(element, invoker = document.activeElement) {
     if (!element) return;
     const existing = stack.findIndex(item => item.element === element);
     if (existing !== -1) stack.splice(existing, 1);
-    stack.push({ element, previousFocus: document.activeElement });
+    stack.push({ element, previousFocus: invoker?.isConnected ? invoker : document.activeElement });
     element.classList.add('visible'); element.setAttribute('aria-hidden', 'false');
     updateBackground();
     const heading = element.querySelector('h1, h2');

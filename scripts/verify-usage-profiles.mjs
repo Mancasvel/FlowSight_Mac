@@ -12,11 +12,14 @@ const output = resolve(process.env.FLOWSIGHT_USAGE_EVIDENCE || '../team-profiles
 await mkdir(output, { recursive: true });
 const browserType = process.env.FLOWSIGHT_E2E_BROWSER === 'webkit' ? webkit : chromium;
 const browser = await browserType.launch({ headless: true });
+let currentPage;
 const results = [];
 const scenario = name => !process.env.FLOWSIGHT_USAGE_SCENARIO || process.env.FLOWSIGHT_USAGE_SCENARIO === name;
 
 async function pageFor({ profile = 'team_employee', locale = 'en-GB', completed = true, signedIn = true, licensed = true, usageChoice = null, solo = false, stale = false, legacy = false, offline = false, pomodoro = false, dark = false, holdBoot = false } = {}) {
   const page = await browser.newPage({ locale, timezoneId: 'Europe/Madrid', colorScheme: dark ? 'dark' : 'light', viewport: { width: 370, height: 700 }, reducedMotion: 'reduce' });
+  currentPage = page;
+  page.setDefaultTimeout(30_000);
   await page.clock.install({ time: new Date('2026-10-01T17:00:00+02:00') });
   const errors = []; page.on('pageerror', error => errors.push(error.message));
   await page.addInitScript({ content: `(${initialize})({locale:${JSON.stringify(locale)}});` });
@@ -169,7 +172,10 @@ try {
     await page.locator('#teamSetupPrivacy').click(); await page.locator('#privacyNoticeOverlay.visible').waitFor();
     await page.keyboard.press('Tab'); await page.keyboard.press('Shift+Tab');
     assert.equal(await page.evaluate(() => document.getElementById('privacyNoticeOverlay').contains(document.activeElement)), true);
-    await page.keyboard.press('Escape'); assert.equal(await page.evaluate(() => document.activeElement.id), 'teamSetupPrivacy');
+    await page.keyboard.press('Escape');
+    await page.locator('#privacyNoticeOverlay').waitFor({state:'hidden'});
+    await page.waitForFunction(()=>document.activeElement.id==='teamSetupPrivacy',undefined,{timeout:2000});
+    assert.equal(await page.evaluate(() => document.activeElement.id), 'teamSetupPrivacy');
     await page.locator('#onboardingContinueBtn').click(); await page.locator('#onboardingOverlay').waitFor({ state: 'hidden' });
     assert.equal(await page.evaluate(() => window.usageFixture.privacy.monitoringNoticeAcknowledged), true);
     assert.equal(await page.evaluate(() => window.usageFixture.privacy.cloudSyncEnabled), false);
@@ -356,4 +362,15 @@ try {
   }
   await writeFile(resolve(output, 'renderer-e2e.json'), JSON.stringify({ evidence: 'Production renderer with fictional native IPC, no real account or native capture', results }, null, 2));
   console.log(JSON.stringify(results, null, 2));
+} catch(error) {
+  if(currentPage&&!currentPage.isClosed()) {
+    await currentPage.screenshot({path:resolve(output,'failure-simulated-native.png'),timeout:10000}).catch(()=>{});
+    console.error('Profile failure focus:',await currentPage.evaluate(()=>({
+      activeId:document.activeElement?.id,activeTag:document.activeElement?.tagName,
+      inertAncestor:document.activeElement?.closest('[inert]')?.id,
+      privacyVisible:document.getElementById('privacyNoticeOverlay')?.classList.contains('visible'),
+      setupVisible:document.getElementById('onboardingOverlay')?.classList.contains('visible'),
+    })).catch(()=>null));
+  }
+  throw error;
 } finally { await browser.close(); }

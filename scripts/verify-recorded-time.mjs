@@ -89,7 +89,7 @@ try {
     assert.equal(await page.locator('#timerRecordingNote').isVisible(), false);
     assert.equal(await page.locator('#timerGoalProgress').isVisible(), true);
     assert.equal(await page.locator('#timerGoalProgress').getAttribute('aria-valuenow'), '96');
-    const goalRow=await page.locator('.timer-meta-item').evaluate(row=>{
+    const goalRow=await page.locator('.timer-meta-item').filter({has:page.locator('#timerGoalLabel')}).evaluate(row=>{
       const label=row.querySelector('.timer-meta-label').getBoundingClientRect();
       const value=row.querySelector('.timer-goal-label').getBoundingClientRect();
       return {aligned:Math.abs(label.bottom-value.bottom)<5,overlap:label.right>value.left};
