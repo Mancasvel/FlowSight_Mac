@@ -2,8 +2,8 @@
 # Keep all mounts and working images inside this job's temporary directory.
 set -euo pipefail
 
-MODE="${1:?create or probe}"
-INPUT="${2:?staging directory or signed app archive}"
+MODE="${1:?create, probe or validate}"
+INPUT="${2:?staging directory, signed app archive or stapled target}"
 WORK="$(mktemp -d "${RUNNER_TEMP:?}/flowsight-hfs.XXXXXX")"
 MOUNT="$WORK/mount"
 mkdir -p "$MOUNT"
@@ -43,9 +43,43 @@ print('DMG_FILESYSTEM=' + info['FilesystemType'])
 PY
 }
 
+validate_stapled_ticket() {
+  local target="$1" attempt status delay=5
+  local log="$WORK/stapler-validate.log"
+  for attempt in 1 2 3 4 5; do
+    echo "STAPLER_VALIDATE_ATTEMPT=$attempt/5 target=$target"
+    if xcrun stapler validate "$target" > "$log" 2>&1; then
+      cat "$log"
+      echo "STAPLER_TICKET_VALIDATE=success"
+      return 0
+    else
+      status=$?
+      cat "$log"
+    fi
+    # Retry only the observed CloudKit connection loss. An invalid/missing ticket
+    # or another validation error must still fail immediately.
+    if ! grep -Eq 'NSURLErrorDomain Code=-1005 .*network connection was lost' "$log"; then
+      echo "STAPLER_TICKET_VALIDATE=failed status=$status non_transient=true" >&2
+      return "$status"
+    fi
+    if [[ "$attempt" -eq 5 ]]; then
+      echo "STAPLER_CLOUDKIT_TRANSPORT_FAILURE=exhausted status=$status" >&2
+      date -u
+      dscacheutil -q host -a name api.apple-cloudkit.com || true
+      curl --head --connect-timeout 10 --max-time 20 https://api.apple-cloudkit.com/ || true
+      return "$status"
+    fi
+    echo "STAPLER_CLOUDKIT_RETRY_DELAY_SECONDS=$delay"
+    sleep "$delay"
+    delay=$((delay * 2))
+  done
+}
+
 validate_payload() {
   codesign --verify --deep --strict "$MOUNT/FlowSight Agent.app"
-  xcrun stapler validate "$MOUNT/FlowSight Agent.app"
+  if [[ "${FLOWSIGHT_DMG_REQUIRE_NOTARY:-1}" -eq 1 ]]; then
+    validate_stapled_ticket "$MOUNT/FlowSight Agent.app"
+  fi
 }
 
 two_step_hfs() {
@@ -120,7 +154,7 @@ with tarfile.open(archive_path, 'r:gz') as archive:
 PY
   ln -s /Applications "$STAGE/Applications"
   codesign --verify --deep --strict "$STAGE/FlowSight Agent.app"
-  xcrun stapler validate "$STAGE/FlowSight Agent.app"
+  validate_stapled_ticket "$STAGE/FlowSight Agent.app"
   echo "FILESYSTEM_PROBE_INPUT=verified_signed_Intel_app; no native runtime execution"
   sw_vers
   uname -m
@@ -135,7 +169,12 @@ PY
   inspect_final_image "$WORK/hfs-two-step.dmg"
   echo "DMG_HFS_PROBE=success"
 elif [[ "$MODE" == "create" ]]; then
+  # A normal local/ad-hoc pipeline still checks codesign; signed releases also
+  # require the copied payload's notarization ticket, as does every probe.
+  [[ "${FLOWSIGHT_DMG_REQUIRE_NOTARY:-1}" =~ ^[01]$ ]]
   create_image "$INPUT" "${3:?DMG output path}"
+elif [[ "$MODE" == "validate" ]]; then
+  validate_stapled_ticket "$INPUT"
 else
   echo "Unknown mode: $MODE" >&2
   exit 2

@@ -297,7 +297,7 @@ jobs:
               echo "ERROR: xcrun stapler staple failed for $target"
               return 1
             fi
-            if ! xcrun stapler validate "$target"; then
+            if ! bash "$FLOWSIGHT_DMG_HELPER" validate "$target"; then
               echo "ERROR: xcrun stapler validate failed for $target"
               return 1
             fi
@@ -513,12 +513,12 @@ jobs:
           ditto "$APP" "$STAGE/FlowSight Agent.app"
           if [[ "$NOTARIZE" -eq 1 ]]; then
             # ditto must carry the notarization ticket into the DMG payload.
-            xcrun stapler validate "$STAGE/FlowSight Agent.app"
+            bash "$FLOWSIGHT_DMG_HELPER" validate "$STAGE/FlowSight Agent.app"
           fi
           ln -s /Applications "$STAGE/Applications"
           DMG_PATH="$DMG_DIR/FlowSight Agent_${VERSION}_${ARCH_TAG}.dmg"
           # Explicit HFS+, with a writable owned-volume fallback for srcfolder locks.
-          bash "$FLOWSIGHT_DMG_HELPER" create "$STAGE" "$DMG_PATH"
+          FLOWSIGHT_DMG_REQUIRE_NOTARY="$NOTARIZE" bash "$FLOWSIGHT_DMG_HELPER" create "$STAGE" "$DMG_PATH"
           rm -rf "$STAGE"
           hdiutil verify "$DMG_PATH"
 
@@ -578,9 +578,9 @@ jobs:
           echo "=== Release verification gates ==="
           gate "codesign --verify .app" codesign --verify --deep --strict --verbose=2 "$APP"
           if [[ "$NOTARIZE" -eq 1 ]]; then
-            gate "stapler validate .app" xcrun stapler validate "$APP"
+            gate "stapler validate .app" bash "$FLOWSIGHT_DMG_HELPER" validate "$APP"
             gate "spctl exec .app" spctl -a -vvv -t exec "$APP"
-            gate "stapler validate .dmg" xcrun stapler validate "$DMG_PATH"
+            gate "stapler validate .dmg" bash "$FLOWSIGHT_DMG_HELPER" validate "$DMG_PATH"
             gate "spctl open .dmg" spctl -a -vvv -t open --context context:primary-signature "$DMG_PATH"
           else
             echo "SKIP  notarization gates (unsigned or unnotarized build)"
