@@ -136,7 +136,7 @@ fn main() {
     // opcional. La configuracion publica de Supabase tiene defaults en codigo.
     if let Ok(exe) = std::env::current_exe() {
         if let Some(dir) = exe.parent() {
-            let _ = dotenv::from_filename(dir.join(".env"));
+            let _ = dotenvy::from_filename(dir.join(".env"));
         }
     }
 

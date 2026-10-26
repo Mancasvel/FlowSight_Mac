@@ -3,8 +3,12 @@
 use serde_json::{json, Value};
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
-use tauri::{Emitter, Manager, State};
+#[cfg(windows)]
+use std::time::Duration;
+use std::time::Instant;
+use tauri::State;
+#[cfg(windows)]
+use tauri::{Emitter, Manager};
 
 #[derive(Default)]
 struct Shared {
