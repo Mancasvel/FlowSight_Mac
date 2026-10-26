@@ -367,7 +367,18 @@ mod tests {
 
     #[test]
     fn unverified_external_writes_are_not_offered() {
-        assert_eq!(enabled_specs().len(), 33);
+        assert_eq!(enabled_specs().len(), if cfg!(windows) { 33 } else { 32 });
+        assert_eq!(
+            enabled_by_public_name("system.set_dnd").is_some(),
+            cfg!(windows),
+            "Notification-banner control is offered only on Windows"
+        );
+        assert_eq!(
+            specs_for_family("system")
+                .iter()
+                .any(|spec| spec.name == "system.set_dnd"),
+            cfg!(windows)
+        );
         for name in DISABLED_EXTERNAL_WRITES {
             assert!(by_public_name(name).is_some());
             assert!(enabled_by_public_name(name).is_none());

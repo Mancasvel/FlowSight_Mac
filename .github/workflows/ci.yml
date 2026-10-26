@@ -51,6 +51,18 @@ jobs:
         with:
           workspaces: apps/agent/src-tauri -> target
 
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Renderer tests
+        run: pnpm --filter @flowsight/agent exec node --test
+
+      - name: Production renderer
+        run: pnpm --filter @flowsight/agent exec vite build
+
+      - name: Formatting
+        run: cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --check
+
       - name: Prepare macOS llama-server (Metal)
         shell: bash
         run: |
@@ -58,6 +70,21 @@ jobs:
           bash scripts/prepare-macos-llm.sh
           test -x local_llm/bin/llama-server
           lipo -archs local_llm/bin/llama-server | grep -q '${{ matrix.architecture }}'
+
+      - name: Cargo check
+        run: cargo check --manifest-path apps/agent/src-tauri/Cargo.toml
+
+      - name: Unit tests
+        run: cargo test --manifest-path apps/agent/src-tauri/Cargo.toml --lib
+
+      - name: Clippy
+        run: cargo clippy --manifest-path apps/agent/src-tauri/Cargo.toml --lib -- -D warnings
+
+      - name: Native macOS application build
+        run: pnpm --filter @flowsight/agent exec tauri build --no-bundle
+
+      - name: Execute native MCP STDIO smoke test
+        run: node scripts/check-mcp-stdio.mjs apps/agent/src-tauri/target/release/app
 
       - name: Fetch and verify Qwen3-VL-2B weights
         run: node scripts/fetch-models.mjs
@@ -81,33 +108,6 @@ jobs:
             .impeccable/review/suggestions-qwen.json
             .impeccable/review/suggestions-harness/source-manifest.json
           if-no-files-found: ignore
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Renderer tests
-        run: pnpm --filter @flowsight/agent exec node --test
-
-      - name: Production renderer
-        run: pnpm --filter @flowsight/agent exec vite build
-
-      - name: Formatting
-        run: cargo fmt --manifest-path apps/agent/src-tauri/Cargo.toml --check
-
-      - name: Cargo check
-        run: cargo check --manifest-path apps/agent/src-tauri/Cargo.toml
-
-      - name: Unit tests
-        run: cargo test --manifest-path apps/agent/src-tauri/Cargo.toml --lib
-
-      - name: Clippy
-        run: cargo clippy --manifest-path apps/agent/src-tauri/Cargo.toml --lib -- -D warnings
-
-      - name: Native macOS application build
-        run: pnpm --filter @flowsight/agent exec tauri build --no-bundle
-
-      - name: Execute native MCP STDIO smoke test
-        run: node scripts/check-mcp-stdio.mjs apps/agent/src-tauri/target/release/app
 
       - name: Install browser for renderer integration checks
         run: pnpm exec playwright install chromium webkit

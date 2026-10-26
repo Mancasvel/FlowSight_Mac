@@ -16,7 +16,9 @@ const schemas = JSON.parse(execFileSync('cargo', ['run', '--quiet', '--bin', 'du
 }));
 const tools = schemas.tools;
 const disabledWrites = ['messages_send', 'project_update_status', 'project_create_subtask'];
-if (tools.length !== 33 || disabledWrites.some((name) => tools.some((tool) => tool.function.name === name))) {
+const expectedToolCount = process.platform === 'win32' ? 33 : 32;
+const hasNotificationBannerControl = tools.some((tool) => tool.function.name === 'system_set_dnd');
+if (tools.length !== expectedToolCount || hasNotificationBannerControl !== (process.platform === 'win32') || disabledWrites.some((name) => tools.some((tool) => tool.function.name === name))) {
   throw new Error('Unverified external writes were offered to the local model.');
 }
 const port = await new Promise((resolve) => {
@@ -26,7 +28,8 @@ const port = await new Promise((resolve) => {
     server.close(() => resolve(chosen));
   });
 });
-const child = spawn(join(runtime, 'bin/llama-server.exe'), [
+const runtimeName = process.platform === 'win32' ? 'llama-server.exe' : 'llama-server';
+const child = spawn(join(runtime, 'bin', runtimeName), [
   '-m', join(runtime, 'Qwen3VL-2B-Instruct-Q4_K_M.gguf'),
   '--mmproj', join(runtime, 'mmproj-Qwen3VL-2B-Instruct-Q8_0.gguf'),
   '--alias', 'flowsight-qwen3vl-2b-instruct',
