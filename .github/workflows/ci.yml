@@ -106,6 +106,8 @@ jobs:
             sleep 1
           done
           node scripts/verify-session-onboarding.mjs
+          node scripts/verify-focus-platform.mjs
+          FLOWSIGHT_E2E_BROWSER=webkit node scripts/verify-focus-platform.mjs
           node scripts/verify-recorded-time.mjs
           node scripts/verify-total-focus-extension.mjs
           node scripts/verify-adda-renderer.mjs

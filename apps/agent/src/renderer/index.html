@@ -7774,7 +7774,7 @@
       } else if (step === 3) {
         body.innerHTML = html`<h1 class="onboarding-title" tabindex="-1">Make space for total focus</h1>
           <p class="onboarding-subtitle">Choose the websites to block during a focus session. Browser Controls works with Arc on Windows and macOS, and Chrome on Windows, macOS, and Linux.</p>
-          ${focusExample()}${focusFields('onboardingFocus', onboardingState.totalFocusPreferences || totalFocusController.preferences())}
+          ${focusExample()}${focusFields('onboardingFocus', onboardingState.totalFocusPreferences || totalFocusController.preferences(), totalFocusController.systemNotificationsAvailable())}
           <div class="total-focus-pairing"><strong>Connect Browser Controls</strong>
           <p class="session-help">Install the extension, copy the pairing key, and choose Save and connect in its options.</p>
           <button type="button" class="button button-secondary" id="onboardingFocusInstall">Install Browser Controls</button>

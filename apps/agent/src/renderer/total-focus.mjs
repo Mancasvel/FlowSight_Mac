@@ -4,7 +4,7 @@ const escape = value => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&
 const defaults = {patterns:['instagram.com','tiktok.com','x.com'],exceptions:[],durationMinutes:50,quietNotifications:true,musicEnabled:false,musicUrl:''};
 const sites = value => value.split(/[\n,]+/).map(item => item.trim()).filter(Boolean);
 
-export function focusFields(prefix, preferences = defaults) {
+export function focusFields(prefix, preferences = defaults, systemNotificationsAvailable = false) {
   return html`<div class="total-focus-fields">
     <label for="${prefix}Sites">Pages to block</label>
     <textarea id="${prefix}Sites" class="input" rows="3" maxlength="5000" spellcheck="false" placeholder="instagram.com, tiktok.com, youtube.com/shorts">${escape(preferences.patterns.join('\n'))}</textarea>
@@ -14,8 +14,8 @@ export function focusFields(prefix, preferences = defaults) {
     <p class="session-help">Exceptions take priority. Keep the pages you need for your work.</p>
     <label for="${prefix}Minutes">Session duration (minutes)</label>
     <input id="${prefix}Minutes" class="input" type="number" min="5" max="180" step="1" value="${preferences.durationMinutes}">
-    <label class="total-focus-quiet" for="${prefix}Quiet"><input id="${prefix}Quiet" type="checkbox" ${preferences.quietNotifications !== false ? 'checked' : ''}> Silence Windows app notification banners</label>
-    <p class="session-help">The previous notification setting is restored when the session ends. Browser protection continues if you quit FlowSight; notification silence resumes when you reopen it.</p>
+    <label id="${prefix}QuietControl" class="total-focus-quiet" for="${prefix}Quiet" ${systemNotificationsAvailable ? '' : 'hidden'}><input id="${prefix}Quiet" type="checkbox" data-system-notifications-available="${systemNotificationsAvailable}" ${systemNotificationsAvailable && preferences.quietNotifications !== false ? 'checked' : ''} ${systemNotificationsAvailable ? '' : 'disabled'}> Silence Windows app notification banners</label>
+    <p id="${prefix}QuietHelp" class="session-help" ${systemNotificationsAvailable ? '' : 'hidden'}>The previous notification setting is restored when the session ends. Browser protection continues if you quit FlowSight; notification silence resumes when you reopen it.</p>
     <label class="total-focus-quiet" for="${prefix}MusicEnabled"><input id="${prefix}MusicEnabled" type="checkbox" ${preferences.musicEnabled ? 'checked' : ''}> Open music when total focus starts</label>
     <label for="${prefix}MusicUrl">Music link</label>
     <input id="${prefix}MusicUrl" class="input total-focus-music-url" type="url" maxlength="2048" spellcheck="false" autocapitalize="off" autocomplete="off" aria-describedby="${prefix}MusicHelp" placeholder="https://music.youtube.com/playlist?list=…" value="${escape(preferences.musicUrl || '')}">
@@ -27,7 +27,7 @@ export function readFocusFields(prefix) {
   return {patterns:sites(document.getElementById(`${prefix}Sites`).value),
     exceptions:sites(document.getElementById(`${prefix}Exceptions`).value),
     durationMinutes:Number(document.getElementById(`${prefix}Minutes`).value),
-    quietNotifications:document.getElementById(`${prefix}Quiet`).checked,
+    quietNotifications:document.getElementById(`${prefix}Quiet`).dataset.systemNotificationsAvailable === 'true' && document.getElementById(`${prefix}Quiet`).checked,
     musicEnabled:document.getElementById(`${prefix}MusicEnabled`).checked,
     musicUrl:document.getElementById(`${prefix}MusicUrl`).value.trim()};
 }
@@ -104,7 +104,11 @@ export function mountTotalFocus({invoke}) {
     const musicUnsupported = document.getElementById('totalFocusMusicEnabled').checked && !state?.browser?.musicAvailable;
     document.getElementById('totalFocusRepair').hidden = present || !state?.browser?.connected || Boolean(state.browser.totalFocusAvailable && !musicUnsupported);
     document.getElementById('totalFocusStatus').dataset.active = String(Boolean(acknowledged));
-    setText(document.getElementById('totalFocusQuietStatus'), () => state?.systemNotificationsQuiet
+    const systemNotificationsAvailable = Boolean(state?.systemNotificationsAvailable);
+    document.getElementById('totalFocusQuietControl').hidden = !systemNotificationsAvailable;
+    document.getElementById('totalFocusQuietHelp').hidden = !systemNotificationsAvailable;
+    document.getElementById('totalFocusQuiet').dataset.systemNotificationsAvailable = String(systemNotificationsAvailable);
+    setText(document.getElementById('totalFocusQuietStatus'), () => systemNotificationsAvailable && state?.systemNotificationsQuiet
       ? t('Windows app notification banners are silenced.')
       : active && session.quietNotifications && state?.systemNotificationsAvailable
       ? t('Notification silence is not confirmed. End the session and try again.') : '');
@@ -131,6 +135,7 @@ export function mountTotalFocus({invoke}) {
     host.setAttribute('aria-busy', String(busy));
     document.getElementById('totalFocusTask').disabled = present || busy;
     document.querySelectorAll('#totalFocusConfig input, #totalFocusConfig textarea').forEach(field => field.disabled = present || busy);
+    document.getElementById('totalFocusQuiet').disabled = present || busy || !systemNotificationsAvailable;
     for (const id of buttons) document.getElementById(id).disabled = busy || (id === 'totalFocusSave' && present);
     document.getElementById('totalFocusStart').disabled = busy || !state?.browser?.connected || !state?.browser?.totalFocusAvailable;
     setText(document.getElementById('todayTotalFocusLabel'), () => t('Total focus settings'));
@@ -166,6 +171,7 @@ export function mountTotalFocus({invoke}) {
   }
   async function startWithPreferences(intention, preferences) {
     // Commit the exact fields used to start so Today and later sessions agree.
+    preferences = {...preferences, quietNotifications:Boolean(state?.systemNotificationsAvailable && preferences.quietNotifications)};
     const saved = await invoke('save_total_focus_preferences',{preferences});
     state.preferences = saved;dirty = false;
     return invoke('start_total_focus',{intention,preferences:saved});
@@ -240,5 +246,5 @@ export function mountTotalFocus({invoke}) {
     const result = await startWithPreferences(String(intention || '').trim(),preferences);
     feedback(() => result?.session?.musicWarning ? `${t('Focus is active, but the music link could not be opened:')} ${localizeStatus(result.session.musicWarning)}` : t('Browser protection confirmed. Your session is ready.'));
   }, 'start', 'today');
-  return {refresh,session:()=>state?.session,busy:()=>busy,ready:()=>Boolean(state),clockAction,startFromToday,preferences:()=>state?.preferences||structuredClone(defaults)};
+  return {refresh,session:()=>state?.session,busy:()=>busy,ready:()=>Boolean(state),clockAction,startFromToday,preferences:()=>state?.preferences||structuredClone(defaults),systemNotificationsAvailable:()=>Boolean(state?.systemNotificationsAvailable)};
 }

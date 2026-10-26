@@ -4,6 +4,7 @@
 .total-focus-fields input { max-width:140px; }
 .total-focus-fields input.total-focus-music-url { max-width:none; }
 .total-focus-fields label.total-focus-quiet { display:flex; align-items:center; gap:8px; line-height:1.5; }
+.total-focus-fields [hidden] { display:none !important; }
 .total-focus-quiet input { width:16px; height:16px; flex:none; accent-color:hsl(var(--primary)); }
 #totalFocusDigest { margin-block:16px; padding:12px; border:1px solid hsl(var(--border)); border-radius:8px; }
 #totalFocusDigestItems { overflow-wrap:anywhere; font-size:12px; max-height:220px; overflow:auto; }
