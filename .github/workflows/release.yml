@@ -9,6 +9,16 @@ on:
         description: "Existing release tag to build and attach (e.g. v3.6.0)"
         required: true
         type: string
+      reuse_intel_run:
+        description: "Optional completed run of this exact tag with a verified Intel artifact"
+        required: false
+        type: string
+        default: ""
+      expected_product_sha:
+        description: "Optional immutable product commit assertion for recovery dispatch"
+        required: false
+        type: string
+        default: ""
 
 concurrency:
   group: release-macos-${{ github.event.release.tag_name || inputs.tag || github.ref }}
@@ -16,6 +26,7 @@ concurrency:
 
 permissions:
   contents: write
+  actions: read
 
 # Builds BOTH Apple Silicon (aarch64) and Intel (x86_64) DMGs from this repo.
 # Secrets (optional): TAURI_*, NEXT_PUBLIC_*, APPLE_* for signing/notarization.
@@ -37,21 +48,44 @@ permissions:
 # darwin-aarch64 / darwin-x86_64. DMGs remain for manual install.
 
 jobs:
+  reuse-intel:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.reuse_intel_run != '' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      RELEASE_TAG: ${{ inputs.tag }}
+      REUSE_RUN: ${{ inputs.reuse_intel_run }}
+      EXPECTED_PRODUCT_SHA: ${{ inputs.expected_product_sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - name: Verify and stage immutable signed Intel artifact
+        run: |
+          python3 .github/scripts/reuse-intel-release.py --tag "$RELEASE_TAG" --run "$REUSE_RUN" \
+            --expected-source "$EXPECTED_PRODUCT_SHA" --output intel-staged --proof release-evidence/intel-reuse-proof.json
+      - name: Upload byte-identical Intel release files
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-x86_64
+          path: intel-staged/*
+          if-no-files-found: error
+      - name: Upload Intel provenance
+        uses: actions/upload-artifact@v4
+        with:
+          name: reused-intel-source
+          path: release-evidence/intel-reuse-proof.json
+          if-no-files-found: error
+
   build-macos:
+    needs: [reuse-intel]
+    if: ${{ always() && (needs.reuse-intel.result == 'success' || needs.reuse-intel.result == 'skipped') }}
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - rust_target: aarch64-apple-darwin
-            runner: macos-15
-            llm_arch: macos-arm64
-            artifact: macos-aarch64
-            updater_platform: darwin-aarch64
-          - rust_target: x86_64-apple-darwin
-            runner: macos-15-intel
-            llm_arch: macos-x64
-            artifact: macos-x86_64
-            updater_platform: darwin-x86_64
+      matrix: ${{ fromJSON(inputs.reuse_intel_run && '{"include":[{"rust_target":"aarch64-apple-darwin","runner":"macos-15","llm_arch":"macos-arm64","artifact":"macos-aarch64","updater_platform":"darwin-aarch64"}]}' || '{"include":[{"rust_target":"aarch64-apple-darwin","runner":"macos-15","llm_arch":"macos-arm64","artifact":"macos-aarch64","updater_platform":"darwin-aarch64"},{"rust_target":"x86_64-apple-darwin","runner":"macos-15-intel","llm_arch":"macos-x64","artifact":"macos-x86_64","updater_platform":"darwin-x86_64"}]}') }}
     runs-on: ${{ matrix.runner }}
     env:
       TAURI_GOOGLE_CALENDAR_CLIENT_ID: ${{ vars.TAURI_GOOGLE_CALENDAR_CLIENT_ID }}
@@ -79,9 +113,48 @@ jobs:
       # Authenticated API avoids 403 rate limits when resolving llama.cpp assets
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
-      - uses: actions/checkout@v4
+      - name: Check out declared packaging workflow
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - name: Preserve HFS helper from the workflow commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          echo "WORKFLOW_SOURCE_SHA=$(git rev-parse HEAD)"
+          cp .github/scripts/create-hfs-dmg.sh "$RUNNER_TEMP/flowsight-create-hfs-dmg.sh"
+          echo "FLOWSIGHT_DMG_HELPER=$RUNNER_TEMP/flowsight-create-hfs-dmg.sh" >> "$GITHUB_ENV"
+      - name: Check out immutable product tag
+        uses: actions/checkout@v4
         with:
           ref: ${{ github.event.release.tag_name || inputs.tag }}
+      - name: Attest actual product checkout
+        shell: bash
+        env:
+          EXPECTED_PRODUCT_SHA: ${{ inputs.expected_product_sha || '' }}
+        run: |
+          set -euo pipefail
+          PRODUCT_SHA="$(git rev-parse HEAD)"
+          TAG_SHA="$(git rev-parse "$RELEASE_TAG^{commit}")"
+          test "$PRODUCT_SHA" = "$TAG_SHA"
+          if [[ -n "$EXPECTED_PRODUCT_SHA" ]]; then test "$PRODUCT_SHA" = "$EXPECTED_PRODUCT_SHA"; fi
+          test -z "$(git status --porcelain --untracked-files=no)"
+          echo "PRODUCT_SOURCE_SHA=$PRODUCT_SHA"
+          echo "PRODUCT_SOURCE_TREE=$(git rev-parse 'HEAD^{tree}')"
+      - name: Download verified Intel app for filesystem diagnosis
+        if: ${{ inputs.reuse_intel_run != '' }}
+        uses: actions/download-artifact@v4
+        with:
+          name: macos-x86_64
+          path: ${{ runner.temp }}/flowsight-intel-filesystem-probe
+      - name: Probe explicit HFS and writable-image fallback before compiling
+        if: ${{ inputs.reuse_intel_run != '' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="$(python3 -c 'import json;print(json.load(open("apps/agent/src-tauri/tauri.conf.json"))["version"])')"
+          bash "$FLOWSIGHT_DMG_HELPER" probe "$RUNNER_TEMP/flowsight-intel-filesystem-probe/FlowSight.Agent_${VERSION}_x64.app.tar.gz"
 
       - uses: pnpm/action-setup@v4
         with:
@@ -224,7 +297,7 @@ jobs:
               echo "ERROR: xcrun stapler staple failed for $target"
               return 1
             fi
-            if ! xcrun stapler validate "$target"; then
+            if ! bash "$FLOWSIGHT_DMG_HELPER" validate "$target"; then
               echo "ERROR: xcrun stapler validate failed for $target"
               return 1
             fi
@@ -436,33 +509,16 @@ jobs:
           MACOS_DIR="apps/agent/src-tauri/target/${RUST_TARGET}/release/bundle/macos"
           mkdir -p "$DMG_DIR"
           rm -f "$DMG_DIR"/*.dmg "$DMG_DIR"/*.sig 2>/dev/null || true
-          STAGE="$(mktemp -d)"
+          STAGE="$(mktemp -d "$RUNNER_TEMP/flowsight-dmg-stage.XXXXXX")"
           ditto "$APP" "$STAGE/FlowSight Agent.app"
           if [[ "$NOTARIZE" -eq 1 ]]; then
             # ditto must carry the notarization ticket into the DMG payload.
-            xcrun stapler validate "$STAGE/FlowSight Agent.app"
+            bash "$FLOWSIGHT_DMG_HELPER" validate "$STAGE/FlowSight Agent.app"
           fi
           ln -s /Applications "$STAGE/Applications"
           DMG_PATH="$DMG_DIR/FlowSight Agent_${VERSION}_${ARCH_TAG}.dmg"
-          # hdiutil occasionally fails with "Resource busy" on Actions runners.
-          DMG_OK=0
-          for attempt in 1 2 3 4 5; do
-            rm -f "$DMG_PATH"
-            # Detach any leftover images that can hold the create lock.
-            hdiutil info 2>/dev/null | awk '/\/dev\/disk[0-9]+/ {print $1}' | while read -r disk; do
-              hdiutil detach -force "$disk" 2>/dev/null || true
-            done
-            if hdiutil create -volname "FlowSight Agent" -srcfolder "$STAGE" -ov -format UDZO "$DMG_PATH"; then
-              DMG_OK=1
-              break
-            fi
-            echo "hdiutil create failed (attempt ${attempt}/5); retrying..."
-            sleep $((attempt * 4))
-          done
-          if [[ "$DMG_OK" -ne 1 ]]; then
-            echo "ERROR: hdiutil create failed after retries"
-            exit 1
-          fi
+          # Explicit HFS+, with a writable owned-volume fallback for srcfolder locks.
+          FLOWSIGHT_DMG_REQUIRE_NOTARY="$NOTARIZE" bash "$FLOWSIGHT_DMG_HELPER" create "$STAGE" "$DMG_PATH"
           rm -rf "$STAGE"
           hdiutil verify "$DMG_PATH"
 
@@ -522,9 +578,9 @@ jobs:
           echo "=== Release verification gates ==="
           gate "codesign --verify .app" codesign --verify --deep --strict --verbose=2 "$APP"
           if [[ "$NOTARIZE" -eq 1 ]]; then
-            gate "stapler validate .app" xcrun stapler validate "$APP"
+            gate "stapler validate .app" bash "$FLOWSIGHT_DMG_HELPER" validate "$APP"
             gate "spctl exec .app" spctl -a -vvv -t exec "$APP"
-            gate "stapler validate .dmg" xcrun stapler validate "$DMG_PATH"
+            gate "stapler validate .dmg" bash "$FLOWSIGHT_DMG_HELPER" validate "$DMG_PATH"
             gate "spctl open .dmg" spctl -a -vvv -t open --context context:primary-signature "$DMG_PATH"
           else
             echo "SKIP  notarization gates (unsigned or unnotarized build)"
@@ -614,7 +670,8 @@ jobs:
           if-no-files-found: error
 
   attach-to-release:
-    needs: [build-macos]
+    needs: [build-macos, reuse-intel]
+    if: ${{ always() && needs.build-macos.result == 'success' && (needs.reuse-intel.result == 'success' || needs.reuse-intel.result == 'skipped') }}
     runs-on: ubuntu-latest
     steps:
       - name: Download artifacts
