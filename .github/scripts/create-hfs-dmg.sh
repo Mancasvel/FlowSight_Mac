@@ -56,7 +56,14 @@ two_step_hfs() {
   kib="$(du -sk "$stage" | awk '{print $1}')"
   mib=$(((kib + 1023) / 1024 + 256))
   echo "DMG_METHOD=HFS_UDRW_ATTACH_DITTO_UDZO"
-  hdiutil create -size "${mib}m" -volname "FlowSight Agent" -fs HFS+ -format UDRW "$writable"
+  hdiutil create -size "${mib}m" -volname "FlowSight Agent" -fs HFS+ -type UDIF "$writable"
+  hdiutil imageinfo -plist "$writable" > "$WORK/writable-image.plist"
+  python3 - "$WORK/writable-image.plist" <<'PY'
+import plistlib, sys
+info = plistlib.load(open(sys.argv[1], 'rb'))
+assert info['Format'] == 'UDRW', info
+print('DMG_WRITABLE_FORMAT=' + info['Format'])
+PY
   hdiutil attach "$writable" -nobrowse -noautoopen -mountpoint "$MOUNT"
   MOUNT_ACTIVE=1
   assert_hfs
