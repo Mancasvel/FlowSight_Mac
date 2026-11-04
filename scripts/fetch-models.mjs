@@ -89,6 +89,7 @@ function humanSize(n) {
 }
 
 function assetUrl(repo, tag, name) {
+  if (repo === DEFAULT_REPO) return `https://app.flowsight.site/api/desktop-releases/models/${tag}/${name}`;
   return `https://github.com/${repo}/releases/download/${tag}/${name}`;
 }
 
@@ -138,7 +139,7 @@ async function download(url, dest, token, name) {
     Accept: "application/octet-stream",
     "User-Agent": "flowsight-fetch-models",
   };
-  if (token) headers.Authorization = `Bearer ${token}`;
+  if (token && new URL(url).hostname === "github.com") headers.Authorization = `Bearer ${token}`;
 
   try {
     const res = await fetch(url, {
@@ -228,7 +229,7 @@ async function main() {
     return 1;
   }
 
-  const token = resolveGithubToken();
+  const token = repo === DEFAULT_REPO ? null : resolveGithubToken();
   if (token) console.log("[fetch-models] using auth token from env/gh");
 
   for (const { name, dest } of missing) {

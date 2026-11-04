@@ -24,7 +24,7 @@ use tauri::{AppHandle, Emitter, Manager};
 use crate::vision_model::{VISION_GGUF_FILENAME, VISION_MMPROJ_FILENAME};
 
 const MODELS_SUBDIR: &str = "models";
-const DEFAULT_MODELS_REPO: &str = "Mancasvel/FlowSight.AI";
+const DEFAULT_MODELS_BASE: &str = "https://app.flowsight.site/api/desktop-releases/models";
 const DEFAULT_MODELS_TAG: &str = "models-v0.3.0";
 const DOWNLOAD_PROGRESS_EVENT: &str = "local-model-download";
 const CONNECT_TIMEOUT_SECS: u64 = 30;
@@ -113,11 +113,10 @@ fn asset_progress(
     }
 }
 
-fn models_repo() -> String {
+fn models_repo() -> Option<String> {
     std::env::var("FLOWSIGHT_MODELS_REPO")
         .ok()
         .filter(|v| !v.trim().is_empty())
-        .unwrap_or_else(|| DEFAULT_MODELS_REPO.to_string())
 }
 
 fn models_tag() -> String {
@@ -129,11 +128,14 @@ fn models_tag() -> String {
 
 /// Base de descarga del release de modelos, sin el nombre del asset.
 fn release_base_url() -> String {
-    format!(
-        "https://github.com/{}/releases/download/{}",
-        models_repo(),
-        models_tag()
-    )
+    match models_repo() {
+        Some(repo) => format!(
+            "https://github.com/{}/releases/download/{}",
+            repo,
+            models_tag()
+        ),
+        None => format!("{}/{}", DEFAULT_MODELS_BASE, models_tag()),
+    }
 }
 
 /// Directorio escribible donde viven los pesos descargados (creado si no existe).
