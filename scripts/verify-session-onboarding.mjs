@@ -418,7 +418,7 @@ try {
       window.__TAURI_INTERNALS__.invoke=async(command,args)=>{
         if(command==='propose_session_plan'){
           if(args.feedback) throw new Error('Local model unavailable');
-          const result=await window.testOriginalInvoke(command,args); return {...result,expiresInSeconds:.2};
+          const result=await window.testOriginalInvoke(command,args); return {...result,expiresInSeconds:5};
         }
         return window.testOriginalInvoke(command,args);
       };
@@ -426,6 +426,8 @@ try {
     await page.locator('#sessionGenerate').click();
     await page.locator('#sessionProposal').waitFor({state:'visible'});
     await page.locator('#sessionFeedback').fill('Change the order.');await page.locator('#sessionRevise').click();
+    await page.locator('#sessionPlanStatus').filter({hasText:'Local model unavailable'}).waitFor();
+    assert.equal(await page.locator('#sessionConfirm').isEnabled(),true,'A failed revision must retain the original draft before expiry.');
     await page.locator('#sessionPlanStatus').filter({hasText:'This draft expired'}).waitFor();
     assert.equal(await page.locator('#sessionConfirm').isDisabled(),true);
     const overflow=await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth);
